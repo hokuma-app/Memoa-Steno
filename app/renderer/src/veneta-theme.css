@@ -1,0 +1,183 @@
+/* Opt-in product skin. Import after globals.css; upstream stays unchanged. */
+@font-face {
+  font-family: 'Titillium Web';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/veneta/titillium-web-400.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Titillium Web';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./assets/veneta/titillium-web-600.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Titillium Web';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/veneta/titillium-web-700.ttf') format('truetype');
+}
+
+html[data-product='veneta-memoai'] {
+  --veneta-yellow: #FFD900;
+  --font-sans: 'Titillium Web', -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: var(--font-sans);
+  --page: #FAFAF7;
+  --surface: #FAFAF7;
+  --surface-raised: #FFFFFF;
+  --surface-sunken: #F4F4EE;
+  --surface-hover: #F2F2ED;
+  --surface-active: #E9E9E2;
+  --surface-translucent: rgba(250, 250, 247, 0.88);
+  --fg-1: #333333;
+  --fg-2: #686860;
+  --fg-muted: #72726A;
+  --fg-inverse: #FFFFFF;
+  --border-subtle: #E7E7E0;
+  --border-strong: #B1B1A7;
+  --primary-hover: #E6C300;
+  --primary-fg: #000000;
+  --focus-ring: #756300;
+  --danger: #B3382B;
+  --danger-bg: #FBECE9;
+  --success: #386745;
+  --success-bg: #EAF2E9;
+  --recording: #B3382B;
+  --shadow-sm: 0 1px 3px rgba(51, 51, 51, 0.06);
+  --shadow-md: 0 8px 24px -8px rgba(51, 51, 51, 0.16);
+  --shadow-lg: 0 24px 48px -16px rgba(51, 51, 51, 0.22);
+  --background: 60 23.08% 97.45%;
+  --foreground: 0 0% 20%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 20%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 20%;
+  --primary: 51.06 100% 50%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 60 21.43% 94.51%;
+  --secondary-foreground: 0 0% 20%;
+  --muted: 60 21.43% 94.51%;
+  --muted-foreground: 60 3.85% 39.22%;
+  --accent: 51.43 100% 94.51%;
+  --accent-foreground: 0 0% 20%;
+  --destructive: 5.74 61.26% 43.53%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 60 12.73% 89.22%;
+  --input: 60 6.02% 67.45%;
+  --ring: 50.77 100% 22.94%;
+  /* Light links stay charcoal: yellow text on white is not readable. */
+  --accent-primary: 0 0% 20%;
+}
+
+html[data-product='veneta-memoai'].dark,
+html[data-product='veneta-memoai'][data-theme='dark'] {
+  --page: #202020;
+  --surface: #202020;
+  --surface-raised: #333333;
+  --surface-sunken: #262626;
+  --surface-hover: #3D3D39;
+  --surface-active: #484842;
+  --surface-translucent: rgba(32, 32, 32, 0.88);
+  --fg-1: #FAFAF7;
+  --fg-2: #CECEC5;
+  --fg-muted: #B1B1A7;
+  --fg-inverse: #202020;
+  --border-subtle: #484842;
+  --border-strong: #85857B;
+  --primary-hover: #FFE447;
+  --primary-fg: #000000;
+  --focus-ring: #FFD900;
+  --danger: #FF9C8E;
+  --danger-bg: #492B28;
+  --success: #A5D5AD;
+  --success-bg: #283E2E;
+  --recording: #FF9C8E;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.32);
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.48);
+  --shadow-lg: 0 24px 48px -16px rgba(0, 0, 0, 0.6);
+  --background: 0 0% 12.55%;
+  --foreground: 60 23.08% 97.45%;
+  --card: 0 0% 20%;
+  --card-foreground: 60 23.08% 97.45%;
+  --popover: 0 0% 20%;
+  --popover-foreground: 60 23.08% 97.45%;
+  --primary: 51.06 100% 50%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 60 3.39% 23.14%;
+  --secondary-foreground: 60 23.08% 97.45%;
+  --muted: 60 3.39% 23.14%;
+  --muted-foreground: 60 8.41% 79.02%;
+  --accent: 60 4.35% 27.06%;
+  --accent-foreground: 60 23.08% 97.45%;
+  --destructive: 7.43 100% 77.84%;
+  --destructive-foreground: 0 0% 0%;
+  --border: 60 4.35% 27.06%;
+  --input: 60 3.91% 50.2%;
+  --ring: 51.06 100% 50%;
+  --accent-primary: 51.06 100% 50%;
+}
+
+html[data-product='veneta-memoai'] .sb-row.active {
+  background: var(--veneta-yellow);
+  color: #000000;
+  font-weight: 600;
+}
+/* Inline folder/count colors must not become pale on the yellow active row. */
+html[data-product='veneta-memoai'] .sb-row.active svg,
+html[data-product='veneta-memoai'] .sb-row.active [style] {
+  color: #000000 !important;
+}
+html[data-product='veneta-memoai'] :focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+html[data-product='veneta-memoai'] ::selection {
+  background: var(--veneta-yellow);
+  color: #000000;
+}
+html[data-product='veneta-memoai'] :is(h1, h2, .home-hello, .mv-title) {
+  font-weight: 700;
+}
+html[data-product='veneta-memoai'] .veneta-sidebar-brand {
+  gap: 10px;
+  padding: 14px 16px 18px;
+}
+html[data-product='veneta-memoai'] .veneta-sidebar-wordmark {
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--fg-1);
+}
+/* Keep the original token-based composer and links readable in both modes. */
+html[data-product='veneta-memoai'] .upcoming-card button[style*='--primary-fg'] {
+  background: var(--veneta-yellow) !important;
+  color: #000000 !important;
+}
+html[data-product='veneta-memoai'] .mv-chat-send.active {
+  background: var(--veneta-yellow);
+  color: #000000;
+}
+/* The dark recording token is pale pink; white inline button copy is unreadable. */
+html[data-product='veneta-memoai'].dark .veneta-recording-stop,
+html[data-product='veneta-memoai'][data-theme='dark'] .veneta-recording-stop {
+  color: var(--fg-inverse) !important;
+}
+html[data-product='veneta-memoai'] .stream-markdown a {
+  color: hsl(var(--accent-primary));
+}
+html[data-product='veneta-memoai'] .glass-input-wrapper:focus-within {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 1px var(--focus-ring);
+}
+html[data-product='veneta-memoai'] .glass-input-wrapper::before {
+  background: none;
+  animation: none;
+}
+html[data-product='veneta-memoai'] .mv-dock::before {
+  background: linear-gradient(to bottom, transparent, var(--surface-translucent) 45%, var(--page) 70%);
+}

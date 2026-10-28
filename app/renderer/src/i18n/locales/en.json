@@ -1,4 +1,7 @@
 {
+  "recording.notesHeading": "My notes",
+  "recording.notesPlaceholder": "Type anything you want to capture: decisions, questions, follow-ups. Steno handles the transcript.",
+  "recording.transcriptHeading": "Live transcript",
   "transcript.detectedLanguage": "Detected language",
   "transcript.reportedLanguage": "Reported language",
   "transcript.languageSetting": "Language setting",

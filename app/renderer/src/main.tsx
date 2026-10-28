@@ -2,10 +2,18 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import './globals.css';
+import './veneta-theme.css';
+import './veneta-layout.css';
 import { App } from './App';
 import { isMac } from './lib/utils';
 import { queryClient } from './lib/queryClient';
 import { TooltipProvider } from './components/ui/tooltip';
+import { APP_NAME, IS_VENETA_MEMOAI } from './lib/productBrand';
+
+if (IS_VENETA_MEMOAI) {
+  document.documentElement.dataset.product = 'veneta-memoai';
+  document.title = APP_NAME;
+}
 
 // Platform hook for CSS. macOS gets the 82px traffic-light inset on the sidebar
 // top band; Windows/Linux have no traffic lights, so they align to the edge.

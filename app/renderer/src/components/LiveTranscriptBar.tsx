@@ -1,3 +1,5 @@
+import { IS_VENETA_MEMOAI } from '@/lib/productBrand';
+import { t } from '@/i18n';
 import * as React from 'react';
 import { Check, ChevronDown, Copy, Languages, Play, Search as SearchIcon, Square } from 'lucide-react';
 import { AudioWave } from '@/components/AudioWave';
@@ -156,7 +158,9 @@ export function LiveTranscriptBar() {
             <span />
             <span />
           </span>
-          <span className="mv-transcript-label">Transcript</span>
+          {IS_VENETA_MEMOAI
+            ? <h2 className="mv-transcript-label">{t('recording.transcriptHeading')}</h2>
+            : <span className="mv-transcript-label">Transcript</span>}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -201,7 +205,7 @@ export function LiveTranscriptBar() {
             page without crowding the notes area above. */}
         <div
           ref={bodyRef}
-          className="scrollbar-clean overflow-auto px-3 pb-2"
+          className="veneta-live-transcript-body scrollbar-clean overflow-auto px-3 pb-2"
           style={{ height: 200 }}
         >
           <LiveTranscriptBodyState
@@ -247,7 +251,7 @@ export function LiveTranscriptBar() {
               onClick={onStop}
               aria-label="Stop recording"
               title="Stop recording"
-              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border-0 px-3 text-[13px] font-medium transition-opacity hover:opacity-90"
+              className="veneta-recording-stop inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border-0 px-3 text-[13px] font-medium transition-opacity hover:opacity-90"
               style={{ background: 'var(--recording)', color: '#FFFFFF' }}
             >
               <Square size={12} fill="currentColor" stroke="currentColor" />

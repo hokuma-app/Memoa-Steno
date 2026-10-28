@@ -47,6 +47,7 @@ export function BottomDockSlot({ children, bottomOffset = 0 }: BottomDockSlotPro
         <>
           <div
             aria-hidden
+            data-dock-fade
             className="absolute inset-x-0"
             style={{
               top: -80,
@@ -62,6 +63,7 @@ export function BottomDockSlot({ children, bottomOffset = 0 }: BottomDockSlotPro
           />
           <div
             aria-hidden
+            data-dock-fade
             className="absolute inset-x-0 bottom-0"
             style={{
               top: 0,

@@ -1,0 +1,73 @@
+/* Presentation only. The portalled panel keeps the existing live hook and controls. */
+/* A hidden floating dock must not paint its backdrop over the portalled controls. */
+html[data-product='veneta-memoai']:has(#veneta-live-transcript-slot:not(:empty)) [data-dock-fade] {
+  display: none;
+}
+
+html[data-product='veneta-memoai'] .veneta-recording-layout {
+  min-width: 0;
+}
+
+html[data-product='veneta-memoai'] #veneta-live-transcript-slot:empty {
+  display: none;
+}
+
+/* Compact windows use an in-flow bottom sheet, never an overlay over the notes. */
+html[data-product='veneta-memoai'] #veneta-live-transcript-slot:not(:empty) {
+  display: flex;
+  flex: 0 0 40vh;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+}
+
+html[data-product='veneta-memoai'] #veneta-live-transcript-slot [data-testid='live-transcript-panel'] {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+html[data-product='veneta-memoai'] #veneta-live-transcript-slot .mv-transcript {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+  background: var(--surface-raised);
+}
+
+html[data-product='veneta-memoai'] #veneta-live-transcript-slot .veneta-live-transcript-body {
+  flex: 1;
+  height: auto !important;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+html[data-product='veneta-memoai'] #veneta-live-transcript-slot .mv-transcript > :not(.veneta-live-transcript-body) {
+  flex-shrink: 0;
+}
+
+@media (min-width: 1100px) {
+  html[data-product='veneta-memoai'] .veneta-recording-layout:has(#veneta-live-transcript-slot:not(:empty)) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(340px, 32vw, 520px);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  html[data-product='veneta-memoai'] #veneta-live-transcript-slot:not(:empty) {
+    border-top: 0;
+    border-left: 1px solid var(--border-subtle);
+  }
+
+  html[data-product='veneta-memoai'] .veneta-recording-layout .veneta-recording-notes > div {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}

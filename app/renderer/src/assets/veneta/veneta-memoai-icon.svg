@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+<title id="title">Veneta MemoAi: geel appicoon met de zwarte Veneta-V</title>
+<defs><symbol id="veneta-v" viewBox="47.01 102.59 110.84 115.03"><polygon points="47.01 102.59 90.2 217.62 114.7 217.62 71.5 102.59 47.01 102.59" fill="#000000"/><polygon points="157.85 102.59 114.64 217.62 90.16 217.62 133.36 102.59 157.85 102.59" fill="#000000"/></symbol></defs>
+<rect x="24" y="24" width="464" height="464" rx="108" fill="#FFD900"/>
+<use href="#veneta-v" x="136" y="130" width="240" height="250"/>
+</svg>

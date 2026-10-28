@@ -1,3 +1,5 @@
+import { IS_VENETA_MEMOAI } from '@/lib/productBrand';
+
 import { t } from '@/i18n';
 import * as React from 'react';
 import {
@@ -77,10 +79,10 @@ export function Recording() {
     <MeetingsShell activeSummaryFile={null} hideToolbar>
       <div
         data-testid="recording-page"
-        className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+        className={`flex h-full min-h-0 flex-1 flex-col overflow-hidden${IS_VENETA_MEMOAI ? ' veneta-recording-layout' : ''}`}
         style={{ background: 'var(--page)' }}
       >
-        <div className="scrollbar-clean min-h-0 flex-1 overflow-y-auto">
+        <div className="veneta-recording-notes scrollbar-clean min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[760px] px-12 pb-40 pt-8">
             <header className="mb-8">
               <button
@@ -121,17 +123,22 @@ export function Recording() {
             <CaptureCheckPanel />
 
             <section>
-              <div
+              {IS_VENETA_MEMOAI ? (
+                <h2 id="veneta-notes-heading" className="mb-3 flex items-center gap-2 text-[18px] font-semibold">
+                  <PencilLine size={16} aria-hidden="true" />{t('recording.notesHeading')}
+                </h2>
+              ) : <div
                 className="mb-2 inline-flex items-center gap-1.5 text-[13px]"
                 style={{ color: 'var(--fg-2)' }}
               >
                 <PencilLine size={13} />
                 My notes
-              </div>
+              </div>}
               <textarea
+                aria-labelledby={IS_VENETA_MEMOAI ? 'veneta-notes-heading' : undefined}
                 value={live.notes}
                 onChange={(e) => live.setNotes(e.target.value)}
-                placeholder="Type anything you want to capture — decisions, questions, follow-ups. Steno handles the transcript."
+                placeholder={t('recording.notesPlaceholder')}
                 spellCheck
                 className="block w-full resize-none border-0 bg-transparent text-[15px] outline-none"
                 style={{
@@ -144,6 +151,7 @@ export function Recording() {
             </section>
           </div>
         </div>
+        {IS_VENETA_MEMOAI && <aside id="veneta-live-transcript-slot" aria-label={t('recording.transcriptHeading')} />}
       </div>
     </MeetingsShell>
   );

@@ -1,4 +1,6 @@
 import { cn } from '@/lib/utils';
+import { APP_NAME, IS_VENETA_MEMOAI } from '@/lib/productBrand';
+import venetaIcon from '@/assets/veneta/veneta-memoai-icon.svg';
 
 interface AppIconProps {
   size?: number;
@@ -10,6 +12,17 @@ interface AppIconProps {
 }
 
 export function AppIcon({ size = 80, className, color = 'var(--fg-1)' }: AppIconProps) {
+  if (IS_VENETA_MEMOAI) {
+    return (
+      <img
+        src={venetaIcon}
+        alt={APP_NAME}
+        width={size}
+        height={size}
+        className={cn('shrink-0', className)}
+      />
+    );
+  }
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

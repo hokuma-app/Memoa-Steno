@@ -1,10 +1,33 @@
+import * as React from 'react';
+import { createPortal } from 'react-dom';
+import { IS_VENETA_MEMOAI } from '@/lib/productBrand';
+import { useRoute } from '@/lib/router';
 import { cn } from '@/lib/utils';
 import { AskBar, TranscriptToggle } from '@/components/AskBar';
 import { LiveDock } from '@/components/LiveDock';
 import { LiveTranscriptBar } from '@/components/LiveTranscriptBar';
 import { useLiveTranscriptOpen } from '@/hooks/liveTranscriptOpenStore';
 import { useRecording } from '@/hooks/useRecording';
-import { useLiveTranscriptAvailable } from '@/hooks/useModels';
+import { useLiveTranscriptAvailable, useTranscriptionEngine } from '@/hooks/useModels';
+
+/** Per-session presentation default. Wait for the actual engine, not the live-toggle hydration fallback. */
+export function useSessionTranscriptDefault(recording: { sessionName: string | null | undefined; status: string }) {
+  const engine = useTranscriptionEngine();
+  const setOpen = useLiveTranscriptOpen((s) => s.setOpen);
+  const lastSession = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const session = recording.sessionName ?? null;
+    if (session === lastSession.current) return;
+    if (IS_VENETA_MEMOAI && session && (engine.data === undefined ||
+      (recording.status !== 'recording' && recording.status !== 'paused'))) {
+      setOpen(false);
+      return;
+    }
+    lastSession.current = session;
+    setOpen(IS_VENETA_MEMOAI && !!session && engine.data === 'parakeet' &&
+      (recording.status === 'recording' || recording.status === 'paused'));
+  }, [recording.sessionName, recording.status, engine.data, setOpen]);
+}
 
 /** Recording controls and chat share the dock without sharing a lifetime. */
 export function PrimaryDock({ showAskBar }: { showAskBar: boolean }) {
@@ -23,10 +46,28 @@ export function PrimaryDock({ showAskBar }: { showAskBar: boolean }) {
   // recording into it. No standalone dock control here.
 
   const transcriptExpanded = recordingActive && open && liveAvailable;
+  const route = useRoute();
+  const inRecordingLayout = IS_VENETA_MEMOAI && route === '/recording';
+  const [column, setColumn] = React.useState<HTMLElement | null>(null);
+  React.useLayoutEffect(() => {
+    if (!inRecordingLayout || !transcriptExpanded) return;
+    // Route subscribers can commit before Recording mounts its slot. Observe
+    // its lifetime as well as its arrival, without polling or a second panel.
+    const syncColumn = () => {
+      const slot = document.getElementById('veneta-live-transcript-slot');
+      setColumn((current) => current === slot ? current : slot);
+    };
+    const observer = new MutationObserver(syncColumn);
+    observer.observe(document.body, { childList: true, subtree: true });
+    syncColumn();
+    return () => observer.disconnect();
+  }, [inRecordingLayout, transcriptExpanded]);
 
   return (
     <>
-    {transcriptExpanded && <LiveTranscriptBar />}
+    {transcriptExpanded && (inRecordingLayout
+      ? column && createPortal(<LiveTranscriptBar />, column)
+      : <LiveTranscriptBar />)}
     <div
       data-testid="primary-dock-row"
       style={{ display: transcriptExpanded || (!recordingActive && !showAskBar) ? 'none' : undefined }}
@@ -41,7 +82,7 @@ export function PrimaryDock({ showAskBar }: { showAskBar: boolean }) {
         // mb-1 only beside the composer - standalone (justify-center) the
         // pill has nothing to align with.
         <div className={cn('shrink-0', showAskBar && 'mb-1')}>
-          <LiveDock />
+          {!(IS_VENETA_MEMOAI && transcriptExpanded) && <LiveDock />}
         </div>
       ) : (
         // Idle: the standalone transcript toggle sits left of the Ask bar

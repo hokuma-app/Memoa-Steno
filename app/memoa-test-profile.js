@@ -9,6 +9,8 @@ const fs = require('node:fs');
 function initializeMemoaTestProfile({ app, metadata, env = process.env, mkdir = fs.mkdirSync }) {
   if (metadata.memoaTest !== true) return false;
 
+  // Keep Electron's internal name stable: macOS safeStorage derives its
+  // Keychain service/account from it. Veneta is presentation metadata only.
   app.setName('Memoa Test');
   env.STENOAI_USER_DATA_DIR = env.STENOAI_USER_DATA_DIR
     || path.join(app.getPath('appData'), 'Memoa Test');

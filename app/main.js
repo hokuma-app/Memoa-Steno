@@ -2207,7 +2207,7 @@ if (!gotSingleInstanceLock) {
             {
               // Custom appMenu to add Settings… with the conventional ⌘,
               // shortcut (the default `{ role: 'appMenu' }` omits Settings).
-              label: app.name,
+              label: require('./package.json').venetaMemoAi === true ? 'Veneta MemoAi' : app.name,
               submenu: [
                 { role: 'about' },
                 { type: 'separator' },

@@ -26,6 +26,8 @@ import { useOrgLogout, useOrgSession, useSharedNotesGate } from '@/hooks/useOrg'
 import { useCommandPalette } from '@/components/CommandPalette';
 import { AGENTS_COPY } from '@/lib/agentSkills';
 import { useWatchedFolders } from '@/hooks/useWatchedFolders';
+import { APP_NAME, IS_VENETA_MEMOAI } from '@/lib/productBrand';
+import { AppIcon } from '@/components/ui/app-icon';
 
 export interface SidebarMeeting {
   summaryFile: string;
@@ -295,6 +297,16 @@ export function Sidebar({
         }}
       >
         {/* Brand */}
+        {IS_VENETA_MEMOAI ? (
+          <div className="veneta-sidebar-brand flex items-center">
+            <span aria-hidden="true"><AppIcon size={46} /></span>
+            <span className="veneta-sidebar-wordmark">
+              <span className="block text-[16px] font-semibold">{APP_NAME.split(' ')[0]}</span>
+              {' '}
+              <span className="block">{APP_NAME.split(' ').slice(1).join(' ')}</span>
+            </span>
+          </div>
+        ) : (
         <div className="flex items-center gap-[9px] px-4 pb-2.5 pt-3.5">
           <span
             aria-hidden="true"
@@ -318,6 +330,7 @@ export function Sidebar({
             Steno
           </span>
         </div>
+        )}
 
         {/* Search */}
         <div className="px-3 pb-2.5">

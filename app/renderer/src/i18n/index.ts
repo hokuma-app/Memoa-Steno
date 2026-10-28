@@ -1,4 +1,6 @@
 import en from './locales/en.json';
+import { IS_VENETA_MEMOAI } from '@/lib/productBrand';
+import { venetaCopy } from './veneta';
 
 export type TranslationKey = keyof typeof en;
 export type TranslationParams = Readonly<Record<string, string | number>>;
@@ -21,9 +23,8 @@ export function createTranslator<const Catalogue extends Record<string, string>>
 /**
  * Resolve renderer copy from the canonical English catalogue.
  *
- * The app remains English-only until locale selection lands. Keeping new copy
- * behind this typed boundary makes later locale additions a catalogue change
- * instead of another component migration.
+ * English remains the default. The explicitly selected Veneta build overrides
+ * only its product-owned copy; existing copy keeps its English fallback.
  */
 export const t: (key: TranslationKey, params?: TranslationParams) => string =
-  createTranslator(en);
+  createTranslator(IS_VENETA_MEMOAI ? { ...en, ...venetaCopy } : en);

@@ -1,0 +1,36 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { useLiveTranscriptOpen } from '@/hooks/liveTranscriptOpenStore';
+const h = vi.hoisted(() => ({ stop: vi.fn(), resume: vi.fn(), veneta: true }));
+vi.mock('@/lib/productBrand', () => ({ get IS_VENETA_MEMOAI() { return h.veneta; } }));
+vi.mock('@/hooks/useRecording', () => ({ useRecording: () => ({ status: 'paused', sessionName: 'session', elapsed: 10, stopRecording: h.stop, resumeRecording: h.resume }) }));
+vi.mock('@/components/AudioWave', () => ({ AudioWave: () => null }));
+vi.mock('@/hooks/useSettings', () => ({ useLanguageSetting: () => ({ data: 'auto' }), useSetLanguage: () => ({ mutate: vi.fn() }) }));
+vi.mock('@/hooks/useLiveTranscript', () => ({ useLiveTranscript: () => {
+  const finals = [{ text: 'Final decision', start: 0, end: 2, isFinal: true, speaker: 'You' }];
+  const partials = [{ text: 'Still speaking', start: 3, end: 4, isFinal: false, speaker: 'Others' }];
+  return { status: 'streaming', segments: [...finals, ...partials], finals, partials, priorSegments: [], error: null, slow: false };
+} }));
+import { LiveTranscriptBar } from './LiveTranscriptBar';
+afterEach(cleanup);
+it('adds the live section heading while preserving actual segment rows, filter, copy and single control handlers', async () => {
+  vi.stubGlobal('requestAnimationFrame', () => 1); vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  const copy = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copy } });
+  useLiveTranscriptOpen.setState({ open: true });
+  render(<TooltipProvider><LiveTranscriptBar /></TooltipProvider>);
+  expect(screen.getByRole('heading', { name: 'Live transcriptie' })).toBeTruthy();
+  expect(screen.getByText('Final decision')).toBeTruthy();
+  expect(screen.getByText('Still speaking')).toBeTruthy();
+  fireEvent.change(screen.getByPlaceholderText('Search transcript'), { target: { value: 'decision' } });
+  expect(screen.queryByText('Still speaking')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Copy transcript' }));
+  expect(copy).toHaveBeenCalledWith('Final decision');
+  fireEvent.click(screen.getByRole('button', { name: 'Resume recording' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }));
+  expect(h.resume).toHaveBeenCalledTimes(1); expect(h.stop).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Minimize transcript' }));
+  expect(useLiveTranscriptOpen.getState().open).toBe(false);
+  vi.unstubAllGlobals();
+});
