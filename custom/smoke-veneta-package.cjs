@@ -49,11 +49,25 @@ const { _electron } = require('../app/node_modules/playwright');
     assert.match(renderer.font, /Titillium Web/);
     assert.equal(renderer.yellow.toUpperCase(), '#FFD900');
     assert.equal(renderer.bridge, true);
+    const trayIcons = await electron.evaluate(({ nativeImage }) => {
+      return ['trayIconVeneta.png', 'trayIconVenetaRecording.png'].map((file) => {
+        const image = nativeImage.createFromPath(`${process.resourcesPath}/assets/${file}`);
+        image.setTemplateImage(false);
+        return { file, empty: image.isEmpty(), size: image.getSize(),
+          scales: image.getScaleFactors(), template: image.isTemplateImage() };
+      });
+    });
+    for (const icon of trayIcons) {
+      assert.equal(icon.empty, false, `Missing native tray asset: ${icon.file}`);
+      assert.deepEqual(icon.size, { width: 18, height: 18 });
+      assert.deepEqual(icon.scales, [1, 2]);
+      assert.equal(icon.template, false);
+    }
     await page.screenshot({ path: path.join(output, 'packaged-light.png') });
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
     await page.screenshot({ path: path.join(output, 'packaged-dark.png') });
-    const result = { ...state, renderer, mode: 'Signed packaged UI, isolated mock IPC; no recording or models' };
+    const result = { ...state, renderer, trayIcons, mode: 'Signed packaged UI, isolated mock IPC; no recording or models' };
     fs.writeFileSync(path.join(output, 'package-smoke.json'), JSON.stringify(result, null, 2) + '\n');
     console.log(JSON.stringify(result, null, 2));
   } finally {

@@ -1855,7 +1855,10 @@ function createWindow(options = {}) {
 }
 
 function getTrayIconPath(recording) {
-  const iconName = recording ? 'trayIconRecordingTemplate' : 'trayIconTemplate';
+  const veneta = require('./package.json').venetaMemoAi === true;
+  const iconName = veneta
+    ? (recording ? 'trayIconVenetaRecording' : 'trayIconVeneta')
+    : (recording ? 'trayIconRecordingTemplate' : 'trayIconTemplate');
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'assets', `${iconName}.png`);
   }
@@ -1864,7 +1867,7 @@ function getTrayIconPath(recording) {
 
 function createTray() {
   const icon = nativeImage.createFromPath(getTrayIconPath(false));
-  icon.setTemplateImage(true);
+  icon.setTemplateImage(require('./package.json').venetaMemoAi !== true);
   tray = new Tray(icon);
   tray.setToolTip('StenoAI');
 
@@ -1874,7 +1877,7 @@ function createTray() {
 function updateTrayIcon(recording) {
   if (!tray) return;
   const icon = nativeImage.createFromPath(getTrayIconPath(recording));
-  icon.setTemplateImage(true);
+  icon.setTemplateImage(require('./package.json').venetaMemoAi !== true);
   tray.setImage(icon);
   tray.setToolTip(recording ? 'StenoAI - Recording' : 'StenoAI');
   updateTrayMenu();
