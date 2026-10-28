@@ -142,7 +142,7 @@ def _load_model(model_id: str):
         # is imported transitively by parakeet-mlx — huggingface_hub reads
         # HF_HUB_OFFLINE at import time. Gated on is_installed inside, so a
         # fresh download is left online.
-        from src.parakeet_models import disable_implicit_hf_token, maybe_enable_offline
+        from src.parakeet_models import disable_implicit_hf_token, get_cached_snapshot, maybe_enable_offline
         maybe_enable_offline(model_id)
         # Public model — never send an inherited HF token, which would 401 the
         # anonymous fetch. Must precede the parakeet-mlx import (hub reads the
@@ -166,7 +166,8 @@ def _load_model(model_id: str):
                 "names mlx or its metallib, the bundled mlx build is at fault."
             ) from e
         logger.info("Loading Parakeet model: %s", model_id)
-        model = from_pretrained(model_id)
+        snapshot = get_cached_snapshot(model_id)
+        model = from_pretrained(str(snapshot) if snapshot is not None else model_id)
         # After the load, not before. The limit governs only retained-free
         # buffers, so it could not constrain the load either way; putting it
         # here just keeps from_pretrained's one-off transients out of the

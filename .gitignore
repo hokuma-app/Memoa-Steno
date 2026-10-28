@@ -212,6 +212,9 @@ config.json.lock
 
 # Local-only build inputs: the official app (helpers) and the previous install (rollback)
 .local/
+/app/dist-memoa/
+/app/dist-memoa-final/
+/app/dist-memoa-r2/
 bin-custom/
 custom/HANDOVER.md
 app/build-info.json

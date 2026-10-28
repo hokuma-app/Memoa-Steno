@@ -37,6 +37,9 @@ SUPPORTED_WHISPER_MODELS: dict[str, dict] = {
 
 def get_models_dir() -> Path:
     """Return the directory pywhispercpp uses for ggml weights."""
+    override = os.environ.get("MEMOA_WHISPER_MODELS_DIR")
+    if override:
+        return Path(override)
     try:
         from pywhispercpp.constants import MODELS_DIR
         return Path(MODELS_DIR)

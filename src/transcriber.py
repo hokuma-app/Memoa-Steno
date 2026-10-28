@@ -2628,7 +2628,11 @@ class WhisperTranscriber:
         import multiprocessing
         n_threads = max(1, multiprocessing.cpu_count() - 2)
         logger.info("Loading whisper.cpp model: %s", self.model_size)
-        self.model = WhisperCppModel(self.model_size, n_threads=n_threads)
+        self.model = WhisperCppModel(
+            self.model_size, n_threads=n_threads,
+            **({"models_dir": os.environ["MEMOA_WHISPER_MODELS_DIR"]}
+               if os.environ.get("MEMOA_WHISPER_MODELS_DIR") else {}),
+        )
         logger.info("whisper.cpp model loaded (threads=%d)", n_threads)
 
     def _build_whisper_fallback(self) -> bool:

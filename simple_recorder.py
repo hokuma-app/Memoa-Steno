@@ -9822,7 +9822,11 @@ def download_whisper_model():
         print("Initializing Whisper model (will download if needed)...")
         from src.config import get_config
         model_size = get_config().get_whisper_model()
-        model = WhisperCppModel(model_size)
+        model = WhisperCppModel(
+            model_size,
+            **({"models_dir": os.environ["MEMOA_WHISPER_MODELS_DIR"]}
+               if os.environ.get("MEMOA_WHISPER_MODELS_DIR") else {}),
+        )
         print("SUCCESS: Whisper model ready")
 
     except Exception as e:

@@ -1,4 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, systemPreferences, globalShortcut, Tray, Menu, nativeImage, powerMonitor, net, session } = require('electron');
+const IS_MEMOA_TEST = require('./memoa-test-profile').initializeMemoaTestProfile({
+  app, metadata: require('./package.json'),
+});
 
 // safeStorage is accessed lazily via getSafeStorage(), NOT destructured from the
 // require above. On macOS, merely retrieving the safeStorage binding at load
@@ -266,7 +269,7 @@ if (IS_E2E_MOCK_IPC) {
 }
 
 // Give development runs a distinct dock, About menu, and Cmd+Tab name.
-if (!app.isPackaged) {
+if (!app.isPackaged && !IS_MEMOA_TEST) {
   app.setName('Steno Dev');
 }
 
@@ -617,6 +620,8 @@ const teardown = createTeardownRegistry();
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
 function registerShortcutProtocolClient() {
+  // Test packaging must not take over the installed Steno app's URL scheme.
+  if (IS_MEMOA_TEST) return false;
   if (process.platform !== 'darwin') {
     return false;
   }
@@ -2507,10 +2512,11 @@ if (!gotSingleInstanceLock) {
       tray = null;
     }
     // Kill Ollama on quit. The process may have been started by Electron or
-    // the Python backend — both write the PID to ollama.pid in _internal/.
+    // the Python backend. Both use ollama.pid in the app user-data root,
+    // never inside the signed application bundle.
     // killProcessTree tears down ollama's child runner subprocesses too, so
     // they don't orphan on Windows.
-    const pidFile = path.join(getBackendCwd(), '_internal', 'ollama.pid');
+    const pidFile = path.join(getUserDataDir(), 'ollama.pid');
     try {
       const pid = parseInt(require('fs').readFileSync(pidFile, 'utf8').trim(), 10);
       if (pid) killProcessTree(pid);
@@ -7076,6 +7082,7 @@ function gatherIdleInstallState() {
 // window aborts the install (and re-arms the checker) instead of being killed.
 // No-op under E2E (never scheduled) and before an update is staged.
 async function maybeAutoInstallWhenIdle() {
+  if (IS_MEMOA_TEST) return;
   if (autoInstallFired) return;
   if (!isSafeToAutoInstall(gatherIdleInstallState())) return;
 
@@ -7127,6 +7134,7 @@ async function maybeAutoInstallWhenIdle() {
 // inert under E2E (mirrors setupAutoUpdater's e2e no-op) so the suite never
 // schedules a timer or risks a quitAndInstall.
 function startIdleAutoInstallChecker() {
+  if (IS_MEMOA_TEST) return;
   if (IS_E2E) return;
   if (idleAutoInstallInterval || autoInstallFired) return;
   idleAutoInstallInterval = setInterval(() => {
@@ -7147,6 +7155,7 @@ function currentSystemVersionSafe() {
 // unparseable versions are eligible, with the manifest `minimumSystemVersion`
 // in latest-mac.yml as the authoritative backstop.
 function autoUpdateOSEligible() {
+  if (IS_MEMOA_TEST) return false;
   return isOSUpdateEligible({
     platform: process.platform,
     osVersion: currentSystemVersionSafe(),
@@ -7179,6 +7188,10 @@ ipcMain.handle('cancel-processing', async (_event, summaryFile) => {
 const IS_CUSTOM_BUILD = true;
 
 function setupAutoUpdater() {
+  if (IS_MEMOA_TEST) {
+    sendDebugLog('Auto-updater: skipped (isolated Memoa Test build)');
+    return;
+  }
   if (IS_E2E) {
     sendDebugLog('Auto-updater: skipped (E2E mode)');
     return;
@@ -7384,7 +7397,7 @@ ipcMain.on('install-update', () => {
 // The actual recording start is delegated back to the renderer's existing
 // startRecording flow via the auto-record-requested event, so we don't have
 // to duplicate any of the recording lifecycle code.
-const STENO_BUNDLE_ID = 'com.stenoai.recorder';
+const STENO_BUNDLE_ID = IS_MEMOA_TEST ? 'local.memoa.test' : 'com.stenoai.recorder';
 const AUTO_DETECT_ENV = 'STENOAI_AUTO_DETECT';
 const MIC_NOTIFICATION_DEBOUNCE_MS = 60_000;
 const MIC_MONITOR_BACKOFF_BASE_MS = 1000;
@@ -7995,7 +8008,11 @@ ipcMain.handle('setup-ollama-and-model', async () => {
       ollamaProcess = spawn(finalOllamaPath, ['serve'], { detached: true, stdio: ['ignore', 'ignore', 'pipe'], env: getOllamaEnv() });
       ollamaPid = ollamaProcess.pid;
       // Write PID file so quit handler can find the process
-      try { require('fs').writeFileSync(path.join(getBackendCwd(), '_internal', 'ollama.pid'), String(ollamaPid)); } catch (_) {}
+      try {
+        const pidFile = path.join(getUserDataDir(), 'ollama.pid');
+        require('fs').mkdirSync(path.dirname(pidFile), { recursive: true });
+        require('fs').writeFileSync(pidFile, String(ollamaPid));
+      } catch (_) {}
       ollamaProcess.stderr.on('data', (data) => {
         const msg = data.toString().trim();
         if (msg) sendDebugLog(`Ollama: ${msg}`);
@@ -11013,7 +11030,7 @@ ipcMain.handle('check-for-updates', async () => {
   // tag and waiting for the next scheduled interval. Same guards as
   // setupAutoUpdater(): no-op (and network-free) in e2e/dev, and never on a
   // Mac below the launch floor, which must not download a build it can't run (#432).
-  if (!IS_E2E && !IS_CUSTOM_BUILD && app.isPackaged && osEligible) {
+  if (!IS_MEMOA_TEST && !IS_E2E && !IS_CUSTOM_BUILD && app.isPackaged && osEligible) {
     autoUpdater.checkForUpdates().catch(() => {});
   }
   // A check that just succeeded and found nothing settles an earlier FAILED

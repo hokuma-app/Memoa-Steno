@@ -83,6 +83,45 @@ def _hf_cache_dir_for(model_id: str) -> Path:
     return Path(hub_cache) / folder_name
 
 
+def get_cached_snapshot(model_id: str = DEFAULT_MODEL_ID) -> Optional[Path]:
+    """Resolve the same complete local snapshot used by status and inference.
+
+    Downloads pinned to a commit need not create refs/main. Prefer that ref
+    when present, otherwise use a deterministic complete cached revision.
+    This reads the cache only; it never creates or repairs HuggingFace refs.
+    """
+    required_files = _REQUIRED_SNAPSHOT_FILES.get(model_id)
+    if required_files is None:
+        return None
+    cache = _hf_cache_dir_for(model_id)
+    snapshots = cache / 'snapshots'
+
+    def complete(snapshot):
+        try:
+            return snapshot.is_dir() and all(
+                (snapshot / name).is_file() and (snapshot / name).stat().st_size > 0
+                for name in required_files
+            )
+        except OSError:
+            return False
+
+    try:
+        reference = (cache / 'refs/main').read_text(encoding='utf-8').strip()
+        if reference not in ('', '.', '..') and Path(reference).name == reference:
+            preferred = snapshots / reference
+            if complete(preferred):
+                return preferred
+    except (OSError, UnicodeError):
+        pass
+    try:
+        for snapshot in sorted(snapshots.iterdir(), key=lambda p: p.name):
+            if complete(snapshot):
+                return snapshot
+    except OSError:
+        pass
+    return None
+
+
 def is_installed(model_id: str = DEFAULT_MODEL_ID) -> bool:
     """Return True iff a complete runtime snapshot is present on disk.
 
@@ -96,29 +135,7 @@ def is_installed(model_id: str = DEFAULT_MODEL_ID) -> bool:
     ``maybe_enable_offline`` must set its environment before the hub is first
     imported.
     """
-    required_files = _REQUIRED_SNAPSHOT_FILES.get(model_id)
-    if required_files is None:
-        return False
-
-    snapshots = _hf_cache_dir_for(model_id) / "snapshots"
-    if not snapshots.is_dir():
-        return False
-    try:
-        for snapshot in snapshots.iterdir():
-            if not snapshot.is_dir():
-                continue
-            try:
-                if all(
-                    (snapshot / name).is_file()
-                    and (snapshot / name).stat().st_size > 0
-                    for name in required_files
-                ):
-                    return True
-            except OSError:
-                continue
-    except OSError:
-        return False
-    return False
+    return get_cached_snapshot(model_id) is not None
 
 
 def maybe_enable_offline(model_id: str = DEFAULT_MODEL_ID) -> bool:

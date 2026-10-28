@@ -179,16 +179,20 @@ def is_ollama_running() -> bool:
 
 
 def _get_pid_file() -> Path:
-    """Get the path to the Ollama PID file."""
-    if getattr(sys, 'frozen', False):
-        return Path(sys._MEIPASS) / 'ollama.pid'
-    return Path(__file__).parent.parent / 'ollama.pid'
+    """Use the app data root shared with Electron, never the signed bundle."""
+    from .config import get_user_data_dir
+
+    # PID state belongs to the app, not the configurable media storage root.
+    # Use the same location in source mode so Electron can find backend PIDs.
+    return get_user_data_dir() / 'ollama.pid'
 
 
 def _write_pid(pid: int) -> None:
     """Write Ollama's PID to a file so Electron can kill it on quit."""
     try:
-        _get_pid_file().write_text(str(pid))
+        pid_file = _get_pid_file()
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
+        pid_file.write_text(str(pid))
     except Exception as e:
         logger.debug(f"Could not write Ollama PID file: {e}")
 
