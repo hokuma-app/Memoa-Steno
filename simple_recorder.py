@@ -546,6 +546,7 @@ class MeetingPipeline:
         configured_language: str,
         detected_language: Optional[str] = None,
         output_language: Optional[str] = None,
+        *, atomic: bool = False,
     ) -> Path:
         """Format + write the transcript .txt with the standard header.
 
@@ -575,8 +576,11 @@ Summary output language: {config.get_language_name(output_language)}
 
 {transcript_body}
 """
-        with open(transcript_path, 'w', encoding='utf-8') as f:
-            f.write(transcript_content)
+        if atomic:
+            _atomic_write_text(transcript_path, transcript_content)
+        else:
+            with open(transcript_path, 'w', encoding='utf-8') as f:
+                f.write(transcript_content)
         return transcript_path
 
     @staticmethod
@@ -651,7 +655,7 @@ Summary output language: {config.get_language_name(output_language)}
             "action_items": action_items,
         }
 
-    async def transcribe_audio(self, audio_file: str, session_name: str = "Recording") -> dict:
+    async def transcribe_audio(self, audio_file: str, session_name: str = "Recording", *, persist_transcript: bool = True) -> dict:
         """Transcribe audio file."""
         audio_path = Path(audio_file)
 
@@ -725,20 +729,21 @@ Summary output language: {config.get_language_name(output_language)}
 
         # Save transcript (use diarised text if available for the saved file)
         saved_transcript = diarised_text if diarised_text else transcript_text
-        transcript_path = self._write_transcript_file(
-            audio_path,
-            saved_transcript,
-            session_name,
-            configured_language,
-            detected_language=detected_language,
-            output_language=output_language,
-        )
-
-        print(f"📄 Transcript saved: {transcript_path}")
+        transcript_path = None
+        if persist_transcript:
+            transcript_path = self._write_transcript_file(
+                audio_path,
+                saved_transcript or "",
+                session_name,
+                configured_language,
+                detected_language=detected_language,
+                output_language=output_language,
+            )
+            print(f"📄 Transcript saved: {transcript_path}")
 
         return {
             "audio_file": str(audio_path),
-            "transcript_file": str(transcript_path),
+            "transcript_file": str(transcript_path) if transcript_path is not None else None,
             "transcript_text": transcript_text,
             "session_name": session_name,
             "duration_seconds": duration_seconds,
@@ -1152,7 +1157,57 @@ def _unusable_batch_reason(
     return None
 
 
-def _append_segment_to_note(target: Path, new_text: str, duration_seconds):
+_RESUMED_SEPARATOR_RE = re.compile(r'^--- Resumed\b.*---$', re.MULTILINE)
+
+
+def _parse_continued_recordings(frontmatter: str):
+    """Read recording identities, preserving invalid metadata for validation."""
+    for line in frontmatter.split('\n'):
+        if line.startswith('continued_recordings:'):
+            try:
+                value = json.loads(line.partition(':')[2].strip())
+            except ValueError:
+                return line.partition(':')[2].strip()
+            return value
+    return []
+
+
+def _read_canonical_transcript(target: Path):
+    """Preflight an existing canonical TXT before changing its note or sidecars."""
+    from src.config import get_data_dirs
+    stem = target.stem.removesuffix('_summary')
+    canonical = get_data_dirs()['transcripts'] / f'{stem}_transcript.txt'
+    if not canonical.exists():
+        return
+    content = canonical.read_text(encoding='utf-8')
+    header, delimiter, body = content.partition('\n' + '=' * 60 + '\n')
+    if not delimiter:
+        raise ValueError('canonical transcript has no standard body delimiter')
+    return canonical, header, delimiter, body
+
+
+def _refresh_canonical_transcript(target: Path, *, transcript=None, segment=None):
+    """Refresh TXT after the note. Each write is atomic, not a multi-file transaction.
+
+    The caller preflights readability and format before any note mutation.
+    Concurrent changes or a later write failure can still interrupt the pair.
+    Appending preserves speaker edits; re-transcribing replaces the body.
+    """
+    existing = _read_canonical_transcript(target)
+    if existing is None:
+        return
+    canonical, header, delimiter, body = existing
+    if segment is not None:
+        updated = body.rstrip('\n') + segment + '\n'
+    else:
+        if transcript is None:
+            raise ValueError('canonical transcript refresh requires text')
+        updated = '\n' + transcript.rstrip('\n') + '\n'
+    _atomic_write_text(canonical, header + delimiter + updated)
+
+
+def _append_segment_to_note(target: Path, new_text: str, duration_seconds,
+                            recording_stem: Optional[str] = None):
     """Fold a continue-recording segment into an existing note.
 
     Appends `new_text` (with a resumed-at separator) to the note's Transcript
@@ -1165,6 +1220,8 @@ def _append_segment_to_note(target: Path, new_text: str, duration_seconds):
         raise FileNotFoundError(f"append target not found: {target}")
     if not new_text or not new_text.strip():
         raise ValueError("continuation produced no transcript text")
+
+    _read_canonical_transcript(target)
 
     separator = f"--- Resumed {datetime.now().strftime('%H:%M')} ---"
     segment = f"\n\n{separator}\n\n{new_text.strip()}"
@@ -1181,7 +1238,11 @@ def _append_segment_to_note(target: Path, new_text: str, duration_seconds):
             fm_lines = [
                 ln for ln in mid.strip().split('\n')
                 if not ln.startswith('notes_stale:')
+                and not ln.startswith('continued_recordings:')
             ]
+            continued = _parse_continued_recordings(mid)
+            if not isinstance(continued, list):
+                raise ValueError('invalid continued_recordings metadata')
             for i, ln in enumerate(fm_lines):
                 if ln.startswith('duration_seconds:'):
                     try:
@@ -1191,6 +1252,10 @@ def _append_segment_to_note(target: Path, new_text: str, duration_seconds):
                         pass
                     break
             fm_lines.append('notes_stale: true')
+            if continued or recording_stem:
+                fm_lines.append(
+                    f'continued_recordings: {json.dumps(continued + ([recording_stem] if recording_stem else []))}'
+                )
             content = f"---\n{chr(10).join(fm_lines)}\n---{rest}"
         # (A .md note without frontmatter shouldn't exist; append-only below.)
 
@@ -1210,10 +1275,15 @@ def _append_segment_to_note(target: Path, new_text: str, duration_seconds):
         data['transcript'] = (data.get('transcript') or '').rstrip('\n') + segment
         si = data.setdefault('session_info', {})
         si['notes_stale'] = True
+        if recording_stem:
+            data['continued_recordings'] = (
+                list(data.get('continued_recordings') or []) + [recording_stem]
+            )
         if added_seconds and isinstance(si.get('duration_seconds'), int):
             si['duration_seconds'] += added_seconds
         _atomic_write_json(target, data)
 
+    _refresh_canonical_transcript(target, segment=segment)
     logger.info(
         "Appended %d chars (+%ds) to %s and marked notes_stale",
         len(new_text), added_seconds, target,
@@ -1496,6 +1566,7 @@ def process_streaming(audio_file, name, notes, live_transcript, append_to):
                 Path(append_to),
                 segment_text,
                 duration_seconds,
+                recording_stem=Path(audio_file).stem,
             )
             audio_path = Path(audio_file)
             if not is_live_transcript and not _get_config().get_keep_recordings():
@@ -3141,7 +3212,8 @@ def _parse_meeting_markdown(md_path):
                         try:
                             value = json.loads(value)
                         except (ValueError, TypeError):
-                            value = []
+                            if key.strip() != 'continued_recordings':
+                                value = []
                     elif value == 'null':
                         value = None
                     elif value == 'true':
@@ -3273,6 +3345,7 @@ def _parse_meeting_markdown(md_path):
         'diarised_text': sections.get('transcript', '') if meta.get('is_diarised') else None,
         'user_notes': sections.get('user notes'),
         'folders': meta.get('folders', []),
+        'continued_recordings': meta.get('continued_recordings', []),
     }
 
 
@@ -3457,6 +3530,7 @@ def reprocess(summary_file, regenerate_title, retranscribe):
     recorder = MeetingPipeline()
     summary_path = Path(summary_file)
     retranscribed_sidecar = None
+    retranscribed_transcript = None
 
     if not summary_path.exists():
         print(f"ERROR: Summary file not found: {summary_file}")
@@ -3469,6 +3543,9 @@ def reprocess(summary_file, regenerate_title, retranscribe):
         else:
             with open(summary_path, 'r') as f:
                 existing_data = json.load(f)
+
+        if retranscribe:
+            _read_canonical_transcript(summary_path)
 
         # Re-transcribe (#266): re-run ASR on the ORIGINAL recording with the
         # CURRENT global engine/model/language settings, then fall through into
@@ -3484,13 +3561,30 @@ def reprocess(summary_file, regenerate_title, retranscribe):
             if stem.endswith('_summary'):
                 stem = stem[:-len('_summary')]
             recording = _find_recording_for_stem(recorder.recordings_dir, stem)
-            if recording is None:
+            continued_stems = existing_data.get('continued_recordings', [])
+            # Refuse malformed or duplicate identities rather than read an
+            # arbitrary path or silently replace an unknown part of a meeting.
+            if not isinstance(continued_stems, list) or any(
+                not isinstance(s, str) or not s or s in ('.', '..')
+                or '/' in s or '\\' in s or s == stem
+                for s in continued_stems
+            ) or len(continued_stems) != len(set(continued_stems)):
+                print("STREAM_ERROR:RETRANSCRIBE_UNLINKED_SEGMENTS", flush=True)
+                sys.exit(1)
+            old_separators = _RESUMED_SEPARATOR_RE.findall(existing_data.get('transcript') or '')
+            if len(old_separators) != len(continued_stems):
+                print("STREAM_ERROR:RETRANSCRIBE_UNLINKED_SEGMENTS", flush=True)
+                sys.exit(1)
+            continued = [
+                _find_recording_for_stem(recorder.recordings_dir, s)
+                for s in continued_stems
+            ]
+            if recording is None or None in continued:
                 # Distinct marker so the renderer surfaces "recording no longer
                 # available" rather than a generic failure — nothing is written.
                 print("STREAM_ERROR:RETRANSCRIBE_NO_AUDIO", flush=True)
                 sys.exit(1)
 
-            print(f"Re-transcribing recording: {recording.name}", flush=True)
             # Keep the Electron inactivity watchdog alive across ASR using the
             # backend's REAL per-chunk progress signal — the same mechanism
             # process-streaming uses (not the capped summary heartbeat, which
@@ -3508,21 +3602,26 @@ def reprocess(summary_file, regenerate_title, retranscribe):
                 sys.stdout.write(f"HEARTBEAT:transcribe:{done}/{total}\n")
                 sys.stdout.flush()
 
-            print("HEARTBEAT:transcribe:start", flush=True)
-            set_chunk_heartbeat(_transcribe_heartbeat)
-            try:
-                transcribe_result = asyncio.run(
-                    recorder.transcribe_audio(str(recording), session_name)
-                )
-            finally:
-                set_chunk_heartbeat(None)
-
-            if transcribe_result.get("transcription_failed"):
-                err_msg = str(
-                    transcribe_result.get("error") or "transcription failed"
-                ).replace('\n', ' ').replace('\r', ' ')
-                print(f"STREAM_ERROR:{err_msg}", flush=True)
-                sys.exit(1)
+            results = []
+            for segment_recording in [recording] + continued:
+                print(f"Re-transcribing recording: {segment_recording.name}", flush=True)
+                print("HEARTBEAT:transcribe:start", flush=True)
+                set_chunk_heartbeat(_transcribe_heartbeat)
+                try:
+                    segment_result = asyncio.run(
+                        recorder.transcribe_audio(str(segment_recording), session_name, persist_transcript=False)
+                    )
+                finally:
+                    set_chunk_heartbeat(None)
+                if segment_result.get("transcription_failed"):
+                    err_msg = str(
+                        segment_result.get("error") or "transcription failed"
+                    ).replace('\n', ' ').replace('\r', ' ')
+                    print(f"STREAM_ERROR:{err_msg}", flush=True)
+                    sys.exit(1)
+                results.append(segment_result)
+            transcribe_result = results[0]
+            retranscribed_transcript = (recording, transcribe_result)
 
             # Mirror process_streaming's `## Transcript` content exactly:
             # diarised text when diarisation ran, else the flat transcript.
@@ -3531,9 +3630,12 @@ def reprocess(summary_file, regenerate_title, retranscribe):
                 or transcribe_result.get("transcript_text")
                 or ""
             )
+            for separator, result in zip(old_separators, results[1:]):
+                text = (result.get('diarised_text') or result.get('transcript_text') or '').strip()
+                fresh_transcript = f"{fresh_transcript.rstrip()}\n\n{separator}\n\n{text or _SILENCE_SENTINEL}"
             existing_data['transcript'] = fresh_transcript
             existing_data['is_diarised'] = transcribe_result.get("is_diarised", False)
-            existing_data['diarised_text'] = transcribe_result.get("diarised_text")
+            existing_data['diarised_text'] = fresh_transcript if existing_data['is_diarised'] else None
             # Refresh language provenance from the NEW transcribe result — the
             # transcript changed, so the persisted configured/detected/output
             # values no longer describe it. resolve_persisted_output_language
@@ -3722,6 +3824,8 @@ def reprocess(summary_file, regenerate_title, retranscribe):
             # "only set when true, never explicit false" pattern used elsewhere.
             if existing_data.get('session_info', {}).get('is_live_transcript'):
                 md_meta['is_live_transcript'] = True
+            if existing_data.get('continued_recordings'):
+                md_meta['continued_recordings'] = existing_data['continued_recordings']
             for k, v in md_meta.items():
                 if v is None:
                     md_lines.append(f'{k}: null')
@@ -3766,6 +3870,17 @@ def reprocess(summary_file, regenerate_title, retranscribe):
             session_info.pop("notes_stale", None)
             _atomic_write_text(summary_path, json.dumps(existing_data, indent=2))
 
+        if retranscribed_transcript is not None:
+            recording, transcribe_result = retranscribed_transcript
+            if recorder._transcript_file_path(recording).exists():
+                _refresh_canonical_transcript(summary_path, transcript=transcript)
+            else:
+                recorder._write_transcript_file(
+                    recording, transcript, session_name,
+                    transcribe_result.get('configured_language'),
+                    detected_language=transcribe_result.get('detected_language'),
+                    output_language=output_language, atomic=True,
+                )
         if retranscribed_sidecar is not None:
             _persist_speaker_sidecar(*retranscribed_sidecar)
         if retranscribe:

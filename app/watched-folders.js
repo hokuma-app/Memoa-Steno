@@ -71,6 +71,9 @@ function createWatchedFolders({
   // (filePath, { title, recordedAt, previousAudioFile }) → { audioFile, summaryFile }
   enqueue,
   noteExists,
+  // Optional richer reader; retain noteExists for existing callers. Only a
+  // completed note is success once the queue no longer owns the job.
+  noteOutcome,
   isJobPending,
   isRecording,
   // (absPath) → Buffer of a short WAV for the inbox's play button.
@@ -97,6 +100,14 @@ function createWatchedFolders({
   let debounceTimer = null;
   let scanning = null;
   let started = false;
+  // Scans also write state and may enqueue automatically. Keep every state
+  // transaction on the same lane, including across asynchronous copies.
+  let mutations = Promise.resolve();
+  function serialize(operation) {
+    const result = mutations.then(operation);
+    mutations = result.catch(() => {});
+    return result;
+  }
 
   function read() {
     try {
@@ -139,6 +150,7 @@ function createWatchedFolders({
   function statusFor(record, stable) {
     if (record?.status === 'queued') {
       if (isJobPending(record.audioFile)) return 'processing';
+      if (noteOutcome) return noteOutcome(record.summaryFile) === 'done' ? 'done' : 'failed';
       return noteExists(record.summaryFile) ? 'done' : 'failed';
     }
     if (record?.status === 'dismissed') return 'dismissed';
@@ -162,6 +174,8 @@ function createWatchedFolders({
     state.files[entry.path] = {
       ...previous, status: 'queued', audioFile, summaryFile, queuedAt: now(),
     };
+    // A later failure in this batch must not lose already accepted jobs.
+    write(state);
   }
 
   async function scanOnce() {
@@ -258,7 +272,7 @@ function createWatchedFolders({
   // One scan at a time; a request during a scan reuses it.
   function scan() {
     if (!scanning) {
-      scanning = scanOnce().finally(() => { scanning = null; });
+      scanning = serialize(scanOnce).finally(() => { scanning = null; });
     }
     return scanning;
   }
@@ -288,7 +302,7 @@ function createWatchedFolders({
   }
 
   async function list() {
-    const state = await scan();
+    const state = await scanOnce();
     return {
       folders: state.folders.map((f) => ({
         id: f.id, path: f.path, name: path.basename(f.path), autoTranscribe: Boolean(f.auto), available: f.available !== false,
@@ -332,7 +346,7 @@ function createWatchedFolders({
   async function setAutoTranscribe(id, enabled) {
     // Look first so every file already there counts as seen before the switch:
     // turning auto on must not transcribe a folder's backlog.
-    if (enabled) await scan();
+    if (enabled) await scanOnce();
     const state = read();
     const folder = state.folders.find((f) => f.id === id);
     if (!folder) throw new Error('Unknown folder');
@@ -344,7 +358,7 @@ function createWatchedFolders({
 
   function resolve(ids) {
     if (!Array.isArray(ids)) throw new Error('Invalid selection');
-    return ids.map((id) => {
+    return [...new Set(ids)].map((id) => {
       const entry = entries.find((e) => e.id === id);
       if (!entry) throw new Error('Recording not found');
       return entry;
@@ -352,12 +366,12 @@ function createWatchedFolders({
   }
 
   async function transcribe(ids) {
-    await scan();
+    await scanOnce();
     if (isRecording()) throw new Error('Stop the recording first');
     const picked = resolve(ids);
     const state = read();
     for (const entry of picked) {
-      if (!['new', 'dismissed', 'failed'].includes(entry.status)) continue;
+      if (!['new', 'dismissed', 'failed'].includes(statusFor(state.files[entry.path], entry.stable))) continue;
       await queue(state, entry);
     }
     write(state);
@@ -365,7 +379,7 @@ function createWatchedFolders({
   }
 
   async function setDismissed(ids, dismissed) {
-    await scan();
+    await scanOnce();
     const picked = resolve(ids);
     const state = read();
     for (const entry of picked) {
@@ -382,7 +396,7 @@ function createWatchedFolders({
 
   // The first minutes as WAV, so a phone .m4a plays without a codec in the renderer.
   async function preview(id) {
-    if (!entries.length) await scan();
+    if (!entries.length) await scanOnce();
     const [entry] = resolve([id]);
     return { audioBase64: (await previewAudio(entry.path)).toString('base64') };
   }
@@ -405,15 +419,15 @@ function createWatchedFolders({
   }
 
   return {
-    list,
+    list: () => serialize(list),
     scan,
-    addFolder,
-    removeFolder,
-    setAutoTranscribe,
-    transcribe,
-    dismiss: (ids) => setDismissed(ids, true),
-    restore: (ids) => setDismissed(ids, false),
-    preview,
+    addFolder: (dir) => serialize(() => addFolder(dir)),
+    removeFolder: (id) => serialize(() => removeFolder(id)),
+    setAutoTranscribe: (id, enabled) => serialize(() => setAutoTranscribe(id, enabled)),
+    transcribe: (ids) => serialize(() => transcribe(ids)),
+    dismiss: (ids) => serialize(() => setDismissed(ids, true)),
+    restore: (ids) => serialize(() => setDismissed(ids, false)),
+    preview: (id) => serialize(() => preview(id)),
     start,
     stop,
   };

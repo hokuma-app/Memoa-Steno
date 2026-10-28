@@ -4,6 +4,8 @@ The local sync exports a linked meeting-note/transcript pair. It reads the full
 canonical `<stem>_transcript.txt`, with the embedded Markdown transcript as a
 legacy fallback. It never exports recordings, voice embeddings or credentials.
 
+For continued meetings, a legacy embedded transcript that exactly extends TXT at a `--- Resumed HH:MM ---` boundary is exported in full (the older `--- Continued recording ... ---` form is also recognized). Complete, coherent TXT speaker edits remain authoritative. If the sources disagree on speech or a stale TXT prefix contains different speaker edits, export is held for source repair before either vault file changes. File modification times alone do not prove completeness. Upgrading the exporter revisits previously tracked sources to repair old truncated exports.
+
 A completed batch transcript is exported even when summary generation is off or
 fails. The meeting note includes the available AI summary and My notes; My notes
 never appear in the transcript file. Processing placeholders, failed
@@ -46,7 +48,7 @@ is `schema_version: 1` and includes:
   transcript's line count and timestamps (`turn_mapping: exact`). Legacy,
   reanalysed, or continued transcripts whose provenance no longer fits have
   `turn_mapping: unavailable` and empty associations; proximity is never guessed.
-  `transcript_sha256` hashes the canonical transcript body before this context is
+  `transcript_sha256` hashes the selected complete transcript body before this context is
   appended. A `You` label can be a microphone default, not verified identity.
 
 Frontmatter offers simple Obsidian properties: `confirmed_speakers`,
@@ -71,6 +73,10 @@ Exports use `steno_id` to follow files into configured archive folders, even
 when filenames change. Subsequent title changes update metadata while filenames
 stay stable, protecting existing links. Removed files are not recreated unless
 `--force` is explicitly requested.
+
+Both destination names are checked together for collisions. An existing target is adopted only when its frontmatter identity and document kind match the meeting, including recognized native Steno notes. Identity is checked again for the entire pair before writing, including forced recreation and cached or state-derived paths; a mismatch holds the export instead of relabeling another meeting's content.
+
+State-derived counterpart links are validated even when a deleted export is not being recreated. A foreign replacement holds both writes and leaves the successful-sync state unchanged; a genuinely missing file stays missing without `--force`. When the same-identity export is found at a new location, its obsolete filename does not block the update. Native legacy notes may omit `type`, but an explicit type must be `note`; generated `steno_id` documents always require the matching type.
 
 Generated content is between `stenoai:generated` Markdown comments. Vault-only
 notes outside that section remain untouched. Edits inside the section are merged

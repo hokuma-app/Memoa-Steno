@@ -7,8 +7,8 @@ const os = require('os');
 const path = require('path');
 const { createWatchedFolders, recordedAtFor, isTempName } = require('./watched-folders');
 
-function harness({ recording = false } = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'watched-'));
+function harness({ recording = false, enqueueHook } = {}) {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'watched-')));
   const userData = path.join(root, 'userdata');
   const phone = path.join(root, 'phone');
   fs.mkdirSync(userData);
@@ -22,6 +22,7 @@ function harness({ recording = false } = {}) {
     getUserDataDir: () => userData,
     audioExtensions: ['m4a', 'wav'],
     enqueue: async (filePath, opts) => {
+      if (enqueueHook) await enqueueHook(filePath, opts);
       const audioFile = path.join(userData, `copy-${queued.length}.m4a`);
       queued.push({ filePath, ...opts, audioFile });
       pending.add(audioFile);
@@ -189,6 +190,123 @@ test('preview returns the transcoded audio for a listed file only', async () => 
   const { audioBase64 } = await h.wf.preview(file.id);
   assert.strictEqual(Buffer.from(audioBase64, 'base64').toString(), 'wav:a.m4a');
   await assert.rejects(() => h.wf.preview('../../etc/passwd'), /not found/);
+});
+
+async function ready(h, names = ['a.m4a']) {
+  await h.wf.addFolder(h.phone);
+  for (const name of names) h.write(name);
+  await h.wf.list();
+  h.tick(10_000);
+  return (await h.wf.list()).files;
+}
+
+test('concurrent manual requests reserve a file once', async () => {
+  let entered;
+  const started = new Promise((resolve) => { entered = resolve; });
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const h = harness({ enqueueHook: async () => { entered(); await gate; } });
+  const [file] = await ready(h);
+  const first = h.wf.transcribe([file.id]);
+  await started;
+  const second = h.wf.transcribe([file.id]);
+  await new Promise(setImmediate);
+  release();
+  await Promise.all([first, second]);
+  assert.strictEqual(h.queued.length, 1);
+});
+
+test('automatic and manual requests share reservations without losing folder changes', async () => {
+  let entered;
+  const started = new Promise((resolve) => { entered = resolve; });
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const h = harness({ enqueueHook: async () => { entered(); await gate; } });
+  const { folders } = await h.wf.addFolder(h.phone);
+  await h.wf.setAutoTranscribe(folders[0].id, true);
+  h.tick(1);
+  h.write('a.m4a');
+  const [file] = (await h.wf.list()).files;
+  h.tick(10_000);
+  const automatic = h.wf.scan();
+  await started;
+  const manual = h.wf.transcribe([file.id]);
+  const disable = h.wf.setAutoTranscribe(folders[0].id, false);
+  release();
+  await Promise.all([automatic, manual, disable]);
+  assert.strictEqual(h.queued.length, 1);
+  const persisted = JSON.parse(fs.readFileSync(path.join(h.userData, 'watched-folders.json'), 'utf8'));
+  assert.strictEqual(persisted.folders[0].auto, false);
+  assert.strictEqual(persisted.files[path.join(h.phone, 'a.m4a')].status, 'queued');
+});
+
+test('duplicate ids in one selection enqueue once', async () => {
+  const h = harness();
+  const [file] = await ready(h);
+  await h.wf.transcribe([file.id, file.id]);
+  assert.strictEqual(h.queued.length, 1);
+});
+
+test('partial batch failure persists successful reservations and releases the failed one', async () => {
+  let fail = true;
+  const h = harness({ enqueueHook: async (p) => {
+    if (fail && path.basename(p) === 'b.m4a') throw new Error('copy failed');
+  } });
+  const files = await ready(h, ['a.m4a', 'b.m4a']);
+  await assert.rejects(h.wf.transcribe(files.map((f) => f.id)), /copy failed/);
+  assert.deepStrictEqual((await h.wf.list()).files.map((f) => f.status), ['processing', 'new']);
+  fail = false;
+  await h.wf.transcribe(files.map((f) => f.id));
+  assert.deepStrictEqual(h.queued.map((q) => path.basename(q.filePath)), ['a.m4a', 'b.m4a']);
+});
+
+// Execute the actual main-process watcher registration without launching Electron.
+// Real files and the real watcher prove the outcome callback is wired, not just mocked.
+function mainBoundary() {
+  const h = harness();
+  const recordings = path.join(h.userData, 'recordings');
+  fs.mkdirSync(recordings);
+  const source = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
+  const start = source.indexOf('const watchedFolders = require(');
+  const end = source.indexOf("require('./watched-folders-ipc')", start);
+  const context = {
+    require, fs, path, getUserDataDir: () => h.userData,
+    IMPORT_AUDIO_EXTENSIONS: ['m4a', 'wav'],
+    resolveRecordingsDir: () => recordings, getOutputDir: () => h.userData,
+    summaryFileForAudio: (audio) => path.join(h.userData, `${path.basename(audio)}_summary.md`),
+    copyImportIntoRecordings: async () => { throw new Error('Retry must reuse audio'); },
+    addToProcessingQueue: (audio) => {
+      h.queued.push(audio);
+      context.processingQueue.push({ audioFile: audio });
+    },
+    currentProcessingJob: null, processingQueue: [], currentRecordingProcess: null,
+    systemAudioRecordingActive: false, mainWindow: null, sendDebugLog: () => {},
+  };
+  const wf = require('vm').runInNewContext(`${source.slice(start, end)}; watchedFolders`, context);
+  return { ...h, wf, context, recordings };
+}
+
+test('main boundary rejects an error summary and retries the existing audio', async () => {
+  const h = mainBoundary();
+  await h.wf.addFolder(h.phone);
+  h.write('a.m4a');
+  const audio = path.join(h.recordings, 'copy.m4a');
+  fs.writeFileSync(audio, 'preserved audio');
+  const summary = h.context.summaryFileForAudio(audio);
+  fs.writeFileSync(summary, '---\ntranscription_failed: true\nreprocessable: true\n---\n## Summary\nFailed');
+  const statePath = path.join(h.userData, 'watched-folders.json');
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  state.files[path.join(h.phone, 'a.m4a')] = { status: 'queued', audioFile: audio, summaryFile: summary };
+  fs.writeFileSync(statePath, JSON.stringify(state));
+  h.context.currentProcessingJob = { audioFile: audio };
+  assert.strictEqual((await h.wf.list()).files[0].status, 'processing', 'active job wins over stale error artifact');
+  h.context.currentProcessingJob = null;
+  const [file] = (await h.wf.list()).files;
+  assert.strictEqual(file.status, 'failed');
+  assert.ok(!file.summaryFile, 'failure is not exposed as a completed note');
+  await h.wf.transcribe([file.id]);
+  assert.deepStrictEqual(h.queued, [audio]);
+  assert.strictEqual(fs.readFileSync(audio, 'utf8'), 'preserved audio');
 });
 
 test('unknown ids are rejected', async () => {

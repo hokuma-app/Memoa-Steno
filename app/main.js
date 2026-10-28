@@ -2909,7 +2909,7 @@ function parseMeetingMarkdown(content, mdPath) {
           try {
             value = JSON.parse(value);
           } catch (_) {
-            value = [];
+            if (key !== 'continued_recordings') value = [];
           }
         } else if (value === 'null') {
           value = null;
@@ -3028,6 +3028,7 @@ function parseMeetingMarkdown(content, mdPath) {
     diarised_text: meta.is_diarised ? sections.transcript || '' : null,
     user_notes: sections['user notes'] ?? null,
     folders: meta.folders || [],
+    continued_recordings: Object.prototype.hasOwnProperty.call(meta, 'continued_recordings') ? meta.continued_recordings : [],
   };
 }
 
@@ -8434,8 +8435,7 @@ const watchedFolders = require('./watched-folders').createWatchedFolders({
     addToProcessingQueue(audioFile, title, null, undefined, undefined, undefined, { recordedAt, external: true });
     return { audioFile, summaryFile: summaryFileForAudio(audioFile) };
   },
-  noteExists: (summaryFile) => Boolean(summaryFile)
-    && [summaryFile, summaryFile.replace(/\.md$/, '.json')].some((f) => fs.existsSync(f)),
+  noteOutcome: require('./watched-note-outcome').readWatchedNoteOutcome,
   isJobPending: (audioFile) => Boolean(audioFile)
     && (currentProcessingJob?.audioFile === audioFile || processingQueue.some((job) => job.audioFile === audioFile)),
   isRecording: () => currentRecordingProcess !== null || systemAudioRecordingActive,

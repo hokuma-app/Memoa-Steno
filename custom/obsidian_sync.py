@@ -691,6 +691,50 @@ def canonical_transcript(cfg, stem):
     return content.strip()
 
 
+CONTINUATION = re.compile(r"^--- (?:Resumed|Continued recording)\b[^\n]*---[ \t]*$", re.M)
+
+
+def select_transcript(canonical, embedded):
+    """Keep TXT speaker edits, but never drop an embedded continuation.
+
+    Old append writers only updated the note. An exact prefix ending at a
+    continuation boundary proves the embedded source extends that TXT. Other
+    disagreements on continued meetings need repair, not a guessed merge.
+    """
+    if not canonical or not embedded:
+        return canonical or embedded
+    if not (CONTINUATION.search(embedded) or CONTINUATION.search(canonical)):
+        return canonical
+    if any(canonical == embedded[:m.start()].strip() for m in CONTINUATION.finditer(embedded)):
+        return embedded
+    # Speaker labels may legitimately change only in TXT. Compare speech and
+    # continuation boundaries without those labels; never normalize speech away.
+    def speech(text):
+        return re.sub(r"^(\[\d{1,3}:\d{2}(?::\d{2})?\])\s*\[[^\]\n]+\]", r"\1", text, flags=re.M)
+    canonical_speech, embedded_speech = speech(canonical), speech(embedded)
+    if canonical_speech == embedded_speech or any(
+            embedded_speech == canonical_speech[:m.start()].strip()
+            for m in CONTINUATION.finditer(canonical_speech)):
+        return canonical
+    raise RuntimeError("Continued transcript sources disagree; export will retry after source repair")
+
+
+def document_identity_matches(current, stem, kind):
+    """Adopt a file only on frontmatter identity, never body text or a filename."""
+    header, _ = split_document(current)
+    blocks = frontmatter_blocks(header)
+    fields = {key: parse_frontmatter_value(value.split(":", 1)[1].strip())
+              for key, value in blocks.items()}
+    for key in ('steno_id', 'type', 'source', 'steno_stem'):
+        if len(re.findall(r'^' + key + r':', header, re.M)) > 1:
+            return False
+    if 'steno_id' in fields:
+        return fields['steno_id'] == stem and fields.get('type') == kind
+    return (kind == 'note' and fields.get('source') == 'Steno'
+            and fields.get('steno_stem') == stem
+            and ('type' not in fields or fields['type'] == kind))
+
+
 def unique_names(cfg, dt, title, stem):
     """Two meetings on one day can get the same AI title; never overwrite the other."""
     base = safe_filename(title)
@@ -698,8 +742,15 @@ def unique_names(cfg, dt, title, stem):
         candidate = base if n == 1 else "%s (%d)" % (base, n)
         note = filename_for(cfg["note_filename_pattern"], dt, candidate)
         tr = filename_for(cfg["transcript_filename_pattern"], dt, candidate)
-        existing = read_text(os.path.join(cfg["vault"], cfg["notes_folder"], note))
-        if existing is None or "steno_id: %s\n" % stem in existing:
+        destinations = ((cfg['notes_folder'], note, 'note'),
+                        (cfg['transcripts_folder'], tr, 'transcript'))
+        paths = [os.path.join(cfg['vault'], folder, name) for folder, name, _ in destinations]
+        if os.path.normcase(os.path.abspath(paths[0])) == os.path.normcase(os.path.abspath(paths[1])):
+            raise RuntimeError("Note and transcript destinations must be distinct")
+        if all(not os.path.lexists(path) or (
+                os.path.isfile(path) and not os.path.islink(path)
+                and document_identity_matches(read_text(path), stem, kind))
+               for path, (_, _, kind) in zip(paths, destinations)):
             return note, tr
     raise RuntimeError("no free filename for %r" % title)
 
@@ -803,12 +854,12 @@ def sync_one(cfg, synced, path, dry_run, force):
     speakers_path = path[:-len("_summary.md")] + "_speakers.json"
     sidecar_raw = speaker_source(speakers_path)
     profile_revision = speaker_revision()
-    source_hash = sha(json.dumps(["managed-v3-speakers", raw, calendar_raw, canonical, sidecar_raw, profile_revision]))
+    source_hash = sha(json.dumps(["managed-v4-coherent-transcripts", raw, calendar_raw, canonical, sidecar_raw, profile_revision]))
     entry = synced.get(stem) or {}
     if entry.get("source_hash") == source_hash and not force:
         return False
     meta, body, embedded = parse_steno_note(raw)
-    transcript = canonical or embedded
+    transcript = select_transcript(canonical, embedded)
     unfinished = incomplete_reason(meta, raw, transcript)
     if unfinished:
         if entry.get("waiting_hash") != source_hash:
@@ -863,6 +914,24 @@ def sync_one(cfg, synced, path, dry_run, force):
         tr_paths = [default_tr]
     primary_note = note_paths[0] if note_paths else entry.get("note_rel", default_note)
     primary_tr = tr_paths[0] if tr_paths else entry.get("transcript_rel", default_tr)
+    # Check writes AND link-only counterparts before either write. A removed
+    # export stays removed, but a foreign replacement must not become a link.
+    # When an export moved, only its discovered paths matter, not obsolete names.
+    targets = set()
+    for kind, paths in (("note", note_paths or [primary_note]),
+                        ("transcript", tr_paths or [primary_tr])):
+        for rel in paths:
+            dest = os.path.join(cfg["vault"], rel)
+            vault = os.path.realpath(cfg["vault"])
+            target = os.path.normcase(os.path.realpath(dest))
+            if os.path.commonpath([vault, os.path.realpath(dest)]) != vault:
+                raise RuntimeError("Export target escapes the vault")
+            if target in targets:
+                raise RuntimeError("Note and transcript destinations must be distinct")
+            targets.add(target)
+            if os.path.lexists(dest) and (os.path.islink(dest) or not os.path.isfile(dest)
+                    or not document_identity_matches(read_text(dest), stem, kind)):
+                raise RuntimeError("Export target identity does not match; preserved existing files")
     generated = {"note": render_note(stem, meta, body, primary_tr, dt),
                  "transcript": render_transcript(stem, meta, transcript, primary_note, dt)}
     new_entry = dict(entry)
