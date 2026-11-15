@@ -3,6 +3,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '../fixtures/electron';
 import { emitBufferedLiveSegments as emitLiveSegments } from '../fixtures/buffered-live-transcript';
+import { ui } from '../fixtures/ui-copy';
 
 // Agenda en voorzitter, stand 1 (Stille voorzitter): Home > agenda inladen, opname met de stille voorzitter, notulen in
 // de notitie. Mock-IPC with the real host channels, planner, guards and files. MODELGRENS: only the model boundary is
@@ -36,6 +37,8 @@ test('before, during and after: agenda in, silent chair with a confirmed suggest
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.locator('[data-app-ready]')).toBeVisible();
   await page.evaluate(() => { window.location.hash = '#/settings?tab=product'; });
+  // Product and modules lists both modules side by side.
+  await expect(page.getByRole('switch', { name: 'Gesprekschecklist', exact: true })).toBeVisible();
   await agendaSwitch(page).click();
   await expect(agendaSwitch(page)).toBeChecked();
   await page.evaluate(() => { window.location.hash = '#/'; });
@@ -52,7 +55,7 @@ test('before, during and after: agenda in, silent chair with a confirmed suggest
   await expect(card.getByText('Staat klaar · 3 punten · AI volgt stil mee', { exact: true })).toBeVisible();
   expect(await modelCalls(app)).toBe(0);
   // ---- DURING ----
-  await page.getByRole('button', { name: 'New note', exact: true }).last().click();
+  await page.getByRole('button', { name: ui('mainToolbar.newNote'), exact: true }).last().click();
   const sidebar = page.locator('[data-agenda-runtime]');
   await expect(sidebar.getByRole('heading', { name: 'Werkoverleg Kastanje', exact: true })).toBeVisible();
   await expect(sidebar.getByText('Laat deelnemers weten dat er een AI meeluistert.', { exact: true })).toBeVisible();
@@ -87,8 +90,8 @@ test('before, during and after: agenda in, silent chair with a confirmed suggest
   expect(await modelCalls(app)).toBeGreaterThanOrEqual(2);
   await page.screenshot({ path: test.info().outputPath('agenda-tijdens.png'), animations: 'disabled' });
   // ---- AFTER ----
-  await page.getByRole('button', { name: 'Show transcript', exact: true }).click();
-  await page.getByTestId('live-transcript-panel').getByRole('button', { name: 'Stop recording', exact: true }).click();
+  await page.getByRole('button', { name: ui('liveDock.showTranscript'), exact: true }).click();
+  await page.getByTestId('live-transcript-panel').getByRole('button', { name: ui('mainToolbar.stopRecording'), exact: true }).click();
   const tab = page.getByTestId('tab-agenda');
   await expect(tab).toHaveText('Notulen');
   await tab.click();
