@@ -7,9 +7,10 @@ vi.mock('@/lib/productBrand', () => ({
   get APP_NAME() {
     return state.appName;
   },
+  get IS_VENETA_MEMOAI() {
+    return false;
+  },
 }));
-
-vi.mock('@/i18n', () => ({ t: (key: string) => key }));
 
 vi.mock('@/hooks/useSettings', () => {
   const query = (data: unknown) => ({ data });

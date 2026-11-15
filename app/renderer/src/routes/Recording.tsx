@@ -95,16 +95,16 @@ export function Recording() {
                 onClick={() => navigate('/')}
                 className="mb-6 inline-flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-2 py-1 text-[13px] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--fg-1)]"
                 style={{ color: 'var(--fg-2)' }}
-                aria-label="Back to home"
+                aria-label={t('recording.backToHome')}
               >
                 <ChevronLeft size={15} />
-                Home
+                {t('recording.home')}
               </button>
 
               <EditableTitle
                 value={live.title}
                 onChange={live.setTitle}
-                placeholder="New note"
+                placeholder={t('recording.newNote')}
               />
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -112,10 +112,10 @@ export function Recording() {
                   {formatDate(startedAt)}
                 </Chip>
                 <Chip icon={<Clock size={11} />}>
-                  Started {formatTime(startedAt)}
+                  {t('recording.started')} {formatTime(startedAt)}
                 </Chip>
                 <Chip icon={<FolderPlus size={11} />} dashed>
-                  Add to folder
+                  {t('recording.addToFolder')}
                 </Chip>
                 <MeetingLanguageSelect
                   value={language}
@@ -137,7 +137,7 @@ export function Recording() {
                 style={{ color: 'var(--fg-2)' }}
               >
                 <PencilLine size={13} />
-                My notes
+                {t('recording.notesHeading')}
               </div>}
               <textarea
                 aria-labelledby={IS_VENETA_MEMOAI ? 'veneta-notes-heading' : undefined}
@@ -167,9 +167,9 @@ export function Recording() {
 
 const CAPTURE_WARNING_COPY = {
   'mic-flat':
-    'No sound from your microphone. Check the microphone chosen in Settings and that StenoAI may use it (System Settings → Privacy & Security → Microphone).',
+    t('recording.noSoundFromYourMicrophone'),
   'system-unavailable':
-    'System audio is not being recorded, only your microphone. Allow StenoAI under System Settings → Privacy & Security → Screen & System Audio Recording, then start a new recording.',
+    t('recording.systemAudioIsNotBeing'),
 } as const;
 
 /**

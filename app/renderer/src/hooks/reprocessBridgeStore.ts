@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { t } from '@/i18n';
 
 /**
  * Bridges the note-detail's "Generate notes" (reprocess) trigger to the
@@ -35,13 +36,13 @@ interface ReprocessBridge {
 export const useReprocessBridge = create<ReprocessBridge>((set, get) => ({
   summaryFile: null,
   streaming: false,
-  label: 'Generate notes',
+  label: t('reprocessBridgeStore.generateNotes'),
   start: null,
   publish: ({ summaryFile, streaming, label, start }) =>
     set({ summaryFile, streaming, label, start }),
   clear: (summaryFile) => {
     if (get().summaryFile === summaryFile) {
-      set({ summaryFile: null, streaming: false, label: 'Generate notes', start: null });
+      set({ summaryFile: null, streaming: false, label: t('reprocessBridgeStore.generateNotes'), start: null });
     }
   },
 }));

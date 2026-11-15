@@ -2,6 +2,7 @@
 
 import type { AiProvider, CloudProvider } from '@/lib/ipc';
 import { UI_LOCALE } from './locale';
+import { t } from '@/i18n';
 
 /** The AI-provider config fields the active-model label reads. */
 type ActiveModelFields = {
@@ -46,18 +47,18 @@ export function chatProviderReady(p: ChatProviderFields | undefined): boolean {
  * label can't lie. Returns 'Auto' until provider config has loaded.
  */
 export function formatActiveModel(p: ActiveModelFields | undefined): string {
-  if (!p) return 'Auto';
+  if (!p) return t('chat.auto');
   // Guard each interpolation: an optimistic provider switch can briefly leave the
   // cache holding {ai_provider} without the model fields, which would otherwise
   // render "Ollama · undefined" for a frame.
   switch (p.ai_provider) {
     case 'cloud':
-      return [p.cloud_provider, p.cloud_model].filter(Boolean).join(' · ') || 'Cloud';
+      return [p.cloud_provider, p.cloud_model].filter(Boolean).join(' · ') || t('chat.cloud');
     case 'remote':
-      return p.model ? `Remote Ollama · ${p.model}` : 'Remote Ollama';
+      return p.model ? t('chat.remoteOllama', { model: p.model }) : t('chat.remoteOllama2');
     case 'adapter':
       // The org adapter brokers the model server-side; the desktop has no id.
-      return 'Organisation';
+      return t('chat.organisation');
     case 'local':
     default:
       return p.model ? `Ollama · ${p.model}` : 'Ollama';
@@ -90,9 +91,9 @@ export function bucketKey(ts: number, now: number = Date.now()): string {
   // DST boundaries (a Sunday morning shift means "yesterday" really started
   // 23h ago, not 24h), so step back by calendar day instead.
   const dayBefore = (n: number): number => {
-    const t = new Date(today);
-    t.setDate(t.getDate() - n);
-    return t.getTime();
+    const day = new Date(today);
+    day.setDate(day.getDate() - n);
+    return day.getTime();
   };
   if (ts >= dayBefore(1)) return 'yesterday';
   if (ts >= dayBefore(7)) return 'this-week';
@@ -112,11 +113,11 @@ export function bucketKey(ts: number, now: number = Date.now()): string {
 }
 
 export function toBucketLabel(key: string): string {
-  if (key === 'today') return 'Today';
-  if (key === 'yesterday') return 'Yesterday';
-  if (key === 'this-week') return 'This week';
-  if (key === 'last-2-weeks') return 'Last 2 weeks';
-  if (key === 'this-month') return 'This month';
+  if (key === 'today') return t('chat.today');
+  if (key === 'yesterday') return t('chat.yesterday');
+  if (key === 'this-week') return t('chat.thisWeek');
+  if (key === 'last-2-weeks') return t('chat.last2Weeks');
+  if (key === 'this-month') return t('chat.thisMonth');
   if (key.startsWith('month-')) {
     const m = parseInt(key.slice(6), 10);
     return new Date(2000, m, 1).toLocaleString(UI_LOCALE, { month: 'long' });
@@ -146,6 +147,6 @@ export function relativeTime(ts: number): string {
 export function boundedChatHistory(messages: Array<{ role: 'user' | 'assistant'; content: string; context?: string }>, context: string, legacyContext: string) {
   const turns = messages.filter((m) => (m.context ?? legacyContext) === context)
     .slice(-6).map(({ role, content }) => ({ role, content: content.slice(-4000) }));
-  while (turns.reduce((n, t) => n + t.content.length, 0) > 12000) turns.shift();
+  while (turns.reduce((n, turn) => n + turn.content.length, 0) > 12000) turns.shift();
   return turns;
 }

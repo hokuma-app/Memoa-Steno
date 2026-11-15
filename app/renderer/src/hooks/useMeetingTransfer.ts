@@ -3,14 +3,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { meetingsKeys } from '@/hooks/meetingKeys';
 import { ipc } from '@/lib/ipc';
 import { navigate } from '@/lib/router';
+import { t } from '@/i18n';
 
 export const MEETING_TRANSFER_COPY = {
-  importAction: 'Import Steno package…',
-  importDescription: 'Open a Steno note package from another device.',
-  importBlocked: 'Wait until recording and processing have finished.',
-  exportAction: 'Share Steno package…',
-  drop: 'Drop audio or a Steno package to import',
-  failed: 'Steno package transfer failed',
+  importAction: t('useMeetingTransfer.importStenoPackage'),
+  importDescription: t('useMeetingTransfer.openAStenoNotePackage'),
+  importBlocked: t('useMeetingTransfer.waitUntilRecordingAndProcessing'),
+  exportAction: t('useMeetingTransfer.shareStenoPackage'),
+  drop: t('useMeetingTransfer.dropAudioOrASteno'),
+  failed: t('useMeetingTransfer.stenoPackageTransferFailed'),
 } as const;
 
 function showFailure(error: unknown) {

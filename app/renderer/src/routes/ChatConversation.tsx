@@ -42,6 +42,8 @@ import { consumePendingNewChat } from '@/routes/Chat';
 import { renderMarkdown } from '@/lib/markdown';
 import { t } from '@/i18n';
 
+const STREAMING_ROLE = 'assistant' as const;
+
 interface ChatConversationProps {
   sessionId: string;
 }
@@ -150,8 +152,8 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
     const content =
       stream.text.trim() ||
       (stream.status === 'error'
-        ? `Error: ${stream.error ?? 'query failed'}`
-        : '(empty response)');
+        ? t('chatConversation.error', { value: stream.error ?? t('chatConversation.queryFailed') })
+        : t('chatConversation.emptyResponse'));
     const message: ChatMessage = {
       role: 'assistant',
       context: pending.context,
@@ -179,7 +181,7 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
     [session?.messages],
   );
   const streamingContent = isStreaming && pendingPersistRef.current?.sessionId === sessionId
-    ? activeStream?.text || 'Thinking…'
+    ? activeStream?.text || t('chatConversation.thinking')
     : null;
   const totalItems = messages.length + (streamingContent !== null ? 1 : 0);
 
@@ -229,7 +231,7 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
       // Only restore the input if nothing made it to disk — once the user
       // message is persisted it's already visible in the thread, and
       // re-populating the box would duplicate it on the next submit.
-      const message = err instanceof Error ? err.message : 'Failed to send';
+      const message = err instanceof Error ? err.message : t('chatConversation.failedToSend');
       setSubmitError(message);
       if (!appended) setInput(q);
     } finally {
@@ -254,9 +256,9 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
     return (
       <MeetingsShell activeSummaryFile={null}>
         <div className="mx-auto max-w-[640px] py-20 text-center">
-          <h1 className="mv-title mb-3">Chat not found.</h1>
+          <h1 className="mv-title mb-3">{t('chatConversation.chatNotFound')}</h1>
           <p className="text-[14px]" style={{ color: 'var(--fg-2)' }}>
-            This conversation may have been deleted.
+            {t('chatConversation.thisConversationMayHaveBeen')}
           </p>
           <button
             type="button"
@@ -265,7 +267,7 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
             style={{ color: 'var(--fg-1)', background: 'var(--surface-raised)' }}
           >
             <ArrowLeft className="size-[13px]" />
-            Back to Chat
+            {t('chatConversation.backToChat')}
           </button>
         </div>
       </MeetingsShell>
@@ -287,8 +289,8 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
               onClick={() => navigate('/chat')}
               className="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-[color:var(--surface-hover)]"
               style={{ color: 'var(--fg-2)' }}
-              aria-label="Back to Chat"
-              title="Back to Chat"
+              aria-label={t('chatConversation.backToChat')}
+              title={t('chatConversation.backToChat')}
             >
               <ArrowLeft className="size-[15px]" />
             </button>
@@ -303,16 +305,16 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
                     color: 'var(--fg-1)',
                     background: 'var(--surface-raised)',
                   }}
-                  aria-label="Switch chat"
+                  aria-label={t('chatConversation.switchChat')}
                 >
-                  History
+                  {t('chatConversation.history')}
                   <ChevronDown className="size-[12px]" style={{ color: 'var(--fg-2)' }} />
                 </button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-[320px] p-1">
                 {otherSessions.length === 0 ? (
                   <div className="px-3 py-3 text-[13px]" style={{ color: 'var(--fg-2)' }}>
-                    No other chats yet.
+                    {t('chatConversation.noOtherChatsYet')}
                   </div>
                 ) : (
                   <div className="max-h-[420px] overflow-y-auto py-1">
@@ -393,7 +395,7 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
                   ? null
                   : messages[virtualRow.index];
                 const role: 'user' | 'assistant' = isStreamingBubble
-                  ? 'assistant'
+                  ? STREAMING_ROLE
                   : msg!.role;
                 const content = isStreamingBubble
                   ? (streamingContent ?? '')
@@ -474,7 +476,7 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
               }
             }}
             disabled={!ready || isStreaming}
-            placeholder="Ask anything  /"
+            placeholder={t('chatConversation.askAnything')}
             className="block w-full bg-transparent px-2 pb-3 pt-1 outline-none disabled:cursor-not-allowed"
             style={{ fontSize: 15, color: 'var(--fg-1)', fontFamily: 'var(--font-sans)' }}
           />
@@ -502,7 +504,7 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
                   className="text-[12px]"
                   style={{ color: 'var(--fg-muted)' }}
                 >
-                  · may omit older notes
+                  {t('chatConversation.mayOmitOlderNotes')}
                 </span>
               )}
             </div>
@@ -513,7 +515,7 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
                   onClick={stop}
                   className="inline-flex size-7 items-center justify-center rounded-full transition-colors hover:bg-[color:var(--surface-hover)]"
                   style={{ color: 'var(--fg-1)' }}
-                  aria-label="Stop"
+                  aria-label={t('chatConversation.stop')}
                 >
                   <Square className="size-[12px]" fill="currentColor" />
                 </button>
@@ -523,7 +525,7 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
                   disabled={!input.trim() || !ready}
                   className="inline-flex size-7 items-center justify-center rounded-full transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-40"
                   style={{ color: 'var(--fg-1)' }}
-                  aria-label="Send"
+                  aria-label={t('chatConversation.send')}
                 >
                   <ArrowUp className="size-[14px]" />
                 </button>
@@ -543,7 +545,7 @@ export function ChatConversation({ sessionId }: ChatConversationProps) {
                 className="px-2 pb-1 pt-0.5 text-[11px] font-medium"
                 style={{ color: 'var(--fg-muted)' }}
               >
-                Presets
+                {t('chatConversation.presets')}
               </div>
               <div className="flex flex-col">
                 {PRESETS.map((p) => (

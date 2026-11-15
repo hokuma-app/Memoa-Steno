@@ -29,6 +29,8 @@ import { useWatchedFolders } from '@/hooks/useWatchedFolders';
 import { APP_NAME, IS_VENETA_MEMOAI } from '@/lib/productBrand';
 import { AppIcon } from '@/components/ui/app-icon';
 
+const PALETTE_SHORTCUT = shortcut('⌘K', 'Ctrl+K');
+
 export interface SidebarMeeting {
   summaryFile: string;
   title: string;
@@ -345,15 +347,15 @@ export function Sidebar({
               onClick={() => palette.open()}
               className="flex h-[30px] w-full items-center rounded-md border-0 px-[10px] pl-[30px] text-left text-[13px] outline-none transition-colors hover:shadow-[inset_0_0_0_1px_hsl(var(--border))] focus-visible:shadow-[inset_0_0_0_1px_hsl(var(--border))]"
               style={{ background: 'rgba(27,27,25,0.04)', color: 'var(--fg-muted)', fontFamily: 'var(--font-sans)' }}
-              aria-label="Search notes"
+              aria-label={t('sidebar.searchNotes')}
             >
-              Search
+              {t('sidebar.search')}
             </button>
             <span
               className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded px-1.5 py-px text-[11px] tabular-nums tracking-[0.02em]"
               style={{ color: 'var(--fg-muted)', background: 'rgba(27,27,25,0.04)', fontFamily: 'var(--font-sans)' }}
             >
-              {shortcut('⌘K', 'Ctrl+K')}
+              {PALETTE_SHORTCUT}
             </span>
           </div>
         </div>
@@ -368,7 +370,7 @@ export function Sidebar({
             onClick={() => navigate('/')}
           >
             <HomeIcon className="size-[14px]" />
-            <span className="flex-1 truncate">Home</span>
+            <span className="flex-1 truncate">{t('sidebar.home')}</span>
           </button>
 
           <div
@@ -392,7 +394,7 @@ export function Sidebar({
               onClick={() => navigate('/meetings')}
             >
               <Inbox className="size-[14px]" />
-              <span className="flex-1 truncate">All notes</span>
+              <span className="flex-1 truncate">{t('sidebar.allNotes')}</span>
               {newRecordings > 0 && (
                 <span
                   className="rounded px-1.5 text-[11px] font-medium tabular-nums"
@@ -417,7 +419,7 @@ export function Sidebar({
             onClick={() => navigate('/chat')}
           >
             <MessageSquare className="size-[14px]" />
-            <span className="flex-1 truncate">Chat</span>
+            <span className="flex-1 truncate">{t('sidebar.chat')}</span>
           </button>
 
           <button
@@ -455,10 +457,10 @@ export function Sidebar({
               type="button"
               className={cn('sb-row', isOrgSharedActive && 'active')}
               onClick={() => navigate('/org/shared')}
-              title={`Shared across ${orgSession.data?.orgId ?? 'your org'}`}
+              title={t('sidebar.sharedAcross', { value: orgSession.data?.orgId ?? t('sidebar.yourOrg') })}
             >
               <Globe className="size-[14px]" />
-              <span className="flex-1 truncate">Shared notes</span>
+              <span className="flex-1 truncate">{t('sidebar.sharedNotes')}</span>
             </button>
           )}
 
@@ -471,7 +473,7 @@ export function Sidebar({
             >
               <span className="flex items-center gap-1.5">
                 <ChevronDown className={cn('size-3 transition-transform', !foldersOpen && '-rotate-90')} />
-                <span>Folders</span>
+                <span>{t('sidebar.folders')}</span>
               </span>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -479,13 +481,13 @@ export function Sidebar({
                     type="button"
                     className="inline-flex size-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-[color:var(--surface-active)] [.sb-group-head:hover_&]:opacity-100"
                     onClick={(e) => { e.stopPropagation(); onNewFolder(); }}
-                    aria-label="New folder"
+                    aria-label={t('sidebar.newFolder')}
                     style={{ color: 'var(--fg-2)' }}
                   >
                     <Plus className="size-3" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top">Create folder</TooltipContent>
+                <TooltipContent side="top">{t('sidebar.createFolder')}</TooltipContent>
               </Tooltip>
             </div>
 
@@ -521,7 +523,7 @@ export function Sidebar({
                       <span
                         role="button"
                         tabIndex={0}
-                        aria-label="Change folder icon"
+                        aria-label={t('sidebar.changeFolderIcon')}
                         className="flex-shrink-0 rounded p-0.5 hover:bg-[color:var(--surface-active)]"
                         style={{ color: 'var(--fg-2)' }}
                         onClick={(e) => {
@@ -572,10 +574,10 @@ export function Sidebar({
               }}
               className="inline-flex h-[26px] min-w-0 items-center gap-1.5 rounded-md px-2 text-[12px] transition-colors hover:bg-[color:var(--surface-active)]"
               style={{ color: 'var(--fg-1)' }}
-              title="Sign in to share notes with your organisation"
+              title={t('sidebar.signInToShareNotes')}
             >
               <LogIn className="size-[13px]" style={{ color: 'var(--fg-2)' }} />
-              <span className="truncate">Sign in to org</span>
+              <span className="truncate">{t('sidebar.signInToOrg')}</span>
             </button>
           ) : (
             <span />
@@ -590,21 +592,21 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={() => void ipc().shell.openExternal('https://docs.stenoai.co')}
-                aria-label="Help"
+                aria-label={t('sidebar.help')}
                 className="inline-flex h-[26px] w-7 items-center justify-center rounded-md transition-colors hover:bg-[color:var(--surface-active)] hover:text-[color:var(--fg-1)]"
                 style={{ color: 'var(--fg-2)' }}
               >
                 <HelpCircle className="size-[15px]" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top">Documentation</TooltipContent>
+            <TooltipContent side="top">{t('sidebar.documentation')}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 onClick={() => toggleSettings(currentRoute)}
-                aria-label="Settings"
+                aria-label={t('sidebar.settings')}
                 // startsWith so the cog still reads "active" on deep-link routes
                 // like /settings?tab=organisation, not just bare /settings.
                 aria-pressed={currentRoute.startsWith('/settings')}
@@ -618,7 +620,7 @@ export function Sidebar({
                 <SettingsIcon className="size-[15px]" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top">Settings</TooltipContent>
+            <TooltipContent side="top">{t('sidebar.settings')}</TooltipContent>
           </Tooltip>
           </div>
         </div>
@@ -727,7 +729,7 @@ function ProfileChip({ email, name, orgId, onSignOut }: ProfileChipProps) {
               {email}
             </div>
             <div className="mt-1 text-[10.5px]" style={{ color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)' }}>
-              org · {orgId}
+              {t('sidebar.org')} {orgId}
             </div>
           </div>
           <div className="border-t border-[color:var(--border-subtle)]">
@@ -741,7 +743,7 @@ function ProfileChip({ email, name, orgId, onSignOut }: ProfileChipProps) {
                 onSignOut();
               }}
             >
-              <LogOut className="size-[12px]" /> Sign out
+              <LogOut className="size-[12px]" /> {t('sidebar.signOut')}
             </button>
           </div>
         </div>

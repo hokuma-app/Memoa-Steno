@@ -5,6 +5,7 @@ import { searchNotes, snippet } from '@/lib/noteSearch';
 import { navigate, useRoute } from '@/lib/router';
 import { isMac } from '@/lib/utils';
 import type { Meeting } from '@/lib/ipc';
+import { t } from '@/i18n';
 
 interface PaletteContextValue {
   open: () => void;
@@ -54,40 +55,40 @@ interface SettingsEntry {
 // AboutTab etc.) — the T1 spec asserts a few titles still match, to catch the
 // index drifting out from under a renamed control.
 const SETTINGS_INDEX: SettingsEntry[] = [
-  { id: 'general-name', tab: 'general', title: 'Your name', sub: 'In-app greeting' },
-  { id: 'general-theme', tab: 'general', title: 'Appearance', sub: 'Light, dark, or system theme' },
-  { id: 'general-calendar', tab: 'general', title: 'Connect calendar', sub: 'Google, Outlook' },
-  { id: 'general-scheduled', tab: 'general', title: 'Scheduled meetings', sub: 'Upcoming calendar events' },
-  { id: 'general-autodetect', tab: 'general', title: 'Auto-detected meetings', sub: 'Notify when another app uses the microphone' },
-  { id: 'general-notifications', tab: 'general', title: 'Post meeting notifications', sub: 'Desktop notifications when notes are ready' },
-  { id: 'general-mic', tab: 'general', title: 'Microphone', sub: 'Input device' },
-  { id: 'general-system-audio', tab: 'general', title: 'Record system audio', sub: 'Capture other participants', macOnly: true },
-  { id: 'general-silence', tab: 'general', title: 'Auto-stop on silence', sub: 'End a recording when it goes quiet' },
-  { id: 'general-launch', tab: 'general', title: 'Launch on login', sub: 'Start Steno automatically' },
+  { id: 'general-name', tab: 'general', title: t('commandPalette.yourName'), sub: t('commandPalette.inAppGreeting') },
+  { id: 'general-theme', tab: 'general', title: t('commandPalette.appearance'), sub: t('commandPalette.lightDarkOrSystemTheme') },
+  { id: 'general-calendar', tab: 'general', title: t('commandPalette.connectCalendar'), sub: 'Google, Outlook' },
+  { id: 'general-scheduled', tab: 'general', title: t('commandPalette.scheduledMeetings'), sub: t('commandPalette.upcomingCalendarEvents') },
+  { id: 'general-autodetect', tab: 'general', title: t('commandPalette.autoDetectedMeetings'), sub: t('commandPalette.notifyWhenAnotherAppUses') },
+  { id: 'general-notifications', tab: 'general', title: t('commandPalette.postMeetingNotifications'), sub: t('commandPalette.desktopNotificationsWhenNotesAre') },
+  { id: 'general-mic', tab: 'general', title: t('commandPalette.microphone'), sub: t('commandPalette.inputDevice') },
+  { id: 'general-system-audio', tab: 'general', title: t('commandPalette.recordSystemAudio'), sub: t('commandPalette.captureOtherParticipants'), macOnly: true },
+  { id: 'general-silence', tab: 'general', title: t('commandPalette.autoStopOnSilence'), sub: t('commandPalette.endARecordingWhenIt') },
+  { id: 'general-launch', tab: 'general', title: t('commandPalette.launchOnLogin'), sub: t('commandPalette.startStenoAutomatically') },
   // Cross-platform row (Electron's Tray covers the macOS menu bar and the
   // Windows system tray); its rendered label switches on platform, so mirror
   // that here so the title matches whatever GeneralTab shows.
   {
     id: 'general-menubar',
     tab: 'general',
-    title: isMac ? 'Show in menu bar' : 'Show in system tray',
-    sub: 'Quick-access icon in the menu bar or system tray',
+    title: isMac ? t('commandPalette.showInMenuBar') : t('commandPalette.showInSystemTray'),
+    sub: t('commandPalette.quickAccessIconInThe'),
   },
-  { id: 'general-dock', tab: 'general', title: 'Hide dock icon', sub: 'Menu bar / tray icon only', macOnly: true },
-  { id: 'ai-language', tab: 'ai', title: 'Language', sub: 'Transcription and summary language' },
-  { id: 'ai-transcription', tab: 'ai', title: 'Transcription model', sub: 'Parakeet or Whisper' },
-  { id: 'ai-save-recordings', tab: 'ai', title: 'Save recordings', sub: 'Keep the audio files after transcription' },
-  { id: 'ai-autonotes', tab: 'ai', title: 'Generate notes automatically', sub: 'Summarise after transcription' },
-  { id: 'ai-provider', tab: 'ai', title: 'AI provider', sub: 'Local, private server, cloud, or organisation' },
-  { id: 'templates', tab: 'templates', title: 'Templates', sub: 'Custom note formats' },
-  { id: 'org', tab: 'organisation', title: 'Organisation', sub: 'Sign in and back up notes to your org' },
-  { id: 'advanced-storage', tab: 'advanced', title: 'Storage location', sub: 'Where notes and recordings are saved' },
-  { id: 'advanced-setup', tab: 'advanced', title: 'Setup wizard', sub: 'Re-run first-time setup' },
-  { id: 'advanced-clear', tab: 'advanced', title: 'Clear recording state', sub: 'Reset a stuck recording' },
-  { id: 'advanced-analytics', tab: 'advanced', title: 'Anonymous usage analytics', sub: 'Opt in or out' },
-  { id: 'developer', tab: 'developer', title: 'Developer', sub: 'Diagnostics and logs' },
-  { id: 'about', tab: 'about', title: 'About', sub: 'Version, release notes, check for updates' },
-  { id: 'about-discord', tab: 'about', title: 'Discord', sub: 'Join the community, ask questions, share feedback' },
+  { id: 'general-dock', tab: 'general', title: t('commandPalette.hideDockIcon'), sub: t('commandPalette.menuBarTrayIconOnly'), macOnly: true },
+  { id: 'ai-language', tab: 'ai', title: t('commandPalette.language'), sub: t('commandPalette.transcriptionAndSummaryLanguage') },
+  { id: 'ai-transcription', tab: 'ai', title: t('commandPalette.transcriptionModel'), sub: t('commandPalette.parakeetOrWhisper') },
+  { id: 'ai-save-recordings', tab: 'ai', title: t('commandPalette.saveRecordings'), sub: t('commandPalette.keepTheAudioFilesAfter') },
+  { id: 'ai-autonotes', tab: 'ai', title: t('commandPalette.generateNotesAutomatically'), sub: t('commandPalette.summariseAfterTranscription') },
+  { id: 'ai-provider', tab: 'ai', title: t('commandPalette.aiProvider'), sub: t('commandPalette.localPrivateServerCloudOr') },
+  { id: 'templates', tab: 'templates', title: t('commandPalette.templates'), sub: t('commandPalette.customNoteFormats') },
+  { id: 'org', tab: 'organisation', title: t('commandPalette.organisation'), sub: t('commandPalette.signInAndBackUp') },
+  { id: 'advanced-storage', tab: 'advanced', title: t('commandPalette.storageLocation'), sub: t('commandPalette.whereNotesAndRecordingsAre') },
+  { id: 'advanced-setup', tab: 'advanced', title: t('commandPalette.setupWizard'), sub: t('commandPalette.reRunFirstTimeSetup') },
+  { id: 'advanced-clear', tab: 'advanced', title: t('commandPalette.clearRecordingState'), sub: t('commandPalette.resetAStuckRecording') },
+  { id: 'advanced-analytics', tab: 'advanced', title: t('commandPalette.anonymousUsageAnalytics'), sub: t('commandPalette.optInOrOut') },
+  { id: 'developer', tab: 'developer', title: t('commandPalette.developer'), sub: t('commandPalette.diagnosticsAndLogs') },
+  { id: 'about', tab: 'about', title: t('commandPalette.about'), sub: t('commandPalette.versionReleaseNotesCheckFor') },
+  { id: 'about-discord', tab: 'about', title: 'Discord', sub: t('commandPalette.joinTheCommunityAskQuestions') },
 ];
 
 // Only the settings that actually render on this platform. macOS-only rows
@@ -230,7 +231,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={isSettingsMode ? 'Search settings' : 'Search notes'}
+        aria-label={isSettingsMode ? t('commandPalette.searchSettings') : t('commandPalette.searchNotes')}
         className="relative mt-[12vh] w-[min(620px,92vw)] overflow-hidden rounded-xl shadow-[var(--shadow-md)]"
         style={{ background: 'var(--surface-raised)', border: '1px solid hsl(var(--border))' }}
         onMouseDown={(e) => e.stopPropagation()}
@@ -246,8 +247,8 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
             data-testid="command-palette-input"
             className="w-full bg-transparent text-[14px] outline-none"
             style={{ color: 'var(--fg-1)', fontFamily: 'var(--font-sans)' }}
-            placeholder={isSettingsMode ? 'Search settings…' : 'Search notes…'}
-            aria-label={isSettingsMode ? 'Search settings' : 'Search notes'}
+            placeholder={isSettingsMode ? t('commandPalette.searchSettings2') : t('commandPalette.searchNotes2')}
+            aria-label={isSettingsMode ? t('commandPalette.searchSettings') : t('commandPalette.searchNotes')}
             role="combobox"
             aria-expanded="true"
             aria-controls="cmdk-listbox"
@@ -264,7 +265,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
           ref={listRef}
           id="cmdk-listbox"
           role="listbox"
-          aria-label="Search results"
+          aria-label={t('commandPalette.searchResults')}
           className="scrollbar-clean max-h-[50vh] overflow-auto py-1"
         >
           {resultCount === 0 ? (
@@ -273,10 +274,12 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
               style={{ color: 'var(--fg-muted)' }}
             >
               {query.trim()
-                ? `No ${isSettingsMode ? 'settings' : 'notes'} match “${query.trim()}”`
+                ? isSettingsMode
+                  ? t('commandPalette.noSettingsMatch', { query: query.trim() })
+                  : t('commandPalette.noNotesMatch', { query: query.trim() })
                 : isSettingsMode
-                  ? 'No settings'
-                  : 'No notes yet'}
+                  ? t('commandPalette.noSettings')
+                  : t('commandPalette.noNotesYet')}
             </li>
           ) : isSettingsMode ? (
             settingsResults.map((s, i) => (
@@ -305,7 +308,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
             ))
           ) : (
             noteResults.map((m, i) => {
-              const title = m.session_info.name || 'Untitled Meeting';
+              const title = m.session_info.name || t('commandPalette.untitledMeeting');
               const sub = snippet(m.summary, query);
               return (
                 <li
@@ -345,9 +348,9 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
             fontFamily: 'var(--font-sans)',
           }}
         >
-          <span>↑↓ navigate</span>
-          <span>↵ open</span>
-          <span>esc close</span>
+          <span>{t('commandPalette.navigate')}</span>
+          <span>{t('commandPalette.open')}</span>
+          <span>{t('commandPalette.escClose')}</span>
         </div>
       </div>
     </div>

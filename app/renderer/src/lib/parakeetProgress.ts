@@ -21,9 +21,9 @@ export function parakeetProgressPercent(progress?: ParakeetPullProgressEvent | n
 }
 
 export function parakeetProgressLabel(progress?: ParakeetPullProgressEvent | null): string {
-  if (progress?.stage === 'loading') return 'Download complete. Preparing model…';
-  if (progress?.stage === 'complete') return 'Model ready';
-  if (progress?.stage !== 'downloading') return 'Preparing download…';
+  if (progress?.stage === 'loading') return t('parakeetProgress.downloadCompletePreparingModel');
+  if (progress?.stage === 'complete') return t('parakeetProgress.modelReady');
+  if (progress?.stage !== 'downloading') return t('parakeetProgress.preparingDownload');
   const totals = byteTotals(progress);
   if (totals) {
     return t('downloads.parakeet.bytes', {
@@ -34,10 +34,10 @@ export function parakeetProgressLabel(progress?: ParakeetPullProgressEvent | nul
   const files = Number.isInteger(progress.completed_files) && Number.isInteger(progress.total_files)
     && progress.completed_files! >= 0 && progress.total_files! > 0
     && progress.completed_files! <= progress.total_files!
-    ? ` ${progress.completed_files} of ${progress.total_files} files ready.` : '';
+    ? t('parakeetProgress.ofFilesReady', { completed_files: progress.completed_files, total_files: progress.total_files }) : '';
   const bytes = Number.isFinite(progress.file_bytes) && progress.file_bytes! > 0
-    ? ` Current file: ${(progress.file_bytes! / 1_000_000).toFixed(1)} MB available.` : '';
-  return `Downloading model…${files}${bytes}`;
+    ? t('parakeetProgress.currentFileMbAvailable', { value: (progress.file_bytes! / 1_000_000).toFixed(1) }) : '';
+  return t('parakeetProgress.downloadingModel', { files, bytes });
 }
 
 /** The percent measures the download only. Compiling the models for this

@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 export interface ChatChartSpec {
   type: 'bar' | 'line';
   title: string;
@@ -6,7 +7,7 @@ export interface ChatChartSpec {
   data: { label: string; value: number }[];
 }
 
-export const CHART_COPY = { loading: 'Loading chart…', data: 'View data' };
+export const CHART_COPY = { loading: t('chatChart.loadingChart'), data: t('chatChart.viewData') };
 
 /** Pick one notation for the whole axis, including ticks near zero. */
 export function chartTickFormatter(data: ChatChartSpec['data'], locale?: string) {

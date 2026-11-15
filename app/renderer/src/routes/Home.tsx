@@ -32,12 +32,15 @@ import { searchNotes } from '@/lib/noteSearch';
 import { navigate } from '@/lib/router';
 import { UI_LOCALE } from '@/lib/locale';
 
+const SHORT_MONTH: Intl.DateTimeFormatOptions = { month: 'short' };
+const SHORT_WEEKDAY: Intl.DateTimeFormatOptions = { weekday: 'short' };
+
 interface HomeProps {
   mode: 'home' | 'meetings';
 }
 
 export function Home({ mode }: HomeProps) {
-  const welcomeText = IS_VENETA_MEMOAI ? productT('product.welcome') : 'Welcome to Steno.';
+  const welcomeText = IS_VENETA_MEMOAI ? productT('product.welcome') : t('home.welcomeToSteno');
   const meetings = useMeetings();
   const folders = useFolders();
   const calendar = useCalendarEvents();
@@ -394,7 +397,7 @@ export function Home({ mode }: HomeProps) {
               style={{ color: 'var(--fg-muted)' }}
             >
               <Calendar className="size-3.5 flex-shrink-0" />
-              <span>Connect your calendar to see today's meetings.</span>
+              <span>{t('home.connectYourCalendarToSee')}</span>
               {!withDismiss && (
                 <ChevronRight className="size-3 flex-shrink-0 opacity-60 transition-transform group-hover:translate-x-0.5" />
               )}
@@ -406,7 +409,7 @@ export function Home({ mode }: HomeProps) {
                 style={{ color: 'var(--fg-muted)' }}
               />
               <span>
-                Connecting to {pendingProvider === 'google' ? 'Google' : 'Outlook'}
+                {t('home.connectingTo')} {pendingProvider === 'google' ? t('home.google') : t('home.outlook')}
                 …
               </span>
               <button
@@ -415,7 +418,7 @@ export function Home({ mode }: HomeProps) {
                 className="rounded px-2 py-0.5 transition-colors hover:bg-[color:var(--surface-hover)]"
                 style={{ color: 'var(--fg-1)' }}
               >
-                Cancel
+                {t('home.cancel')}
               </button>
             </>
           ) : (
@@ -424,14 +427,14 @@ export function Home({ mode }: HomeProps) {
                 className="size-3.5 flex-shrink-0"
                 style={{ color: 'var(--fg-muted)' }}
               />
-              <span>Connect:</span>
+              <span>{t('home.connect')}</span>
               <button
                 type="button"
                 onClick={() => startConnect('google')}
                 className="rounded px-2 py-0.5 transition-colors hover:bg-[color:var(--surface-hover)]"
                 style={{ color: 'var(--fg-1)' }}
               >
-                Google
+                {t('home.google')}
               </button>
               <button
                 type="button"
@@ -439,7 +442,7 @@ export function Home({ mode }: HomeProps) {
                 className="rounded px-2 py-0.5 transition-colors hover:bg-[color:var(--surface-hover)]"
                 style={{ color: 'var(--fg-1)' }}
               >
-                Outlook
+                {t('home.outlook')}
               </button>
             </>
           )}
@@ -447,8 +450,8 @@ export function Home({ mode }: HomeProps) {
             <button
               type="button"
               onClick={onDismissCalendarNudge}
-              aria-label="Dismiss"
-              title="Dismiss"
+              aria-label={t('home.dismiss')}
+              title={t('home.dismiss')}
               className="ml-auto rounded p-1 transition-colors hover:bg-[color:var(--surface-hover)]"
               style={{ color: 'var(--fg-muted)' }}
             >
@@ -545,7 +548,7 @@ export function Home({ mode }: HomeProps) {
     >
       {meetings.isLoading ? (
         <div className="flex min-h-[40vh] items-center justify-center text-[color:var(--fg-2)]">
-          Loading meetings…
+          {t('home.loadingMeetings')}
         </div>
       ) : emptyState ? (
         <div className="flex flex-col items-center gap-8 text-center">
@@ -566,10 +569,10 @@ export function Home({ mode }: HomeProps) {
               className="text-[17px] leading-[1.55]"
               style={{ color: 'var(--fg-2)' }}
             >
-              AI for your confidential workflows.
+              {t('home.aiForYourConfidentialWorkflows')}
             </p>
             <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
-              Always get consent when transcribing others.
+              {t('home.alwaysGetConsentWhenTranscribing')}
             </p>
           </div>
           {!isRecording && <div className="w-full max-w-[560px] text-left"><ChecklistChoiceCard /></div>}
@@ -580,18 +583,18 @@ export function Home({ mode }: HomeProps) {
               className={cn('gap-2', IS_VENETA_MEMOAI && !isRecording && 'veneta-new-note')}
             >
               {isRecording ? <Square className="size-4" /> : <Plus className="size-4" />}
-              {isRecording ? 'Stop recording' : 'New note'}
+              {isRecording ? t('home.stopRecording') : t('home.newNote')}
             </Button>
             {hotkeyEnabled && (
               <p
                 className="flex items-center gap-1.5 text-xs"
                 style={{ color: 'var(--fg-muted)' }}
               >
-                <span>Quick start:</span>
-                <KbdKey>{isMac ? '⌘' : 'Ctrl'}</KbdKey>
-                <KbdKey>{isMac ? '⇧' : 'Shift'}</KbdKey>
-                <KbdKey>R</KbdKey>
-                <span>from anywhere</span>
+                <span>{t('home.quickStart')}</span>
+                <KbdKey>{isMac ? '⌘' : t('home.ctrl')}</KbdKey>
+                <KbdKey>{isMac ? '⇧' : t('home.shift')}</KbdKey>
+                <KbdKey>{t('home.r')}</KbdKey>
+                <span>{t('home.fromAnywhere')}</span>
               </p>
             )}
           </div>
@@ -650,7 +653,7 @@ export function Home({ mode }: HomeProps) {
             return (
               <section className="mb-10">
                 <SectionHead
-                  title="Coming up"
+                  title={t('home.comingUp')}
                   isSerif
                   count={upcomingToday.length}
                   action={
@@ -660,7 +663,7 @@ export function Home({ mode }: HomeProps) {
                           <button
                             type="button"
                             className="inline-flex items-center rounded p-1 transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-30 disabled:hover:bg-transparent"
-                            title="Previous"
+                            title={t('home.previous')}
                             onClick={() => setUpcomingPage((p) => Math.max(0, p - 1))}
                             disabled={!canPagePrev}
                             style={{ color: 'var(--fg-2)' }}
@@ -670,7 +673,7 @@ export function Home({ mode }: HomeProps) {
                           <button
                             type="button"
                             className="inline-flex items-center rounded p-1 transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-30 disabled:hover:bg-transparent"
-                            title="Next"
+                            title={t('home.next')}
                             onClick={() => setUpcomingPage((p) => Math.min(upcomingPageCount - 1, p + 1))}
                             disabled={!canPageNext}
                             style={{ color: 'var(--fg-2)' }}
@@ -682,7 +685,7 @@ export function Home({ mode }: HomeProps) {
                       <button
                         type="button"
                         className="inline-flex items-center rounded p-1 transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
-                        title="Check for new calendar events"
+                        title={t('home.checkForNewCalendarEvents')}
                         onClick={() => calendar.refetch()}
                         disabled={calendar.isFetching}
                         style={{ color: 'var(--fg-2)' }}
@@ -705,8 +708,8 @@ export function Home({ mode }: HomeProps) {
                     const [y, m, d] = dateKey.split('-').map(Number);
                     const groupDate = new Date(y, m, d);
                     const day = groupDate.getDate();
-                    const month = groupDate.toLocaleDateString(UI_LOCALE, { month: 'short' });
-                    const weekday = groupDate.toLocaleDateString(UI_LOCALE, { weekday: 'short' });
+                    const month = groupDate.toLocaleDateString(UI_LOCALE, SHORT_MONTH);
+                    const weekday = groupDate.toLocaleDateString(UI_LOCALE, SHORT_WEEKDAY);
                     
                     return (
                       <div 
@@ -744,7 +747,7 @@ export function Home({ mode }: HomeProps) {
 
           {upcomingToday.length === 0 && tomorrowPreview && mode === 'home' && (
             <section className="mb-10">
-              <SectionHead title="Tomorrow" count={1} />
+              <SectionHead title={t('home.tomorrow')} count={1} />
               <AllDayInline
                 events={allDayToday}
                 expanded={allDayExpanded}
@@ -761,7 +764,7 @@ export function Home({ mode }: HomeProps) {
 
           {upcomingToday.length === 0 && !tomorrowPreview && allDayToday.length > 0 && mode === 'home' && (
             <section className="mb-10">
-              <SectionHead title="Today" count={allDayToday.length} />
+              <SectionHead title={t('home.today')} count={allDayToday.length} />
               <AllDayInline
                 events={allDayToday}
                 expanded={allDayExpanded}
@@ -772,7 +775,7 @@ export function Home({ mode }: HomeProps) {
 
           <section>
             <SectionHead
-              title={mode === 'meetings' ? 'All notes' : 'Previous'}
+              title={mode === 'meetings' ? t('home.allNotes') : t('home.previous')}
               count={mode === 'meetings' ? filtered.length : previous.length}
               action={
                 mode === 'meetings' ? (
@@ -800,8 +803,8 @@ export function Home({ mode }: HomeProps) {
                       type="text"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search notes"
-                      aria-label="Search notes"
+                      placeholder={t('home.searchNotes')}
+                      aria-label={t('home.searchNotes')}
                       className="h-[26px] w-[180px] rounded-md border-0 pl-7 pr-7 text-[12.5px] outline-none transition-colors focus:shadow-[inset_0_0_0_1px_hsl(var(--border))]"
                       style={{
                         background: 'rgba(27,27,25,0.04)',
@@ -816,7 +819,7 @@ export function Home({ mode }: HomeProps) {
                           setSearch('');
                           searchInputRef.current?.focus();
                         }}
-                        aria-label="Clear search"
+                        aria-label={t('home.clearSearch')}
                         className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex size-4 items-center justify-center rounded transition-colors hover:bg-[color:var(--surface-hover)]"
                         style={{ color: 'var(--fg-muted)' }}
                       >
@@ -843,7 +846,7 @@ export function Home({ mode }: HomeProps) {
                 className="px-6 py-12 text-center text-[13px]"
                 style={{ color: 'var(--fg-2)' }}
               >
-                No meetings match &ldquo;{search.trim()}&rdquo;.
+                {t('home.noMeetingsMatch')}{search.trim()}&rdquo;.
               </div>
             ) : (
               groups.map((g) => (
@@ -944,7 +947,7 @@ function AllDayInline({ events, expanded, onToggle }: AllDayInlineProps) {
         className="-mx-1 self-start rounded px-1 py-0.5 text-xs transition-colors hover:bg-[color:var(--surface-hover)]"
         style={{ color: 'var(--fg-2)' }}
       >
-        + {events.length} all-day event{events.length === 1 ? '' : 's'} today
+        + {events.length} {t('home.allDayEvent')}{events.length === 1 ? '' : t('home.s')} {t('home.today2')}
       </button>
       {expanded && (
         // Render as full UpcomingCards so all-day events match the visual
@@ -997,7 +1000,7 @@ function groupPrevious(meetings: Meeting[], audio: WatchedFile[] = []): Group[] 
   const time = (item: ListItem) => new Date(item.at ?? 0).getTime() || 0;
   const sorted = items.sort((a, b) => time(b) - time(a));
   for (const item of sorted) {
-    const label = item.at ? groupLabel(new Date(item.at), now) : 'Earlier';
+    const label = item.at ? groupLabel(new Date(item.at), now) : t('home.earlier');
     if (!groups[label]) {
       groups[label] = [];
       order.push(label);
@@ -1012,10 +1015,10 @@ function groupLabel(d: Date, now: Date): string {
     a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
-  if (sameDay(d, now)) return 'Today';
+  if (sameDay(d, now)) return t('home.today');
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (sameDay(d, yesterday)) return 'Yesterday';
+  if (sameDay(d, yesterday)) return t('home.yesterday');
   const age = now.getTime() - d.getTime();
   if (age < 7 * 24 * 60 * 60 * 1000) {
     return d.toLocaleDateString(UI_LOCALE, { weekday: 'long' });

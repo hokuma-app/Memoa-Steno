@@ -2,6 +2,7 @@ import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { t } from '@/i18n';
 
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
@@ -48,7 +49,7 @@ export const DialogContent = React.forwardRef<
         className="absolute right-3 top-3 rounded-sm opacity-60 transition-opacity duration-fast ease-steno hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-30"
       >
         <X className="size-4" />
-        <span className="sr-only">Close</span>
+        <span className="sr-only">{t('dialog.close')}</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>

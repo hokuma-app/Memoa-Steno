@@ -18,6 +18,7 @@ import {
   useUnshareOrgMeeting,
 } from '@/hooks/useOrg';
 import { UI_LOCALE } from '@/lib/locale';
+import { t } from '@/i18n';
 
 function formatDate(epoch: number): string {
   const d = new Date(epoch * 1000);
@@ -38,14 +39,13 @@ function NotSignedIn() {
           <Users size={20} />
         </div>
         <h1 className="text-[24px] font-normal" style={{ fontFamily: 'var(--font-serif)', color: 'var(--fg-1)' }}>
-          Connect your organisation
+          {t('orgShared.connectYourOrganisation')}
         </h1>
         <p className="text-[14px] leading-[1.55]" style={{ color: 'var(--fg-2)' }}>
-          Sign in to your Steno enterprise adapter to see notes shared by your
-          colleagues and chat across them.
+          {t('orgShared.signInToYourSteno')}
         </p>
         <Button onClick={() => navigate('/settings')} className="mt-2">
-          Open Settings → Organisation
+          {t('orgShared.openSettingsOrganisation')}
         </Button>
       </div>
     </MeetingsShell>
@@ -63,7 +63,7 @@ export function OrgShared() {
   if (session.isLoading) {
     return (
       <MeetingsShell activeSummaryFile={null}>
-        <div className="py-8 text-center text-[14px]" style={{ color: 'var(--fg-2)' }}>Loading…</div>
+        <div className="py-8 text-center text-[14px]" style={{ color: 'var(--fg-2)' }}>{t('orgShared.loading')}</div>
       </MeetingsShell>
     );
   }
@@ -80,15 +80,15 @@ export function OrgShared() {
             className="m-0 text-[28px] font-normal"
             style={{ fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em', color: 'var(--fg-1)' }}
           >
-            Shared notes
+            {t('orgShared.sharedNotes')}
           </h1>
           <p className="mt-1 text-[13px]" style={{ color: 'var(--fg-2)' }}>
-            {session.data.orgId} · {rows.length} {rows.length === 1 ? 'note' : 'notes'}
+            {session.data.orgId} · {rows.length} {rows.length === 1 ? t('orgShared.note') : t('orgShared.notes')}
           </p>
         </header>
 
         {meetings.isLoading ? (
-          <div className="py-8 text-center text-[14px]" style={{ color: 'var(--fg-2)' }}>Loading notes…</div>
+          <div className="py-8 text-center text-[14px]" style={{ color: 'var(--fg-2)' }}>{t('orgShared.loadingNotes')}</div>
         ) : meetings.error ? (
           <div className="rounded-[8px] border border-[color:var(--border-subtle)] p-4 text-[13px]" style={{ color: 'var(--danger, #b3261e)' }}>
             {(meetings.error as Error).message}
@@ -102,9 +102,9 @@ export function OrgShared() {
               border: '1px dashed var(--border-subtle)',
             }}
           >
-            No shared notes yet — share one of your meetings with{' '}
+            {t('orgShared.noSharedNotesYetShare')}{' '}
             <span style={{ color: 'var(--fg-1)', fontFamily: 'var(--font-mono)' }}>{session.data.orgId}</span>{' '}
-            to see it here.
+            {t('orgShared.toSeeItHere')}
           </div>
         ) : (
           <ul className="flex flex-col">
@@ -175,11 +175,11 @@ export function OrgSharedDetail({ id }: { id: string }) {
         className="mb-5 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--fg-1)]"
         style={{ color: 'var(--fg-2)' }}
       >
-        <ArrowLeft size={12} /> Shared notes
+        <ArrowLeft size={12} /> {t('orgShared.sharedNotes')}
       </button>
 
       {meeting.isLoading ? (
-        <div className="py-8 text-[14px]" style={{ color: 'var(--fg-2)' }}>Loading…</div>
+        <div className="py-8 text-[14px]" style={{ color: 'var(--fg-2)' }}>{t('orgShared.loading')}</div>
       ) : meeting.error ? (
         <div className="rounded-[8px] border border-[color:var(--border-subtle)] p-4 text-[13px]" style={{ color: 'var(--danger, #b3261e)' }}>
           {(meeting.error as Error).message}
@@ -194,14 +194,14 @@ export function OrgSharedDetail({ id }: { id: string }) {
               {meeting.data.title}
             </h1>
             <p className="mt-2 flex flex-wrap items-center gap-2 text-[13px]" style={{ color: 'var(--fg-2)' }}>
-              <span>shared by {meeting.data.owner_email}</span>
+              <span>{t('orgShared.sharedBy')} {meeting.data.owner_email}</span>
               <span>·</span>
               <span>{formatDate(meeting.data.created_at)}</span>
               {meeting.data.has_artifact && (
                 <>
                   <span>·</span>
-                  <span title="Body lives in your org's S3 bucket; the adapter fetched it server-side. Never written to this device.">
-                    from S3
+                  <span title={t('orgShared.bodyLivesInYourOrg')}>
+                    {t('orgShared.fromS3')}
                   </span>
                 </>
               )}
@@ -220,7 +220,7 @@ export function OrgSharedDetail({ id }: { id: string }) {
               {renderMarkdown(bodyText)}
             </article>
           ) : (
-            <p className="text-[14px]" style={{ color: 'var(--fg-2)' }}>(no body)</p>
+            <p className="text-[14px]" style={{ color: 'var(--fg-2)' }}>{t('orgShared.noBody')}</p>
           )}
           {/* Bottom of the page — buffer so the global AskBar doesn't
               overlap the last paragraph when the conversation expands. */}
@@ -270,7 +270,7 @@ function SharedRow({ id, title, visibility, ownerEmail, createdAt, isOwner }: Sh
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-[12px]" style={{ color: 'var(--fg-2)' }}>
             {visibility === 'org' ? <Globe size={11} /> : <Lock size={11} />}
-            <span>{isOwner ? 'you' : ownerEmail}</span>
+            <span>{isOwner ? t('orgShared.you') : ownerEmail}</span>
             <span>·</span>
             <span>{formatDate(createdAt)}</span>
             {error && (
@@ -287,8 +287,8 @@ function SharedRow({ id, title, visibility, ownerEmail, createdAt, isOwner }: Sh
               <button
                 type="button"
                 onClick={(e) => e.stopPropagation()}
-                aria-label="Note actions"
-                title="Actions"
+                aria-label={t('orgShared.noteActions')}
+                title={t('orgShared.actions')}
                 className={cn(
                   'inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-opacity hover:bg-[color:var(--surface-active)]',
                   menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100',
@@ -315,7 +315,7 @@ function SharedRow({ id, title, visibility, ownerEmail, createdAt, isOwner }: Sh
                 style={{ color: 'var(--danger)' }}
               >
                 <Trash2 className="size-[13px]" />
-                Unshare
+                {t('orgShared.unshare')}
               </button>
             </PopoverContent>
           </Popover>

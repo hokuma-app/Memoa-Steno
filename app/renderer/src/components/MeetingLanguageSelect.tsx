@@ -11,7 +11,7 @@ import { LANGUAGES_WHISPER } from '@/routes/settings/languages';
 // One meeting's language. "auto" here means "use the Settings default", so
 // the global choice stays the single source for every other meeting.
 const OPTIONS = LANGUAGES_WHISPER.map((l) =>
-  l.value === 'auto' ? { value: 'auto', label: 'Default (Settings)' } : l,
+  l.value === 'auto' ? { value: 'auto', label: t('meetingLanguageSelect.defaultSettings') } : l,
 );
 
 export function MeetingLanguageSelect({

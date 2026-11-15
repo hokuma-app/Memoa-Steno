@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ipc, type ChatSessionsBlob } from '@/lib/ipc';
+import { t } from '@/i18n';
 
 export type ChatSession = ChatSessionsBlob['sessions'][number];
 export type ChatMessage = ChatSession['messages'][number];
@@ -131,7 +132,7 @@ export function useChatSessions(summaryFile: string | null, meetingName?: string
         // Rollback so the cache and disk stay in sync, and surface the error
         // to callers instead of swallowing the failure.
         queryClient.setQueryData(CHAT_KEY, previous);
-        throw new Error(res.error || 'Failed to save chat sessions');
+        throw new Error(res.error || t('useChatSessions.failedToSaveChatSessions'));
       }
     },
     [queryClient],
@@ -147,7 +148,7 @@ export function useChatSessions(summaryFile: string | null, meetingName?: string
       const now = Date.now();
       const session: ChatSession = {
         id: newSessionId(),
-        name: name ?? 'New chat',
+        name: name ?? t('useChatSessions.newChat'),
         ...(scopeFolderId !== undefined ? { scopeFolderId } : {}),
         ...(summaryFile ? { summaryFile } : {}),
         messages: [],

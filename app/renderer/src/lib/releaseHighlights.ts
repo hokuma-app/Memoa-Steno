@@ -1,4 +1,5 @@
 import { version } from '../../../package.json';
+import { t } from '@/i18n';
 
 // Release preparation updates this list alongside the public changelog.
 // The renderer build binds the content to package.json's version.
@@ -14,41 +15,41 @@ type ReleaseHighlight = {
 export const RELEASE_HIGHLIGHTS: readonly ReleaseHighlight[] = [
   {
     id: 'agents',
-    title: 'Your meeting notes, in your agent',
+    title: t('releaseHighlights.yourMeetingNotesInYour'),
     description:
-      'Connect Claude Code or Codex to Steno with a copyable install prompt and a setup guide.',
-    action: 'Try Agents',
+      t('releaseHighlights.connectClaudeCodeOrCodex'),
+    action: t('releaseHighlights.tryAgents'),
     route: '/agents',
     visual: 'agents',
   },
   {
     id: 'charts',
-    title: 'See the numbers in your notes',
+    title: t('releaseHighlights.seeTheNumbersInYour'),
     description:
-      'Ask Chat for a bar or line chart based on your meeting notes. Open View data to inspect the values.',
-    action: 'Open Chat',
+      t('releaseHighlights.askChatForABar'),
+    action: t('releaseHighlights.openChat'),
     route: '/chat',
     visual: 'chart',
   },
   {
     id: 'speaker-models',
-    title: 'Choose when to add individual speakers',
+    title: t('releaseHighlights.chooseWhenToAddIndividual'),
     description:
-      'On macOS, speaker models are optional during setup. Download them later in AI settings, with progress shown as they install.',
-    action: 'Open AI settings',
+      t('releaseHighlights.onMacosSpeakerModelsAre'),
+    action: t('releaseHighlights.openAiSettings'),
     route: '/settings?tab=ai',
   },
 ];
 
 export const WHATS_NEW_COPY = {
-  title: 'What’s new in Steno',
-  subtitle: 'A quick look at this update.',
-  settingsLabel: 'What’s new',
-  settingsDescription: 'Explore the highlights of this version',
-  view: 'View highlights',
-  done: 'Done',
-  fullNotes: 'Full release notes',
-  linkError: 'Could not open the release notes. Try again.',
+  title: t('releaseHighlights.whatSNewInSteno'),
+  subtitle: t('releaseHighlights.aQuickLookAtThis'),
+  settingsLabel: t('releaseHighlights.whatSNew'),
+  settingsDescription: t('releaseHighlights.exploreTheHighlightsOfThis'),
+  view: t('releaseHighlights.viewHighlights'),
+  done: t('releaseHighlights.done'),
+  fullNotes: t('releaseHighlights.fullReleaseNotes'),
+  linkError: t('releaseHighlights.couldNotOpenTheRelease'),
 };
 
 export const LAST_SEEN_RELEASE_KEY = 'steno-last-seen-release';

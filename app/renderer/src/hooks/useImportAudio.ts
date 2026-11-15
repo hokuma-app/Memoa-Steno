@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { ipc } from '@/lib/ipc';
+import { t } from '@/i18n';
 
 /**
  * Hand a local audio file (by absolute path) to the backend import pipeline.
@@ -21,7 +22,7 @@ export async function importAudioFile(filePath: string): Promise<void> {
   const title = basenameStem(filePath);
   const result = await ipc().recording.processFile(filePath, title);
   if (!result.success) {
-    throw new Error(result.error ?? 'Import failed');
+    throw new Error(result.error ?? t('useImportAudio.importFailed'));
   }
 }
 

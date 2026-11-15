@@ -17,10 +17,10 @@ export function UpcomingCard({ event }: UpcomingCardProps) {
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const isAllDay = event.is_all_day === true;
   const relative = isAllDay
-    ? ({ prefix: null, value: 'All day', urgent: false, state: 'later' } as const)
+    ? ({ prefix: null, value: t('upcomingCard.allDay'), urgent: false, state: 'later' } as const)
     : relativeLabel(event.start);
   const meta = isAllDay
-    ? ({ primary: 'Today', timeRange: '' } as const)
+    ? ({ primary: t('upcomingCard.today'), timeRange: '' } as const)
     : formatMeta(event.start, event.end, relative.state);
   const meetingUrl = event.meeting_url?.trim();
   const startMeeting = useStartMeeting();
@@ -164,26 +164,26 @@ function relativeLabel(startIso: string): {
     return { prefix: null, value: '—', urgent: false, state: 'later' };
   const diffMs = start.getTime() - Date.now();
   const diffMins = Math.round(diffMs / 60000);
-  if (diffMins <= 0) return { prefix: null, value: 'Now', urgent: true, state: 'now' };
+  if (diffMins <= 0) return { prefix: null, value: t('upcomingCard.now'), urgent: true, state: 'now' };
   if (diffMins < 60)
     return {
-      prefix: 'In',
-      value: `${diffMins} min${diffMins === 1 ? '' : 's'}`,
+      prefix: t('upcomingCard.in'),
+      value: diffMins === 1 ? t('upcomingCard.minutes.one', { count: diffMins }) : t('upcomingCard.minutes.other', { count: diffMins }),
       urgent: diffMins <= 15,
       state: diffMins <= 15 ? 'soon' : 'later',
     };
   const hrs = Math.round(diffMins / 60);
   if (hrs < 24)
     return {
-      prefix: 'In',
-      value: `${hrs} hr${hrs === 1 ? '' : 's'}`,
+      prefix: t('upcomingCard.in'),
+      value: hrs === 1 ? t('upcomingCard.hours.one', { count: hrs }) : t('upcomingCard.hours.other', { count: hrs }),
       urgent: false,
       state: 'later',
     };
   const days = Math.round(hrs / 24);
   return {
-    prefix: 'In',
-    value: `${days} day${days === 1 ? '' : 's'}`,
+    prefix: t('upcomingCard.in'),
+    value: days === 1 ? t('upcomingCard.days.one', { count: days }) : t('upcomingCard.days.other', { count: days }),
     urgent: false,
     state: 'later',
   };
@@ -221,7 +221,9 @@ function formatMeta(
   if (state === 'now' && end && !Number.isNaN(end.getTime())) {
     const endsInMins = Math.round((end.getTime() - Date.now()) / 60000);
     if (endsInMins > 0 && endsInMins <= 15) {
-      primary = `Ends in ${endsInMins} min${endsInMins === 1 ? '' : 's'}`;
+      primary = endsInMins === 1
+        ? t('upcomingCard.endsIn.one', { count: endsInMins })
+        : t('upcomingCard.endsIn.other', { count: endsInMins });
     } else {
       const startedAgoMins = Math.max(
         0,
@@ -229,13 +231,15 @@ function formatMeta(
       );
       primary =
         startedAgoMins === 0
-          ? 'Just started'
-          : `Started ${startedAgoMins} min${startedAgoMins === 1 ? '' : 's'} ago`;
+          ? t('upcomingCard.justStarted')
+          : startedAgoMins === 1
+            ? t('upcomingCard.startedAgo.one', { count: startedAgoMins })
+            : t('upcomingCard.startedAgo.other', { count: startedAgoMins });
     }
   } else if (sameDay(start, now)) {
-    primary = 'Today';
+    primary = t('upcomingCard.today');
   } else if (sameDay(start, tomorrow)) {
-    primary = 'Tomorrow';
+    primary = t('upcomingCard.tomorrow');
   } else {
     primary = start.toLocaleDateString(UI_LOCALE, {
       weekday: 'short',

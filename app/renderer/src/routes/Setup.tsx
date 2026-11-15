@@ -70,7 +70,7 @@ function OllamaProgressBar({ status, pct }: { status: string; pct: number }) {
   return (
     <DownloadProgressBar
       data-setup-ollama-progress
-      label={status || 'Downloading model...'}
+      label={status || t('setup.downloadingModel')}
       percent={pct}
       aria-label={t('downloads.ollama.ariaLabel')}
     />
@@ -99,12 +99,12 @@ function IndeterminateBar({ label, kind = 'transcription' }: { label: string; ki
 function Badge({ status }: { status: StepStatus }) {
   const label =
     status === 'waiting'
-      ? 'Waiting'
+      ? t('setup.waiting')
       : status === 'running'
-        ? 'Running'
+        ? t('setup.running')
         : status === 'done'
-          ? 'Done'
-          : 'Failed';
+          ? t('setup.done')
+          : t('setup.failed');
   const cls =
     status === 'done'
       ? 'bg-muted text-foreground'
@@ -339,21 +339,21 @@ export function Setup() {
     const snapshot = statuses;
     try {
       if (snapshot.microphone !== 'done') {
-        setStatus('microphone', 'running', 'Checking permission...');
+        setStatus('microphone', 'running', t('setup.checkingPermission'));
         const existing = await checkMic.mutateAsync();
         if (existing === 'granted') {
-          setStatus('microphone', 'done', 'Permission granted');
+          setStatus('microphone', 'done', t('setup.permissionGranted'));
         } else {
-          setStatus('microphone', 'running', 'Requesting permission...');
+          setStatus('microphone', 'running', t('setup.requestingPermission'));
           const granted = await requestMic.mutateAsync();
-          if (granted) setStatus('microphone', 'done', 'Permission granted');
+          if (granted) setStatus('microphone', 'done', t('setup.permissionGranted'));
           else {
             setStatus(
               'microphone',
               'failed',
               isMac
-                ? 'Permission denied. Grant it in System Settings.'
-                : 'Permission denied. Grant it in Settings > Privacy & security > Microphone.',
+                ? t('setup.permissionDeniedGrantItIn')
+                : t('setup.permissionDeniedGrantItIn2'),
             );
             setRunning(false);
             return;
@@ -362,7 +362,7 @@ export function Setup() {
       }
 
       if (snapshot.transcription !== 'done') {
-        setStatus('transcription', 'running', 'Checking transcription model...');
+        setStatus('transcription', 'running', t('setup.checkingTranscriptionModel'));
         // Skip the install if any ASR engine is already on disk — covers
         // existing Whisper users running setup again and Parakeet users
         // rerunning to fix a different step.
@@ -378,35 +378,35 @@ export function Setup() {
             (m) => (m as { installed?: boolean }).installed === true,
           );
         if (parakeetInstalled || anyWhisperInstalled) {
-          setStatus('transcription', 'done', 'Transcription model ready');
+          setStatus('transcription', 'done', t('setup.transcriptionModelReady'));
         } else {
-          setStatus('transcription', 'running', `Downloading Parakeet TDT v3 (${isMac ? '~2.5 GB' : '~670 MB'})...`);
+          setStatus('transcription', 'running', t('setup.downloadingParakeetTdtV3', { value: isMac ? '~2.5 GB' : '~670 MB' }));
           setParakeetStage({ stage: 'preparing' });
           await parakeetStep.mutateAsync();
           setParakeetStage(null);
-          setStatus('transcription', 'done', 'Transcription model ready');
+          setStatus('transcription', 'done', t('setup.transcriptionModelReady'));
         }
       }
 
       if (isMac && includeSpeakers && snapshot.speakers !== 'done') {
-        setStatus('speakers', 'running', 'Checking speaker models...');
+        setStatus('speakers', 'running', t('setup.checkingSpeakerModels'));
         try {
           const status = await ipc().setup.speakerModelsStatus();
           if (!status.success) throw new Error(status.error);
           if (status.ready) {
-            setStatus('speakers', 'done', 'Speaker models ready');
+            setStatus('speakers', 'done', t('setup.speakerModelsReady'));
           } else {
-            setStatus('speakers', 'running', 'Downloading speaker models...');
+            setStatus('speakers', 'running', t('setup.downloadingSpeakerModels'));
             await speakerModelsStep.mutateAsync();
             setSpeakerProgress(null);
             // Settings reads the same cached status; don't let it show
             // Download for models that are now installed.
             void queryClient.invalidateQueries({ queryKey: speakerModelsStatusKey });
-            setStatus('speakers', 'done', 'Speaker models ready');
+            setStatus('speakers', 'done', t('setup.speakerModelsReady'));
           }
         } catch {
           setSpeakerProgress(null);
-          setStatus('speakers', 'failed', 'Optional setup failed. You can retry later.');
+          setStatus('speakers', 'failed', t('setup.optionalSetupFailedYouCan'));
         }
       }
 
@@ -416,7 +416,7 @@ export function Setup() {
       setStatus('ollama', 'running', '');
 
       if (summaryMode === 'cloud') {
-        setStatus('ollama', 'running', 'Saving cloud credentials...');
+        setStatus('ollama', 'running', t('setup.savingCloudCredentials'));
         // Persist provider preference + key, then verify with a small ping
         // call so the user gets immediate feedback if the key is bad.
         await setAiProvider.mutateAsync('cloud');
@@ -429,20 +429,20 @@ export function Setup() {
           if (apiUrl) await setCloudUrl.mutateAsync(apiUrl.trim());
         }
         await setCloudKeyMut.mutateAsync(cloudApiKey.trim());
-        setStatus('ollama', 'running', 'Testing connection...');
+        setStatus('ollama', 'running', t('setup.testingConnection'));
         // unwrap throws on { success: false } so reaching this line means the
         // provider responded successfully — no extra check needed.
         await testCloudApi.mutateAsync();
-        setStatus('ollama', 'done', `Connected to ${cloudProvider}`);
+        setStatus('ollama', 'done', t('setup.connectedTo', { cloudProvider }));
       } else {
         // Make sure provider is local in case the user previously had cloud
         // configured and is re-running the wizard to switch back.
         await setAiProvider.mutateAsync('local');
         ipc().analytics.track('ai_provider_selected', { provider: 'local' });
-        setStatus('ollama', 'running', 'Downloading model (~2 GB)...');
+        setStatus('ollama', 'running', t('setup.downloadingModel2Gb'));
         await ollamaStep.mutateAsync();
         setOllamaProgress(null);
-        setStatus('ollama', 'done', 'Model installed');
+        setStatus('ollama', 'done', t('setup.modelInstalled'));
       }
 
       // Fire unconditionally regardless of which path was taken above -- this
@@ -465,7 +465,7 @@ export function Setup() {
 
       setDone(true);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Setup step failed';
+      const message = err instanceof Error ? err.message : t('setup.setupStepFailed');
       // Clear the bars on failure - a failed step keeps its Failed badge +
       // error detail, not a frozen progress bar.
       setParakeetStage(null);
@@ -485,16 +485,16 @@ export function Setup() {
   const steps: Step[] = [
     {
       id: 'microphone',
-      title: 'Microphone Access',
-      description: 'Required for recording meetings',
+      title: t('setup.microphoneAccess'),
+      description: t('setup.requiredForRecordingMeetings'),
       icon: Mic,
       status: statuses.microphone,
       detail: details.microphone,
     },
     {
       id: 'transcription',
-      title: 'Transcription Model',
-      description: 'Converts speech to text locally',
+      title: t('setup.transcriptionModel'),
+      description: t('setup.convertsSpeechToTextLocally'),
       icon: MessageSquare,
       status: statuses.transcription,
       detail: details.transcription,
@@ -514,11 +514,11 @@ export function Setup() {
     },
     {
       id: 'ollama',
-      title: 'Summarization Engine',
+      title: t('setup.summarizationEngine'),
       description:
         summaryMode === 'cloud'
-          ? 'Cloud API — fast, no download'
-          : 'Local model (~2 GB) — private, runs on your device',
+          ? t('setup.cloudApiFastNoDownload')
+          : t('setup.localModel2GbPrivate'),
       icon: summaryMode === 'cloud' ? Cloud : Zap,
       status: statuses.ollama,
       detail: details.ollama,
@@ -533,7 +533,7 @@ export function Setup() {
     steps.splice(2, 0, {
       id: 'speakers',
       title: t('settings.ai.speakers.label'),
-      description: 'Separates the voices on each side of a call',
+      description: t('setup.separatesTheVoicesOnEach'),
       icon: AudioLines,
       status: statuses.speakers,
       detail: details.speakers,
@@ -545,7 +545,7 @@ export function Setup() {
             percent={speakerModelsProgressPercent(speakerProgress)}
             aria-label={t('downloads.speakers.ariaLabel')}
           />
-        ) : statuses.speakers === 'running' && details.speakers?.startsWith('Downloading') ? (
+        ) : statuses.speakers === 'running' && details.speakers === t('setup.downloadingSpeakerModels') ? (
           <IndeterminateBar label={t('setup.downloading_and_preparing_models')} kind="speakers" />
         ) : undefined,
     });
@@ -563,7 +563,7 @@ export function Setup() {
       <div className="mx-auto max-w-[560px] px-8 py-16">
         <div className="mb-8 text-center">
           <Display className="mb-3">{t('setup.welcome', { product: APP_NAME })}</Display>
-          <Lead>We'll help you set up everything needed for meeting intelligence.</Lead>
+          <Lead>{t('setup.weLlHelpYouSet')}</Lead>
         </div>
 
         <div
@@ -572,10 +572,10 @@ export function Setup() {
         >
           <div className="min-w-0 flex-1">
             <label htmlFor="setup-name-input" className="text-sm font-medium text-foreground">
-              What should we call you?
+              {t('setup.whatShouldWeCallYou')}
             </label>
             <Muted className="mt-0.5">
-              First name only — used for in-app greetings. Stored locally.
+              {t('setup.firstNameOnlyUsedFor')}
             </Muted>
           </div>
           <Input
@@ -590,7 +590,7 @@ export function Setup() {
                 (e.target as HTMLInputElement).blur();
               }
             }}
-            placeholder="Your name"
+            placeholder={t('setup.yourName')}
             autoComplete="given-name"
             className="w-[160px]"
           />
@@ -625,12 +625,12 @@ export function Setup() {
                 <div className="flex w-full items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                     <HardDrive className="size-4" />
-                    Local
+                    {t('setup.local')}
                   </div>
                   {summaryMode === 'local' && <Check className="size-4 text-foreground" />}
                 </div>
                 <Muted className="text-[12px]">
-                  Private. Free. ~2 GB download.
+                  {t('setup.privateFree2GbDownload')}
                 </Muted>
               </button>
               <button
@@ -647,12 +647,12 @@ export function Setup() {
                 <div className="flex w-full items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                     <Cloud className="size-4" />
-                    Cloud
+                    {t('setup.cloud')}
                   </div>
                   {summaryMode === 'cloud' && <Check className="size-4 text-foreground" />}
                 </div>
                 <Muted className="text-[12px]">
-                  Fast. Higher quality. Bring your own API key.
+                  {t('setup.fastHigherQualityBringYour')}
                 </Muted>
               </button>
             </div>
@@ -664,7 +664,7 @@ export function Setup() {
                     className="mb-1 block text-[12px] font-medium text-foreground"
                     htmlFor="setup-cloud-provider"
                   >
-                    Provider
+                    {t('setup.provider')}
                   </label>
                   <Select
                     value={cloudProvider}
@@ -675,9 +675,9 @@ export function Setup() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="openai">OpenAI</SelectItem>
-                      <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
-                      <SelectItem value="bedrock">AWS Bedrock (Claude)</SelectItem>
-                      <SelectItem value="custom">Custom (OpenAI-compatible)</SelectItem>
+                      <SelectItem value="anthropic">{t('setup.anthropicClaude')}</SelectItem>
+                      <SelectItem value="bedrock">{t('setup.awsBedrockClaude')}</SelectItem>
+                      <SelectItem value="custom">{t('setup.customOpenaiCompatible')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -688,13 +688,13 @@ export function Setup() {
                         className="mb-1 block text-[12px] font-medium text-foreground"
                         htmlFor="setup-bedrock-region"
                       >
-                        AWS region
+                        {t('setup.awsRegion')}
                       </label>
                       <Input
                         id="setup-bedrock-region"
                         value={bedrockRegion}
                         onChange={(e) => setBedrockRegionState(e.target.value)}
-                        placeholder="us-east-1"
+                        placeholder={t('setup.usEast1')}
                         autoComplete="off"
                         spellCheck={false}
                       />
@@ -704,13 +704,13 @@ export function Setup() {
                         className="mb-1 block text-[12px] font-medium text-foreground"
                         htmlFor="setup-bedrock-profile"
                       >
-                        Inference profile (optional)
+                        {t('setup.inferenceProfileOptional')}
                       </label>
                       <Input
                         id="setup-bedrock-profile"
                         value={bedrockProfile}
                         onChange={(e) => setBedrockProfileState(e.target.value)}
-                        placeholder="us.anthropic.claude-…"
+                        placeholder={t('setup.usAnthropicClaude')}
                         autoComplete="off"
                         spellCheck={false}
                       />
@@ -723,13 +723,13 @@ export function Setup() {
                       className="mb-1 block text-[12px] font-medium text-foreground"
                       htmlFor="setup-custom-api"
                     >
-                      API base URL
+                      {t('setup.apiBaseUrl')}
                     </label>
                     <Input
                       id="setup-custom-api"
                       value={apiUrl}
                       onChange={(e) => setApiUrl(e.target.value)}
-                      placeholder="https://api.example.com/v1"
+                      placeholder={t('setup.httpsApiExampleComV1')}
                       autoComplete="off"
                       spellCheck={false}
                     />
@@ -740,20 +740,19 @@ export function Setup() {
                     className="mb-1 block text-[12px] font-medium text-foreground"
                     htmlFor="setup-cloud-key"
                   >
-                    API key
+                    {t('setup.apiKey')}
                   </label>
                   <Input
                     id="setup-cloud-key"
                     type="password"
                     value={cloudApiKey}
                     onChange={(e) => setCloudApiKey(e.target.value)}
-                    placeholder={cloudProvider === 'anthropic' ? 'sk-ant-…' : 'sk-…'}
+                    placeholder={cloudProvider === 'anthropic' ? t('setup.skAnt') : t('setup.sk')}
                     autoComplete="off"
                     spellCheck={false}
                   />
                   <Muted className="mt-1 text-[11px]">
-                    Stored locally on this device. Never synced or sent
-                    anywhere except the provider you select.
+                    {t('setup.storedLocallyOnThisDevice')}
                   </Muted>
                 </div>
               </div>
@@ -791,18 +790,17 @@ export function Setup() {
         >
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-foreground">
-              Anonymous usage analytics
+              {t('setup.anonymousUsageAnalytics')}
             </div>
             <Muted className="mt-0.5">
-              Off by default. If enabled, usage events go to Steno Labs through
-              PostHog; meeting content is excluded. Change this in Settings → Advanced.
+              {t('setup.offByDefaultIfEnabled')}
             </Muted>
           </div>
           <Switch
             checked={telemetryEnabled}
             onCheckedChange={(v) => setTelemetry.mutate({ enabled: v, source: 'setup' })}
             disabled={telemetry.data === undefined}
-            aria-label="Anonymous usage analytics"
+            aria-label={t('setup.anonymousUsageAnalytics')}
           />
         </div>
 
@@ -818,7 +816,7 @@ export function Setup() {
         <div className="mt-3 flex items-start gap-4 rounded-md border border-border p-4" data-setup-launch>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-foreground">
-              Launch on login
+              {t('setup.launchOnLogin')}
             </div>
             <Muted className="mt-0.5">
               {t('setup.launchOnLoginDescription', { product: APP_NAME })}
@@ -828,14 +826,14 @@ export function Setup() {
             checked={launchOnLoginEnabled}
             onCheckedChange={(v) => setLaunchOnLogin.mutate(v)}
             disabled={launchOnLogin.data === undefined}
-            aria-label="Launch on login"
+            aria-label={t('setup.launchOnLogin')}
           />
         </div>
 
         <div className="mt-8 flex flex-col items-center gap-2">
           {done ? (
             <Button size="lg" onClick={() => void finishOnboarding()}>
-              Continue to app
+              {t('setup.continueToApp')}
             </Button>
           ) : (
             <Button
@@ -844,16 +842,16 @@ export function Setup() {
               disabled={running || !canBegin}
               title={
                 !canBegin
-                  ? 'Enter your cloud API key first'
+                  ? t('setup.enterYourCloudApiKey')
                   : undefined
               }
             >
-              {running ? 'Setting up...' : 'Begin setup'}
+              {running ? t('setup.settingUp') : t('setup.beginSetup')}
             </Button>
           )}
           {!done && !running && !canBegin && (
             <Muted className="text-[12px]">
-              Enter your API key to continue.
+              {t('setup.enterYourApiKeyTo')}
             </Muted>
           )}
         </div>
@@ -864,7 +862,7 @@ export function Setup() {
             onClick={() => setDebugOpen((o) => !o)}
             className="flex w-full items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground"
           >
-            <span>Debug console</span>
+            <span>{t('setup.debugConsole')}</span>
             <span>{debugOpen ? '−' : '+'}</span>
           </button>
           {debugOpen && (
@@ -881,7 +879,7 @@ export function Setup() {
             rel="noreferrer"
             className="hover:text-foreground"
           >
-            Report an issue
+            {t('setup.reportAnIssue')}
           </a>
         </div>
       </div>

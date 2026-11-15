@@ -366,6 +366,34 @@ test('translation lookups preserve English inventory copy across migration', asy
   }
 });
 
+test('translation inventory records copy passed as interpolation parameters', async () => {
+  const { collectFromSource } = await import('./scripts/i18n-copy-inventory.mjs');
+  const catalogue = {
+    'fixture.shared': 'Shared across {{org}}',
+    'fixture.yourOrg': 'your org',
+  };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'i18n-params-'));
+  try {
+    const file = path.join(dir, 'Fixture.tsx');
+    // A fallback inside the parameters is rendered inside the sentence. Stopping at the
+    // outer lookup used to drop it, so neither the literal nor its translated form showed.
+    fs.writeFileSync(
+      file,
+      `import { t } from '@/i18n';\n` +
+        `export function C({ org }) { return <p title={t('fixture.shared', { org: org ?? 'your org' })} />; }`,
+    );
+    assert.deepEqual(collectFromSource(file, catalogue).copy, ['Shared across {{…}}', 'your org']);
+    fs.writeFileSync(
+      file,
+      `import { t } from '@/i18n';\n` +
+        `export function C({ org }) { return <p title={t('fixture.shared', { org: org ?? t('fixture.yourOrg') })} />; }`,
+    );
+    assert.deepEqual(collectFromSource(file, catalogue).copy, ['Shared across {{…}}', 'your org']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('translation inventory recognises explicit index, namespace, and re-export imports', async () => {
   const { collectFromSource } = await import('./scripts/i18n-copy-inventory.mjs');
   const catalogue = {

@@ -71,7 +71,7 @@ export function PrivacyConsentModal({ open }: { open: boolean }) {
     >
       <DialogContent className="max-w-md" data-privacy-consent>
         <DialogHeader>
-          <DialogTitle>A quick note on privacy</DialogTitle>
+          <DialogTitle>{t('privacyConsentModal.aQuickNoteOnPrivacy')}</DialogTitle>
           <DialogDescription>
             {t('privacy.optionalAnalytics')}
           </DialogDescription>
@@ -79,27 +79,27 @@ export function PrivacyConsentModal({ open }: { open: boolean }) {
 
         <div className="mt-1">
           <SettingRow
-            label="Anonymous usage data"
-            description="Crash and usage signals only. Meeting content is never sent."
+            label={t('privacyConsentModal.anonymousUsageData')}
+            description={t('privacyConsentModal.crashAndUsageSignalsOnly')}
           >
             <Switch
               checked={telemetryEnabled}
               onCheckedChange={(v) => setTelemetry.mutate({ enabled: v, source: 'consent' })}
               disabled={telemetry.data === undefined}
-              aria-label="Anonymous usage data"
+              aria-label={t('privacyConsentModal.anonymousUsageData')}
               data-privacy-telemetry
             />
           </SettingRow>
           <SettingRow
-            label="Launch on login"
-            description={`Start ${APP_NAME} automatically when you log in (hidden in the menu bar).`}
+            label={t('privacyConsentModal.launchOnLogin')}
+            description={t('privacyConsentModal.startAutomaticallyWhenYouLog', { appName: APP_NAME })}
             noBorder
           >
             <Switch
               checked={launchOnLoginEnabled}
               onCheckedChange={(v) => setLaunchOnLogin.mutate(v)}
               disabled={launchOnLogin.data === undefined}
-              aria-label="Launch on login"
+              aria-label={t('privacyConsentModal.launchOnLogin')}
               data-privacy-launch
             />
           </SettingRow>
@@ -107,7 +107,7 @@ export function PrivacyConsentModal({ open }: { open: boolean }) {
 
         <DialogFooter>
           <Button onClick={() => void acknowledge()} data-privacy-ack>
-            Got it
+            {t('privacyConsentModal.gotIt')}
           </Button>
         </DialogFooter>
       </DialogContent>

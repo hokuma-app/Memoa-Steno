@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 /**
  * Builds the plain-text payload for the "Copy notes" header action in
  * MeetingDetail. Pure so the report-vs-Standard selection is unit-testable:
@@ -39,24 +40,24 @@ export function buildNotesCopyText(
 
   const summary = sections.summary?.trim();
   if (summary) {
-    lines.push('', 'SUMMARY', summary);
+    lines.push('', t('notesCopy.summary'), summary);
   }
   if (sections.discussionAreas.length) {
-    lines.push('', 'KEY TOPICS');
+    lines.push('', t('notesCopy.keyTopics'));
     sections.discussionAreas.forEach((a) =>
       lines.push(`- ${a.title}${a.analysis ? `: ${a.analysis}` : ''}`),
     );
   }
   if (sections.keyPoints.length) {
-    lines.push('', 'KEY POINTS');
+    lines.push('', t('notesCopy.keyPoints'));
     sections.keyPoints.forEach((p) => lines.push(`- ${p}`));
   }
   if (sections.actionItems.length) {
-    lines.push('', 'ACTION ITEMS');
+    lines.push('', t('notesCopy.actionItems'));
     sections.actionItems.forEach((a) => lines.push(`- ${a}`));
   }
   if (sections.participants.length) {
-    lines.push('', 'PARTICIPANTS', sections.participants.join(', '));
+    lines.push('', t('notesCopy.participants'), sections.participants.join(', '));
   }
   return lines.join('\n');
 }
@@ -82,10 +83,10 @@ export function buildLevelCopyText(
   if (body) lines.push('', body);
   if (extras) {
     if (sections.actionItems.length) {
-      lines.push('', '## Action items', ...sections.actionItems.map((item) => `- ${item}`));
+      lines.push('', t('notesCopy.actionItems2'), ...sections.actionItems.map((item) => `- ${item}`));
     }
     if (sections.participants.length) {
-      lines.push('', '## Participants', sections.participants.join(', '));
+      lines.push('', t('notesCopy.participants2'), sections.participants.join(', '));
     }
   }
   return lines.join('\n');

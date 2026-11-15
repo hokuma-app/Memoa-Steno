@@ -19,6 +19,7 @@ import {
 import { useBlobAudioPlayback } from '@/hooks/useBlobAudioPlayback';
 import { attendeeNames, useMeetingCalendarEvent } from '@/hooks/useCalendarEvents';
 import type { SpeakerSuggestion, StaleAssignment } from '@/lib/ipc';
+import { t } from '@/i18n';
 
 interface SpeakerReviewPanelProps {
   summaryFile: string;
@@ -47,19 +48,19 @@ function suggestionLabel(suggestion: SpeakerSuggestion): string {
   // confirmed (confirm-speaker refuses it) -- if both were ever somehow
   // set, the marking is the newer and more specific fact.
   if (suggestion.contains_multiple_speakers) {
-    return 'More than one person';
+    return t('speakerReviewPanel.moreThanOnePerson');
   }
   if (suggestion.confirmed_by_user) {
-    return `✓ Confirmed as ${suggestion.confirmed_by_user}`;
+    return t('speakerReviewPanel.confirmedAs', { confirmed_by_user: suggestion.confirmed_by_user });
   }
   if (suggestion.status === 'confirmed' && suggestion.suggested_name) {
-    return `Likely ${suggestion.suggested_name}`;
+    return t('speakerReviewPanel.likely', { suggested_name: suggestion.suggested_name });
   }
   const topCandidate = suggestion.candidates[0];
   if (suggestion.status === 'possible' && topCandidate) {
-    return `Might be ${topCandidate.display_name}`;
+    return t('speakerReviewPanel.mightBe', { display_name: topCandidate.display_name });
   }
-  return 'Unidentified speaker';
+  return t('speakerReviewPanel.unidentifiedSpeaker');
 }
 
 // Mirrors Config._person_name_taken's case/whitespace-insensitive
@@ -82,7 +83,7 @@ export function namesCollide(a: string, b: string): boolean {
 
 const STALE_DIARIZATION_ERROR_CODE = 'stale_diarization_run';
 const STALE_DIARIZATION_FEEDBACK =
-  'The speaker analysis changed while you were reviewing. Refreshing the list. Check the row before trying again.';
+  t('speakerReviewPanel.theSpeakerAnalysisChangedWhile');
 
 function isStaleDiarizationError(error: unknown): boolean {
   return Boolean(
@@ -214,11 +215,13 @@ export function staleAssignmentNotice(stale: StaleAssignment[] | undefined): str
   const listed =
     names.length === 1
       ? names[0]
-      : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+      : t('speakerReviewPanel.nameList', { names: names.slice(0, -1).join(', '), last: names[names.length - 1] });
   return (
-    `This meeting was analysed again, so the speakers were renumbered. `
-    + `${listed} ${names.length === 1 ? 'is' : 'are'} no longer linked to any speaker below. `
-    + `Nothing was deleted -- assign them again to restore the link.`
+    t('speakerReviewPanel.thisMeetingWasAnalysedAgain')
+    + (names.length === 1
+      ? t('speakerReviewPanel.noLongerLinked.one', { listed })
+      : t('speakerReviewPanel.noLongerLinked.other', { listed }))
+    + t('speakerReviewPanel.nothingWasDeletedAssignThem')
   );
 }
 
@@ -227,8 +230,8 @@ export function staleAssignmentNotice(stale: StaleAssignment[] | undefined): str
 // determine_recording_type (src/speaker_suggestions.py) for the same
 // mic->in_person / system->remote mapping this mirrors.
 function channelLabel(channel: string): string {
-  if (channel === 'mic') return 'your mic';
-  if (channel === 'system') return 'the call';
+  if (channel === 'mic') return t('speakerReviewPanel.yourMic');
+  if (channel === 'system') return t('speakerReviewPanel.theCall');
   return channel;
 }
 
@@ -237,9 +240,14 @@ function channelLabel(channel: string): string {
  * there's no way to know who a cluster with no suggestion actually is. */
 function identificationHint(channel: string, suggestion: SpeakerSuggestion): string {
   const parts = [channelLabel(channel)];
-  if (suggestion.first_timestamp) parts.push(`first at ${suggestion.first_timestamp}`);
+  if (suggestion.first_timestamp) parts.push(t('speakerReviewPanel.firstAt', { first_timestamp: suggestion.first_timestamp }));
   parts.push(
-    `${Math.round(suggestion.speech_duration_seconds)}s across ${suggestion.segment_count} turn${suggestion.segment_count === 1 ? '' : 's'}`,
+    suggestion.segment_count === 1
+      ? t('speakerReviewPanel.speechAcross.one', { seconds: Math.round(suggestion.speech_duration_seconds), count: 1 })
+      : t('speakerReviewPanel.speechAcross.other', {
+        seconds: Math.round(suggestion.speech_duration_seconds),
+        count: suggestion.segment_count,
+      }),
   );
   return parts.join(' · ');
 }
@@ -285,7 +293,7 @@ function PlaySampleButton({
   });
   const playing = playback.playingKey === playbackKey;
 
-  const title = label ?? (playing ? 'Stop sample' : 'Play sample');
+  const title = label ?? (playing ? t('speakerReviewPanel.stopSample') : t('speakerReviewPanel.playSample'));
   // Distinct testid per excerpt: the whole point of the expanded list is
   // that each row plays a DIFFERENT moment, so a spec has to be able to
   // address them individually.
@@ -298,8 +306,8 @@ function PlaySampleButton({
       <Button
         size="sm"
         variant="ghost"
-        aria-label={playing ? 'Stop sample' : title}
-        title={playing ? 'Stop sample' : title}
+        aria-label={playing ? t('speakerReviewPanel.stopSample') : title}
+        title={playing ? t('speakerReviewPanel.stopSample') : title}
         disabled={disabled || playback.pendingKey !== null}
         onClick={() => void playback.toggle(playbackKey)}
         data-testid={testId}
@@ -314,7 +322,7 @@ function PlaySampleButton({
       </Button>
       {playback.errorKey === playbackKey && (
         <span role="alert" className="text-[12px]" style={{ color: 'var(--danger)' }}>
-          Could not play this sample. Try again.
+          {t('speakerReviewPanel.couldNotPlayThisSample')}
         </span>
       )}
     </span>
@@ -488,7 +496,7 @@ export function SpeakerReviewPanel({
   ) => {
     const stale = isStaleDiarizationError(error);
     setFeedback((prev) => new Map(prev).set(key, {
-      message: stale ? STALE_DIARIZATION_FEEDBACK : 'Try again.',
+      message: stale ? STALE_DIARIZATION_FEEDBACK : t('speakerReviewPanel.tryAgain'),
       action,
     }));
     if (stale) void suggestionsQuery.refetch();
@@ -594,7 +602,7 @@ export function SpeakerReviewPanel({
         setNewPersonError(null);
         reportMutationFailure(rowKey(staleRow), error);
       } else {
-        setNewPersonError('Could not create this person. The name may already exist. Try another name.');
+        setNewPersonError(t('speakerReviewPanel.couldNotCreateThisPerson'));
       }
     }
   };
@@ -608,7 +616,7 @@ export function SpeakerReviewPanel({
         className="text-[13px] font-semibold tracking-[0.01em]"
         style={{ color: 'var(--fg-2)', fontFamily: 'var(--font-sans)', margin: 0 }}
       >
-        Speakers
+        {t('speakerReviewPanel.speakers')}
       </h2>
       {/* Above the rows and above the speaker-count note, because it
           explains why the rows below look unfamiliar: without it, a
@@ -630,8 +638,8 @@ export function SpeakerReviewPanel({
           style={{ color: 'var(--fg-2)', margin: 0 }}
           data-testid="speaker-minimum-count"
         >
-          {`At least ${minimumSpeakers} people spoke, but only ${clusterCapacity} could be told apart on one channel. `}
-          {'Speech from a group marked as more than one person is left unassigned.'}
+          {t('speakerReviewPanel.atLeastPeopleSpokeBut', { minimumSpeakers, clusterCapacity })}
+          {t('speakerReviewPanel.speechFromAGroupMarked')}
         </p>
       )}
       <div className="flex flex-col gap-1.5">
@@ -680,7 +688,7 @@ export function SpeakerReviewPanel({
                 </span>
                 {isMarked ? (
                   <span className="text-[11.5px]" style={{ color: 'var(--fg-2)' }}>
-                    Left out of naming and voice recognition.
+                    {t('speakerReviewPanel.leftOutOfNamingAnd')}
                   </span>
                 ) : isKept ? (
                   <span
@@ -688,7 +696,7 @@ export function SpeakerReviewPanel({
                     style={{ color: 'var(--fg-2)' }}
                     data-testid={`speaker-kept-generic-${key}`}
                   >
-                    Kept generic — you decided not to name this speaker.
+                    {t('speakerReviewPanel.keptGenericYouDecidedNot')}
                   </span>
                 ) : (
                   row.suggestion.sample_text && (
@@ -722,7 +730,7 @@ export function SpeakerReviewPanel({
                     ) : (
                       <ChevronRight className="size-[12px]" />
                     )}
-                    {isExpanded ? 'Fewer excerpts' : `${samples.length} excerpts`}
+                    {isExpanded ? t('speakerReviewPanel.fewerExcerpts') : t('speakerReviewPanel.excerpts', { length: samples.length })}
                   </button>
                 )}
                 {feedback.get(key) && (
@@ -733,12 +741,12 @@ export function SpeakerReviewPanel({
                   >
                     {`${
                       feedback.get(key)!.action === 'mark'
-                        ? "Couldn't mark this as more than one person"
+                        ? t('speakerReviewPanel.couldnTMarkThisAs')
                         : feedback.get(key)!.action === 'unmark'
-                          ? "Couldn't undo the marking"
+                          ? t('speakerReviewPanel.couldnTUndoTheMarking')
                           : feedback.get(key)!.action === 'review'
-                            ? "Couldn't update the review state"
-                          : "Couldn't confirm"
+                            ? t('speakerReviewPanel.couldnTUpdateTheReview')
+                          : t('speakerReviewPanel.couldnTConfirm')
                     }: ${feedback.get(key)!.message}`}
                   </span>
                 )}
@@ -776,7 +784,7 @@ export function SpeakerReviewPanel({
                       data-testid={`speaker-approve-${key}`}
                     >
                       <Check className="size-[13px]" />
-                      Approve
+                      {t('speakerReviewPanel.approve')}
                     </Button>
                   )}
                 <Popover
@@ -796,14 +804,14 @@ export function SpeakerReviewPanel({
                       disabled={anyConfirmPending}
                       data-testid={`speaker-change-${key}`}
                     >
-                      Change
+                      {t('speakerReviewPanel.change')}
                       <ChevronDown className="size-[13px]" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-[240px] p-1">
                     {(profilesQuery.data ?? []).length === 0 ? (
                       <div className="px-2 py-1.5 text-[12.5px]" style={{ color: 'var(--fg-2)' }}>
-                        No known people yet
+                        {t('speakerReviewPanel.noKnownPeopleYet')}
                       </div>
                     ) : (
                       (() => {
@@ -825,8 +833,8 @@ export function SpeakerReviewPanel({
                                 <Input
                                   value={personQuery}
                                   onChange={(e) => setPersonQuery(e.target.value)}
-                                  placeholder="Search people…"
-                                  aria-label="Search people"
+                                  placeholder={t('speakerReviewPanel.searchPeople')}
+                                  aria-label={t('speakerReviewPanel.searchPeople2')}
                                   className="h-[28px] text-[13px]"
                                   data-testid={`speaker-person-search-${key}`}
                                 />
@@ -839,7 +847,7 @@ export function SpeakerReviewPanel({
                                   style={{ color: 'var(--fg-2)' }}
                                   data-testid="speaker-person-no-match"
                                 >
-                                  No match
+                                  {t('speakerReviewPanel.noMatch')}
                                 </div>
                               ) : (
                                 matches.map((profile) => (
@@ -868,9 +876,9 @@ export function SpeakerReviewPanel({
                                       <span
                                         className="shrink-0 text-[11px]"
                                         style={{ color: 'var(--fg-2)' }}
-                                        title="Already assigned in this meeting"
+                                        title={t('speakerReviewPanel.alreadyAssignedInThisMeeting')}
                                       >
-                                        here
+                                        {t('speakerReviewPanel.here')}
                                       </span>
                                     )}
                                   </button>
@@ -895,7 +903,7 @@ export function SpeakerReviewPanel({
                   data-testid={`speaker-new-person-${key}`}
                 >
                   <UserPlus className="size-[13px]" />
-                  New person
+                  {t('speakerReviewPanel.newPerson')}
                 </Button>
                   </>
                 )}
@@ -909,13 +917,13 @@ export function SpeakerReviewPanel({
                   variant={isMarked ? 'outline' : 'ghost'}
                   aria-label={
                     isMarked
-                      ? 'This is one person after all - reopens the row for naming, does not restore the earlier name'
-                      : 'This is more than one person'
+                      ? t('speakerReviewPanel.thisIsOnePersonAfter')
+                      : t('speakerReviewPanel.thisIsMoreThanOne')
                   }
                   title={
                     isMarked
-                      ? 'This is one person after all - reopens the row for naming, does not restore the earlier name'
-                      : 'This is more than one person'
+                      ? t('speakerReviewPanel.thisIsOnePersonAfter')
+                      : t('speakerReviewPanel.thisIsMoreThanOne')
                   }
                   disabled={anyConfirmPending}
                   onClick={() => setMultiSpeaker(row, !isMarked)}
@@ -928,7 +936,7 @@ export function SpeakerReviewPanel({
                       all gone by then, and calling that an undo would
                       promise a recovery the backend cannot perform. */}
                   {isMarked ? <Undo2 className="size-[13px]" /> : <Users className="size-[13px]" />}
-                  {isMarked ? 'One person' : null}
+                  {isMarked ? t('speakerReviewPanel.onePerson') : null}
                 </Button>
                 {/* The row stays put and reads as parked, rather than
                     vanishing. Hiding it was fine while the decision lived
@@ -941,14 +949,14 @@ export function SpeakerReviewPanel({
                   <Button
                     size="sm"
                     variant={isKept ? 'outline' : 'ghost'}
-                    aria-label={isKept ? 'Reopen this speaker for naming' : 'Keep generic label'}
-                    title={isKept ? 'Reopen this speaker for naming' : 'Keep generic label'}
+                    aria-label={isKept ? t('speakerReviewPanel.reopenThisSpeakerForNaming') : t('speakerReviewPanel.keepGenericLabel')}
+                    title={isKept ? t('speakerReviewPanel.reopenThisSpeakerForNaming') : t('speakerReviewPanel.keepGenericLabel')}
                     disabled={anyConfirmPending}
                     onClick={() => setGenericReview(row, !isKept)}
                     data-testid={`speaker-keep-generic-${key}`}
                   >
                     {isKept ? <Undo2 className="size-[13px]" /> : <X className="size-[13px]" />}
-                    {isKept ? 'Reopen' : null}
+                    {isKept ? t('speakerReviewPanel.reopen') : null}
                   </Button>
                 )}
               </div>
@@ -979,7 +987,7 @@ export function SpeakerReviewPanel({
                       style={{ color: 'var(--fg-2)' }}
                       data-testid={`speaker-samples-textless-${key}`}
                     >
-                      Transcript text can’t be matched to a speaker in this recording. Play to listen.
+                      {t('speakerReviewPanel.transcriptTextCanTBe')}
                     </span>
                   )}
                   {samples.map((sample, index) => (
@@ -1007,8 +1015,8 @@ export function SpeakerReviewPanel({
                           disabled={anyConfirmPending || sample.end <= sample.start}
                           label={
                             sample.end <= sample.start
-                              ? 'No audio could be matched to this moment'
-                              : `Play excerpt at ${formatOffset(sample.start)}`
+                              ? t('speakerReviewPanel.noAudioCouldBeMatched')
+                              : t('speakerReviewPanel.playExcerptAt', { offset: formatOffset(sample.start) })
                           }
                         />
                       )}
@@ -1033,7 +1041,7 @@ export function SpeakerReviewPanel({
                         {sample.text
                           ? `“${sample.text}”`
                           : samples.some((s) => s.text)
-                            ? 'No transcript for this moment'
+                            ? t('speakerReviewPanel.noTranscriptForThisMoment')
                             : ''}
                       </span>
                     </div>
@@ -1054,8 +1062,10 @@ export function SpeakerReviewPanel({
           data-testid="speaker-toggle-filtered"
         >
           {showFiltered
-            ? 'Hide filtered rows'
-            : `Show ${filteredRows.length} filtered row${filteredRows.length === 1 ? '' : 's'}`}
+            ? t('speakerReviewPanel.hideFilteredRows')
+            : filteredRows.length === 1
+              ? t('speakerReviewPanel.showFilteredRows.one', { count: filteredRows.length })
+              : t('speakerReviewPanel.showFilteredRows.other', { count: filteredRows.length })}
         </button>
       )}
 
@@ -1070,16 +1080,13 @@ export function SpeakerReviewPanel({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New person</DialogTitle>
+            <DialogTitle>{t('speakerReviewPanel.newPerson')}</DialogTitle>
             <DialogDescription className="space-y-2">
               <span className="block">
-                Steno creates a numerical biometric voice profile from confirmed excerpts to
-                suggest this person in future meetings. It stays on this device and is never sent
-                to Steno. Suggestions can be wrong and should be reviewed.
+                {t('speakerReviewPanel.stenoCreatesANumericalBiometric')}
               </span>
               <span className="block">
-                Delete the profile anytime in Settings &gt; People. Recordings and transcripts are
-                stored separately and are not deleted with the profile.
+                {t('speakerReviewPanel.deleteTheProfileAnytime')}
               </span>
             </DialogDescription>
           </DialogHeader>
@@ -1103,7 +1110,7 @@ export function SpeakerReviewPanel({
             value={newPersonName}
             onChange={(e) => setNewPersonName(e.target.value)}
             disabled={confirmSpeaker.isPending}
-            placeholder="e.g. Person Alpha"
+            placeholder={t('speakerReviewPanel.eGPersonAlpha')}
             autoFocus
             onKeyDown={(e) => {
               if (
@@ -1119,7 +1126,7 @@ export function SpeakerReviewPanel({
           />
           {duplicateProfile && (
             <p className="text-[12px]" style={{ color: 'var(--danger)' }} data-testid="speaker-new-person-duplicate">
-              A person named "{duplicateProfile.display_name}" already exists -- use Change to pick them instead.
+              {t('speakerReviewPanel.aPersonNamed')}{duplicateProfile.display_name}{t('speakerReviewPanel.alreadyExistsUseChangeTo')}
             </p>
           )}
           {newPersonError && (
@@ -1129,7 +1136,7 @@ export function SpeakerReviewPanel({
           )}
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" disabled={confirmSpeaker.isPending}>Cancel</Button>
+              <Button variant="outline" disabled={confirmSpeaker.isPending}>{t('speakerReviewPanel.cancel')}</Button>
             </DialogClose>
             <Button
               disabled={
@@ -1140,7 +1147,7 @@ export function SpeakerReviewPanel({
               onClick={() => void submitNewPerson()}
               data-testid="speaker-new-person-submit"
             >
-              {confirmSpeaker.isPending ? 'Creating…' : 'Create'}
+              {confirmSpeaker.isPending ? t('speakerReviewPanel.creating') : t('speakerReviewPanel.create')}
             </Button>
           </DialogFooter>
         </DialogContent>

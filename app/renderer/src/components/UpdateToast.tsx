@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { ArrowDownToLine, X } from 'lucide-react';
 import { ipc } from '@/lib/ipc';
+import { t } from '@/i18n';
 
 /**
  * Top-right toast that appears when electron-updater has finished
@@ -46,7 +47,7 @@ export function UpdateToast() {
     >
       <ArrowDownToLine size={13} style={{ color: 'var(--fg-2)' }} />
       <span>
-        Update <span className="tabular-nums">v{pendingVersion}</span> ready
+        {t('updateToast.update')} <span className="tabular-nums">{t('updateToast.v')}{pendingVersion}</span> {t('updateToast.ready')}
       </span>
       <button
         type="button"
@@ -57,12 +58,12 @@ export function UpdateToast() {
           color: 'var(--fg-inverse)',
         }}
       >
-        Restart
+        {t('updateToast.restart')}
       </button>
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        aria-label="Dismiss update notification"
+        aria-label={t('updateToast.dismissUpdateNotification')}
         className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1"
         style={{ color: 'var(--fg-2)' }}
       >

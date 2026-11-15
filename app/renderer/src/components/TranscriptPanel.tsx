@@ -20,10 +20,10 @@ export function TranscriptPanelContent({
   const meeting = useMeeting(summaryFile);
 
   if (meeting.isLoading) {
-    return <div className="px-4 py-3 text-sm text-muted-foreground">Loading…</div>;
+    return <div className="px-4 py-3 text-sm text-muted-foreground">{t('transcriptPanel.loading')}</div>;
   }
   if (!meeting.data) {
-    return <div className="px-4 py-3 text-sm text-muted-foreground">No transcript available.</div>;
+    return <div className="px-4 py-3 text-sm text-muted-foreground">{t('transcriptPanel.noTranscriptAvailable')}</div>;
   }
   const m = meeting.data;
   const isDiarised = !!(m.is_diarised && m.diarised_text);
@@ -82,7 +82,7 @@ function TranscriptLanguageInfo({ meeting }: { meeting: Meeting }) {
  *  enterprise schema change). */
 export function OrgTranscriptPanelContent({ transcript }: { transcript: string }) {
   if (!transcript.trim()) {
-    return <div className="px-4 py-3 text-sm text-muted-foreground">No transcript available.</div>;
+    return <div className="px-4 py-3 text-sm text-muted-foreground">{t('transcriptPanel.noTranscriptAvailable')}</div>;
   }
   const isDiarised = /\[(?:You|Others)\]/.test(transcript);
   return <TranscriptBody text={transcript} isDiarised={isDiarised} />;
@@ -119,7 +119,7 @@ function TranscriptBody({ text, isDiarised }: { text: string; isDiarised: boolea
 
   if (segments.length === 0) {
     return (
-      <div className="px-4 py-3 text-sm text-muted-foreground">No transcript available.</div>
+      <div className="px-4 py-3 text-sm text-muted-foreground">{t('transcriptPanel.noTranscriptAvailable')}</div>
     );
   }
 
@@ -130,7 +130,7 @@ function TranscriptBody({ text, isDiarised }: { text: string; isDiarised: boolea
           variant="sunken"
           size="sm"
           iconStart={<SearchIcon className="size-3.5" />}
-          placeholder="Search transcript"
+          placeholder={t('transcriptPanel.searchTranscript')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1"

@@ -23,6 +23,7 @@ import {
   useSystemAudioSupport,
   useSilenceAutoStopSetting,
 } from './useSettings';
+import { t } from '@/i18n';
 
 /** Hardcoded RMS floor (0..1, computed on the time-domain samples from an
  *  AnalyserNode). Above this on either mic OR system audio counts as
@@ -220,9 +221,9 @@ export function useSystemAudioCapture() {
     const teardownStreams = () => {
       teardownSilenceDetector();
       teardownCaptureCheck();
-      micStreamRef.current?.getTracks().forEach((t) => t.stop());
-      sysStreamRef.current?.getTracks().forEach((t) => t.stop());
-      mixedStreamRef.current?.getTracks().forEach((t) => t.stop());
+      micStreamRef.current?.getTracks().forEach((track) => track.stop());
+      sysStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mixedStreamRef.current?.getTracks().forEach((track) => track.stop());
       stopLinuxLoopback();
       if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
         audioCtxRef.current.close().catch(() => { /* already closed */ });
@@ -248,8 +249,8 @@ export function useSystemAudioCapture() {
       let micStream: MediaStream | null = null;
       let sysStream: MediaStream | null = null;
       const stopAcquired = () => {
-        micStream?.getTracks().forEach((t) => t.stop());
-        sysStream?.getTracks().forEach((t) => t.stop());
+        micStream?.getTracks().forEach((track) => track.stop());
+        sysStream?.getTracks().forEach((track) => track.stop());
       };
 
       try {
@@ -362,9 +363,9 @@ export function useSystemAudioCapture() {
               audio: true,
             });
             if (cancelled()) { stopAcquired(); return; }
-            sysStream.getVideoTracks().forEach((t) => {
-              t.stop();
-              sysStream!.removeTrack(t);
+            sysStream.getVideoTracks().forEach((track) => {
+              track.stop();
+              sysStream!.removeTrack(track);
             });
             if (sysStream.getAudioTracks().length === 0) {
               throw new Error('No audio track in loopback stream');
@@ -396,7 +397,7 @@ export function useSystemAudioCapture() {
             // eslint-disable-next-line no-console
             console.warn('[systemAudioCapture] loopback unavailable, continuing mic-only', loopbackErr);
           }
-          sysStream?.getTracks().forEach((t) => t.stop());
+          sysStream?.getTracks().forEach((track) => track.stop());
           sysStream = null;
           sysStreamRef.current = null;
           // Branch on PLATFORM, not on whether the ref got assigned: main may
@@ -553,7 +554,7 @@ export function useSystemAudioCapture() {
           return;
         }
         if (!opened.success) {
-          throw new Error(opened.error || 'Could not open recording file');
+          throw new Error(opened.error || t('useSystemAudioCapture.couldNotOpenRecordingFile'));
         }
 
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -586,7 +587,7 @@ export function useSystemAudioCapture() {
                 // failed. Without the phase this reached the user as "the
                 // recording didn't start" — false twice over.
                 bridge.recording.reportCaptureError(
-                  `Recording may be incomplete: ${res.error || 'failed to write audio'}`,
+                  t('useSystemAudioCapture.recordingMayBeIncomplete', { value: res.error || t('useSystemAudioCapture.failedToWriteAudio') }),
                   undefined,
                   'ongoing',
                 );
@@ -883,7 +884,7 @@ export function useSystemAudioCapture() {
         // NAME as well as the message: main maps the name to prose, and a name
         // is a stable identifier where the message text is not.
         bridge.recording.reportCaptureError(
-          err instanceof Error ? err.message : 'Recording could not start',
+          err instanceof Error ? err.message : t('useSystemAudioCapture.recordingCouldNotStart'),
           err instanceof Error ? err.name : undefined,
           'start',
         );
@@ -1040,9 +1041,9 @@ export function useSystemAudioCapture() {
         // without overwriting its onstop flush+close handoff.
         try { recorder.stop(); } catch { /* already stopping */ }
       }
-      micStreamRef.current?.getTracks().forEach((t) => t.stop());
-      sysStreamRef.current?.getTracks().forEach((t) => t.stop());
-      mixedStreamRef.current?.getTracks().forEach((t) => t.stop());
+      micStreamRef.current?.getTracks().forEach((track) => track.stop());
+      sysStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mixedStreamRef.current?.getTracks().forEach((track) => track.stop());
       stopLinuxLoopback();
       if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
         audioCtxRef.current.close().catch(() => { /* already closed */ });

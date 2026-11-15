@@ -10,6 +10,7 @@ import {
 import { useRecording } from '@/hooks/useRecording';
 import { importMeetingPackage, MEETING_TRANSFER_COPY } from '@/hooks/useMeetingTransfer';
 import { isMac } from '@/lib/utils';
+import { t } from '@/i18n';
 
 /**
  * Full-window drag-and-drop target for importing audio files. Mounted once at
@@ -138,10 +139,10 @@ export function ImportDropZone() {
         )}
         <p className="text-sm font-medium">
           {isRecording
-            ? 'Stop recording to import'
+            ? t('importDropZone.stopRecordingToImport')
             : isMac
               ? MEETING_TRANSFER_COPY.drop
-              : 'Drop audio to import'}
+              : t('importDropZone.dropAudioToImport')}
         </p>
       </div>
     </div>

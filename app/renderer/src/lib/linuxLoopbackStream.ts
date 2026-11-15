@@ -1,4 +1,5 @@
 import { ipc } from './ipc';
+import { t } from '@/i18n';
 
 /** ~2s of audio at the observed ~45 chunks/sec. */
 const MAX_IN_FLIGHT_CHUNKS = 96;
@@ -31,7 +32,7 @@ export async function startLinuxLoopbackStream(
   const bridge = ipc();
   const result = await bridge.recording.startLinuxLoopback();
   if (!result.success) {
-    throw new Error(result.error || 'Linux loopback capture failed to start');
+    throw new Error(result.error || t('linuxLoopbackStream.linuxLoopbackCaptureFailedTo'));
   }
   const { sampleRate, channels } = result;
   const bytesPerFrame = 2 * channels; // s16 = 2 bytes/sample

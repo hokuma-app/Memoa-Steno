@@ -60,9 +60,9 @@ export function Calendar() {
   const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
   const label = (d: Date) =>
     dayKey(d) === dayKey(today)
-      ? 'Today'
+      ? t('calendar.today')
       : dayKey(d) === dayKey(tomorrow)
-        ? 'Tomorrow'
+        ? t('calendar.tomorrow')
         : d.toLocaleDateString(UI_LOCALE, { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (

@@ -36,7 +36,7 @@ class ErrorBoundary extends React.Component<
     if (this.state.error) {
       return (
         <div style={{ padding: 32, fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: 'red' }}>
-          <strong>Renderer crashed:</strong>{'\n\n'}
+          <strong>{t('main.rendererCrashed')}</strong>{'\n\n'}
           {this.state.error.stack ?? this.state.error.message}
         </div>
       );
@@ -46,6 +46,7 @@ class ErrorBoundary extends React.Component<
 }
 
 import { NotificationToast } from './components/NotificationToast';
+import { t } from '@/i18n';
 
 const isNotification = window.location.hash === '#/notification';
 

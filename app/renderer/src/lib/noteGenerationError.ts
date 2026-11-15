@@ -1,16 +1,17 @@
 import { ResultError } from './result';
+import { t } from '@/i18n';
 
 // Fixed English copy, ready to move into the locale catalogue. Never render
 // backend error.message, event.message, or an unknown code as user-facing text.
 const messages = {
-  generation_connection_failed: 'Could not reach the AI service. Check that it is running and that the connection settings are correct, then try again.',
-  generation_model_unavailable: 'The selected AI model is unavailable. Check the model in Settings, then try again.',
-  generation_auth_failed: 'The AI service denied access. Check your credentials and permissions in Settings, then try again.',
-  generation_timeout: 'The AI service took too long to respond. Try again when it is available.',
-  generation_out_of_memory: 'There was not enough memory to generate notes. Choose a smaller model in Settings or free up memory, then try again.',
-  generation_not_configured: 'The AI service is not configured. Complete its setup in Settings, then try again.',
-  processing_stopped: 'Processing was stopped. The recording is kept, so you can resume with Re-transcribe or Generate notes.',
-  generation_failed: 'Notes could not be generated. Try again. If the problem continues, check the AI settings and debug logs.',
+  generation_connection_failed: t('noteGenerationError.couldNotReachTheAi'),
+  generation_model_unavailable: t('noteGenerationError.theSelectedAiModelIs'),
+  generation_auth_failed: t('noteGenerationError.theAiServiceDeniedAccess'),
+  generation_timeout: t('noteGenerationError.theAiServiceTookToo'),
+  generation_out_of_memory: t('noteGenerationError.thereWasNotEnoughMemory'),
+  generation_not_configured: t('noteGenerationError.theAiServiceIsNot'),
+  processing_stopped: t('noteGenerationError.processingWasStoppedTheRecording'),
+  generation_failed: t('noteGenerationError.notesCouldNotBeGenerated'),
 } as const;
 
 export type NoteGenerationErrorCode = keyof typeof messages;

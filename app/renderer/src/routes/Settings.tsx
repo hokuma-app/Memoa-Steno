@@ -17,6 +17,7 @@ import { AdvancedTab } from './settings/AdvancedTab';
 import { IntegrationsTab } from './settings/IntegrationsTab';
 import { DeveloperTab } from './settings/DeveloperTab';
 import { AboutTab } from './settings/AboutTab';
+import { t } from '@/i18n';
 
 // Per-tab intro copy, shown in the page header above the divider (rather
 // than repeated inside each tab's own content, which used to duplicate the
@@ -42,8 +43,8 @@ const SETTINGS_TAB_DESCRIPTIONS: Partial<Record<SettingsTabId, React.ReactNode>>
     </>
   ),
   people:
-    'Local voice profiles Steno can use to suggest people across meetings. Deleting a profile stops future matching but does not delete recordings or transcripts.',
-  organisation: 'Connect to Steno Enterprise for your organisation.',
+    t('settings.localVoiceProfilesStenoCan'),
+  organisation: t('settings.connectToStenoEnterpriseFor'),
 };
 
 // Deep-linkable tab ids: the 8 SettingsTabId nav destinations, plus

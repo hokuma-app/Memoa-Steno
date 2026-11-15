@@ -16,6 +16,7 @@ import {
 } from '@/hooks/useSettings';
 import { useAiProvider } from '@/hooks/useAi';
 import { useTranscriptionEngine } from '@/hooks/useModels';
+import { t } from '@/i18n';
 
 // Cross-process sentinel: the save-diagnostics handler (and its e2e mock) return
 // this exact error string when the user dismisses the save dialog. Kept in sync
@@ -101,11 +102,11 @@ export function DeveloperTab() {
         content,
       );
       if (!res.success && res.error !== DIAGNOSTICS_CANCELED) {
-        setSaveError(`Couldn't save diagnostics: ${res.error || 'unknown error'}`);
+        setSaveError(t('settingsDeveloperTab.couldnTSaveDiagnostics', { value: res.error || t('settingsDeveloperTab.unknownError') }));
       }
     } catch (err) {
       setSaveError(
-        `Couldn't save diagnostics: ${err instanceof Error ? err.message : String(err)}`,
+        t('settingsDeveloperTab.couldnTSaveDiagnostics', { value: err instanceof Error ? err.message : String(err) }),
       );
     }
   };
@@ -121,10 +122,10 @@ export function DeveloperTab() {
             className="text-[14px] font-medium"
             style={{ color: 'var(--fg-1)', marginBottom: 2 }}
           >
-            Debug console
+            {t('settingsDeveloperTab.debugConsole')}
           </div>
           <div className="text-[13px]" style={{ color: 'var(--fg-2)' }}>
-            Real-time log output from backend processes.
+            {t('settingsDeveloperTab.realTimeLogOutputFrom')}
           </div>
         </div>
         <div className="flex gap-2">
@@ -134,7 +135,7 @@ export function DeveloperTab() {
             className="h-7 px-2.5 text-[13px]"
             onClick={clearDebugLogs}
           >
-            Clear
+            {t('settingsDeveloperTab.clear')}
           </Button>
           <Button
             variant="ghost"
@@ -143,7 +144,7 @@ export function DeveloperTab() {
             onClick={copyLogs}
             disabled={!logs.length}
           >
-            Copy
+            {t('settingsDeveloperTab.copy')}
           </Button>
           <Button
             variant="ghost"
@@ -152,7 +153,7 @@ export function DeveloperTab() {
             onClick={() => void saveLogs()}
             disabled={!logs.length}
           >
-            Save
+            {t('settingsDeveloperTab.save')}
           </Button>
         </div>
       </div>

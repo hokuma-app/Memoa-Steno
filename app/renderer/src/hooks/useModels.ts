@@ -11,6 +11,7 @@ import {
 import { unwrap } from '@/lib/result';
 import { speakerModelsStatusKey } from '@/hooks/useSpeakerModels';
 import { PARAKEET_LANGUAGE_CODES } from '@/lib/transcription-languages';
+import { t } from '@/i18n';
 
 export const modelsKeys = {
   all: ['models'] as const,
@@ -277,7 +278,7 @@ export function useSwitchToFasterBuild(onVerified?: (mlxTag: string) => void) {
     if (!success) {
       ipc().models.ackPullComplete(model);
       setState('error');
-      setError(pullError ?? 'Failed to download the faster build.');
+      setError(pullError ?? t('useModels.failedToDownloadTheFaster'));
       return;
     }
     setState('verifying');
@@ -294,7 +295,7 @@ export function useSwitchToFasterBuild(onVerified?: (mlxTag: string) => void) {
       onVerifiedRef.current?.(model);
     } else {
       setState('error');
-      setError(verifyResult.error ?? "Couldn't verify the faster build.");
+      setError(verifyResult.error ?? t('useModels.couldnTVerifyTheFaster'));
     }
   };
 
@@ -395,7 +396,7 @@ export function useDeleteModel() {
   return useMutation({
     mutationFn: async (tag: string) => {
       const result = await ipc().models.delete(tag);
-      if (!result.success) throw new Error(result.error ?? 'Failed to delete the old build.');
+      if (!result.success) throw new Error(result.error ?? t('useModels.failedToDeleteTheOld'));
       return result;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: modelsKeys.all }),
@@ -660,7 +661,7 @@ export function useSetDiarizationEngine() {
       let modelsConfirmed = status.success && status.ready;
       if (missing) {
         const prepared = unwrap(await ipc().setup.speakerModels(engine));
-        if (!prepared.ready) throw new Error('Speaker detection models are not ready');
+        if (!prepared.ready) throw new Error(t('useModels.speakerDetectionModelsAreNot'));
         modelsConfirmed = true;
       }
       const saved = unwrap(await ipc().diarizationEngine.set(engine)).engine;

@@ -33,7 +33,7 @@ it('places future-summary detail after automatic notes and before the provider s
     section.indexOf('onCheckedChange={(v) => setAutoSummarize.mutate(v)}')
   );
   expect(section.indexOf('<SummaryDetailSettings />')).toBeLessThan(
-    section.indexOf('label="AI provider"')
+    section.indexOf("label={t('settingsAiTab.aiProvider')}")
   );
 });
 afterEach(cleanup);

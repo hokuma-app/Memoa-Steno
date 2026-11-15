@@ -1,3 +1,5 @@
+import { IS_VENETA_MEMOAI } from '@/lib/productBrand';
+
 /**
  * Locale for formatted dates and times in the interface.
  *
@@ -19,10 +21,10 @@
  * that mixes weekday names with a clock takes UI_LOCALE plus SYSTEM_HOUR12 so it
  * gets English words and the host's clock convention.
  *
- * When the i18n foundation lands, UI_LOCALE becomes the active language and this
- * is the single place that has to change.
+ * The Veneta build's interface is Dutch, so its weekday and month names are
+ * Dutch too; the default build stays English.
  */
-export const UI_LOCALE = 'en';
+export const UI_LOCALE = IS_VENETA_MEMOAI ? 'nl' : 'en';
 
 /**
  * Whether the host formats times as 12-hour. Resolved once at module load,

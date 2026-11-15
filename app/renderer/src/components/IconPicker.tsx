@@ -2,6 +2,7 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import * as LucideIcons from 'lucide-react';
 import { Search, X } from 'lucide-react';
+import { t } from '@/i18n';
 
 // ---------------------------------------------------------------------------
 // Icon catalogue — name (kebab-case lucide icon) + searchable tags
@@ -193,7 +194,7 @@ export function IconPicker({ anchorRect, onSelect, onClose }: IconPickerProps) {
     const q = query.trim().toLowerCase();
     if (!q) return ICONS;
     return ICONS.filter(
-      (i) => i.name.includes(q) || i.tags.some((t) => t.includes(q)),
+      (i) => i.name.includes(q) || i.tags.some((tag) => tag.includes(q)),
     );
   }, [query]);
 
@@ -209,9 +210,9 @@ export function IconPicker({ anchorRect, onSelect, onClose }: IconPickerProps) {
         onClose();
       }
     };
-    const t = setTimeout(() => document.addEventListener('mousedown', handler), 50);
+    const timer = setTimeout(() => document.addEventListener('mousedown', handler), 50);
     return () => {
-      clearTimeout(t);
+      clearTimeout(timer);
       document.removeEventListener('mousedown', handler);
     };
   }, [onClose]);
@@ -279,7 +280,7 @@ export function IconPicker({ anchorRect, onSelect, onClose }: IconPickerProps) {
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search icons…"
+            placeholder={t('iconPicker.searchIcons')}
             style={{
               flex: 1,
               background: 'transparent',
@@ -324,7 +325,7 @@ export function IconPicker({ anchorRect, onSelect, onClose }: IconPickerProps) {
               fontFamily: 'var(--font-sans)',
             }}
           >
-            No icons match "{query}"
+            {t('iconPicker.noIconsMatch')}{query}"
           </div>
         ) : (
           <div
