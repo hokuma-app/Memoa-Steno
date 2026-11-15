@@ -77,3 +77,20 @@ export function uiSource(key: string, patterns: Record<string, string> = {}): st
     })
     .join('');
 }
+
+// Main-process copy (app/main-copy.js: updater messages, dialogs, notifications) in the build under test. The mock
+// IPC picks the same catalogue by the same renderer marker (app/e2e-mock-ipc.js e2eMainText).
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const mainCatalogue = require(join(appDir, 'main-copy.js')) as { EN: Record<string, string>; NL: Record<string, string> };
+
+/** The main-process text of `key` in the build under test. */
+export function mainText(key: string): string {
+  const english = mainCatalogue.EN[key];
+  if (english === undefined) throw new Error(`Unknown main-process copy key: ${key}`);
+  return VENETA_BUILD ? (mainCatalogue.NL[key] ?? english) : english;
+}
+
+/** Matches the main-process text of `key` anywhere (a banner may wrap it in other words). */
+export function mainPart(key: string): RegExp {
+  return new RegExp(escape(mainText(key)));
+}

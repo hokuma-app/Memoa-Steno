@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/electron';
-import { uiPart, uiSource } from '../fixtures/ui-copy';
+import { mainPart, uiPart, uiSource } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC, no backend. Proves the new About tab (added
@@ -74,7 +74,7 @@ test('About tab rehydrates a persisted failed background update on mount', async
   const aboutSection = page.locator('[data-settings-tab="about"]');
   await expect(aboutSection).toBeVisible();
   await expect(
-    aboutSection.getByText(/Steno couldn't reach the update server/),
+    aboutSection.getByText(mainPart('update.networkCheck')),
   ).toBeVisible();
 });
 
@@ -94,7 +94,7 @@ test('a successful check clears a stale update failure', async ({ launchApp }) =
   });
 
   const aboutSection = page.locator('[data-settings-tab="about"]');
-  const failure = aboutSection.getByText(/Steno couldn't reach the update server/);
+  const failure = aboutSection.getByText(mainPart('update.networkCheck'));
   await expect(failure).toBeVisible();
 
   await aboutSection.getByRole('button', { name: uiPart('settingsAboutTab.checkForUpdates') }).click();
@@ -114,7 +114,7 @@ test('a successful check clears a stale update failure', async ({ launchApp }) =
     window.location.hash = '#/settings?tab=about';
   });
   await expect(aboutSection).toBeVisible();
-  await expect(aboutSection.getByText(/couldn't reach the update server/)).toHaveCount(0);
+  await expect(aboutSection.getByText(mainPart('update.networkCheck'))).toHaveCount(0);
 });
 
 test('a stale status reply cannot restore a failure the check just settled', async ({
@@ -150,6 +150,6 @@ test('a stale status reply cannot restore a failure the check just settled', asy
   // Outlast the delayed reply, then assert it changed nothing.
   await page.waitForTimeout(1500);
   await expect(
-    aboutSection.getByText(/Steno couldn't reach the update server/),
+    aboutSection.getByText(mainPart('update.networkCheck')),
   ).toHaveCount(0);
 });

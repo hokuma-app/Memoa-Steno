@@ -18,10 +18,10 @@ import { uiPart, uiText } from '../fixtures/ui-copy';
 
 const EUROPEAN = ['english', 'spanish', 'french', 'german', 'dutch', 'portuguese', 'russian']
   .map((language) => uiText(`transcriptionLanguages.${language}`));
-// Non-European: Whisper-only, must NOT appear on Parakeet (it can't transcribe them).
+// Non-European: Whisper-only, must NOT appear on Parakeet (it can't transcribe them). Only labels that exist in
+// the catalogue: an absence check of a name the app never shows proves nothing.
 const NON_EUROPEAN = ['japanese', 'korean', 'hindi', 'arabic']
-  .map((language) => uiText(`settingsLanguages.${language}`))
-  .concat(['Chinese']);
+  .map((language) => uiText(`settingsLanguages.${language}`));
 
 async function openTranscribeLanguagePicker(page: Page) {
   await page.evaluate(() => {

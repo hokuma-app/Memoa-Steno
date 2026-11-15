@@ -26,22 +26,26 @@ const calls = async (app: App, name: string) => {
 };
 const ENV = { STENOAI_E2E_SEED_MEETING: '1', STENOAI_E2E_FOLD_RICH: '1', STENOAI_E2E_MOCK_PARAKEET_INSTALLED: '1' };
 
-// A tally of the animations that run on the page while a level changes (TextFold's FLIP, ghosts and stage).
+// A tally of the animations a level change creates (TextFold's FLIP, ghosts and stage), counted where they start:
+// Element.animate is wrapped, and every call made in one synchronous burst (one motion being built) is one batch.
+// Deterministic: it does not depend on a requestAnimationFrame tick catching the motion while it runs, which under load
+// could miss a motion that started and was cancelled between two frames (the old 'animations count 0' flake).
 const WATCH = `(() => {
-  const seen = { transform: 0, fade: 0, frames: 0 };
-  const tick = () => {
-    seen.frames++;
-    let t = 0, f = 0;
-    for (const a of document.getAnimations()) {
-      if (!a.effect || !a.effect.getKeyframes || a.constructor.name !== 'Animation') continue;
-      const kf = a.effect.getKeyframes();
-      if (kf.some((k) => k.transform && k.transform !== 'none')) t++;
-      if (kf.some((k) => k.opacity !== undefined && String(k.opacity) !== '1')) f++;
+  const seen = { transform: 0, fade: 0, batches: 0 };
+  let batch = null;
+  const original = Element.prototype.animate;
+  Element.prototype.animate = function (keyframes, options) {
+    const animation = original.call(this, keyframes, options);
+    if (window.__watching) {
+      if (!batch) { batch = { transform: 0, fade: 0 }; seen.batches++; queueMicrotask(() => { batch = null; }); }
+      const kf = animation.effect && animation.effect.getKeyframes ? animation.effect.getKeyframes() : [];
+      if (kf.some((k) => k.transform && k.transform !== 'none')) batch.transform++;
+      if (kf.some((k) => k.opacity !== undefined && String(k.opacity) !== '1')) batch.fade++;
+      seen.transform = Math.max(seen.transform, batch.transform); seen.fade = Math.max(seen.fade, batch.fade);
     }
-    seen.transform = Math.max(seen.transform, t); seen.fade = Math.max(seen.fade, f);
-    if (window.__watching) requestAnimationFrame(tick);
+    return animation;
   };
-  window.__watching = true; window.__seen = seen; requestAnimationFrame(tick);
+  window.__watching = true; window.__seen = seen;
 })()`;
 
 test('all five levels work at once from local levels, morph word by word, then morph to the AI levels without any button', async ({ launchApp }) => {
@@ -59,11 +63,13 @@ test('all five levels work at once from local levels, morph word by word, then m
   // Choosing a level now (before the AI levels exist) is immediate and morphs: tokens carry running transforms.
   await page.evaluate(WATCH);
   await bar(page).getByRole('button', { name: 'Kern', exact: true }).click();
-  await page.waitForTimeout(200);
   await page.screenshot({ path: shots('t1-frame-volledig-kern-mid.png') });
   await expect(pressed(page)).toHaveText('Kern');
-  await page.waitForTimeout(800);
-  const seen = await page.evaluate(() => (window as unknown as { __seen: { transform: number; fade: number } }).__seen);
+  // Deterministic end of the motion: TextFold drops the 'morphing' class when the level change has come to rest.
+  await expect(page.locator('.tf-root .doc[data-level="2"]')).toBeVisible();
+  await expect(page.locator('.tf-root.morphing')).toHaveCount(0);
+  const seen = await page.evaluate(() => (window as unknown as { __seen: { transform: number; fade: number; batches: number } }).__seen);
+  expect(seen.batches, 'the level change built its motion').toBeGreaterThan(0);
   expect(seen.transform, 'animations with a transform on tokens').toBeGreaterThan(5);
   expect(seen.fade, 'fading pieces').toBeGreaterThan(0);
   await page.evaluate(() => { (window as unknown as { __watching: boolean }).__watching = false; });
