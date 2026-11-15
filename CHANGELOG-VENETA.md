@@ -2,9 +2,20 @@
 
 Dit bestand beschrijft de eigen Veneta-releases, niet de releases van StenoAI upstream. Gepland werk staat apart van opgeleverde functionaliteit. Een versienummer in de bron is nog geen gebouwde of vrijgegeven release.
 
-## Ongepubliceerd: Agenda en voorzitter (stand 1)
+## Ongepubliceerd: kandidaat 0.11.0
 
-Nog geen release, geen versienummer, geen pakket. Branch `feat/agenda-voorzitter`.
+Nog niet gebouwd, ondertekend of vrijgegeven; het versienummer in `app/package.json` is ongewijzigd (0.10.7). Branch `feat/veneta-0.11.0`: merge van `feat/veneta-nl-interface` en `feat/agenda-voorzitter`.
+
+### Nederlandse interface en samenvattingstaal
+
+- De Veneta-build toont de interface volledig in het Nederlands: navigatie, instellingen, knoppen, dialogen, meldingen en foutteksten. Alle renderer-teksten lopen via `t()`; de Engelse catalogus groeide van 268 naar 1.310 sleutels en de Nederlandse van 92 naar 1.310. De lint-baseline van hardgecodeerde teksten ging van 711 naar 0. De Default-build blijft Engels met dezelfde tekst, aangetoond met de kopij-inventaris.
+- Ook het hoofdproces is in de Veneta-build Nederlands: menubalkmenu en tooltip, appmenu, bestandsfilters, systeemmeldingen, updaterteksten en de foutteksten die de app toont. Bundle-ID, interne naam, gegevensmap, logregels en foutcodes zijn ongewijzigd.
+- Wachtredenen van de Obsidian-sync worden in de app vertaald; de backend schrijft ze ongewijzigd.
+- Nieuwe instelling Samenvattingstaal, los van interfacetaal en transcriptietaal. In de Veneta-build is Nederlands de standaard voor nieuwe samenvattingen, titels en rapporten zolang je zelf niets kiest. Een eigen keuze, ook 'Zelfde taal als het gesprek', blijft staan. Bestaande samenvattingen worden niet opnieuw gemaakt.
+- Testomgeving: de T1-specs lezen hun interfaceteksten uit de catalogus in de taal van de gebouwde renderer (`e2e/fixtures/ui-copy.ts`), zodat dezelfde specs in de Default- en de Veneta-build slagen. De meter-test-id van de opnamecontrole hangt niet meer af van het vertaalde label. De taaltip in de transcriptinfo noemt het menu-item zoals het heet: 'Opname opnieuw transcriberen'.
+- Testomgeving: headless e2e-runs blijven op macOS een accessory-app (geen dockicoon, geen activering), het meldingsvenster komt niet op het scherm en native dialogen worden als geannuleerd beantwoord, zodat een testrun geen venster meer over andere apps legt. Productie is ongewijzigd.
+
+### Agenda en voorzitter, stand 1
 
 Nieuwe module `Agenda en voorzitter`, stand 1 (Stille voorzitter), naast de Gesprekschecklist en met dezelfde grenzen: standaard uit, alleen in het Veneta-profiel, uit betekent geen leesacties, geen modelaanroepen en geen bestanden. Beschrijving: `app/renderer/src/modules/agenda-chair/README.md`.
 
@@ -15,6 +26,10 @@ Nieuwe module `Agenda en voorzitter`, stand 1 (Stille voorzitter), naast de Gesp
 
 Bekende grenzen: afdwaling niet gebouwd; herkenningskwaliteit niet gemeten; een pauze zet de klok van het lopende punt niet stil; tijdcodes in een voortgezette notitie beginnen opnieuw; sprekers zijn kanalen.
 
+### Bewijs (bron, geen pakket)
+
+Op de integratiebranch: Python 1.951 uitgevoerd, OK (5 overgeslagen); Node 908: 902 geslaagd, 5 mislukt, 1 overgeslagen (de 5 `meeting-transfer-audio`-tests missen de niet-gebouwde `bin/steno-audio-encode`, net als op de 0.10.7-bron); renderer 589/589; typecontrole, `lint:main`, `lint:i18n` (0 bekende teksten), kopij-inventaris en `lint:renderer` (0 fouten) geslaagd. T1 met de Default-build 216 geslaagd, 1 overgeslagen; T1 met de Veneta-build 216 geslaagd, 1 mislukt: de bekende wankele test 'all five levels' van summary-folding, die los herhaald 3/3 slaagde. Geen pakket gebouwd, niet ondertekend, niet geïnstalleerd.
+
 ## Versiebeleid
 
 - Iedere nieuwe opgeleverde release krijgt een eigen versienummer.
@@ -24,15 +39,6 @@ Bekende grenzen: afdwaling niet gebouwd; herkenningskwaliteit niet gemeten; een 
 - Per oplevering worden datum, wijzigingen, opgeloste fouten, bekende grenzen, testbewijs, bronmanifest en SHA-256 van het pakket vastgelegd. De bestandsnaam bevat het versienummer.
 - Opgeleverde pakketten krijgen niet achteraf een ander nummer of andere inhoud. Een wijziging levert een nieuwe kandidaat of release op.
 - Versienummers wijzigen niet de interne appnaam, bundle-ID, gegevensmap, modelcache of aanmeldingen. Publiceren, installeren, committen en pushen blijven afzonderlijke acties.
-
-## Ongepubliceerd: Nederlandse interface en samenvattingstaal
-
-Nog niet gebouwd, ondertekend of vrijgegeven; geen nieuw versienummer.
-
-- De Veneta-build toont de interface volledig in het Nederlands: navigatie, instellingen, knoppen, dialogen, meldingen en foutteksten. Alle renderer-teksten lopen via `t()`; de Engelse catalogus groeide van 268 naar 1.310 sleutels en de Nederlandse van 92 naar 1.310. De lint-baseline van hardgecodeerde teksten ging van 711 naar 0. De Default-build blijft Engels met dezelfde tekst, aangetoond met de kopij-inventaris.
-- Ook het hoofdproces is in de Veneta-build Nederlands: menubalkmenu en tooltip, appmenu, bestandsfilters, systeemmeldingen, updaterteksten en de foutteksten die de app toont. Bundle-ID, interne naam, gegevensmap, logregels en foutcodes zijn ongewijzigd.
-- Wachtredenen van de Obsidian-sync worden in de app vertaald; de backend schrijft ze ongewijzigd.
-- Nieuwe instelling Samenvattingstaal, los van interfacetaal en transcriptietaal. In de Veneta-build is Nederlands de standaard voor nieuwe samenvattingen, titels en rapporten zolang je zelf niets kiest. Een eigen keuze, ook 'Zelfde taal als het gesprek', blijft staan. Bestaande samenvattingen worden niet opnieuw gemaakt.
 
 ## 0.10.7, testkandidaat, 2026-11-06
 
