@@ -137,6 +137,42 @@ test('during and after: a meeting is planned in the host, bound to the note, min
   assert.equal((await f.call('veneta-agenda-note-result', { noteFile: path.join(f.root, 'notes', 'ander_summary.md') })).found, false);
 });
 
+test('0.11.0: undo through the channel, and the question check after stopping runs through the guarded route into the minutes', async (t) => {
+  const f = fixture(t, { model: (request) => {
+    if (request.mode === 'questions') {
+      const later = request.segments.find((s) => s.text.startsWith('Sanne boekt'));
+      return { revision: request.revision, answered: later ? [{ questionId: request.questions[0].id, segmentId: later.id, quote: 'Sanne boekt de zaal' }] : [] };
+    }
+    const question = request.segments.find((s) => s.text.endsWith('?'));
+    return { revision: request.revision, currentItem: null,
+      findings: question ? [{ kind: 'vraag', itemId: null, text: question.text, owner: null, due: null, segmentId: question.id, quote: 'Wie boekt de zaal' }] : [] };
+  } });
+  await f.call('veneta-agenda-prepare', { agenda: (await f.call('veneta-agenda-parse', { text: AGENDA })).agenda });
+  const startedAtMs = Date.now();
+  f.agenda.live.begin({ startedAtMs });
+  await f.call('veneta-agenda-live-action', { action: 'start', itemId: 'p1' });
+  const switched = await f.call('veneta-agenda-live-action', { action: 'start', itemId: 'p2' });
+  assert.deepEqual(switched.live.undo, { itemId: 'p1', startedItemId: 'p2' });
+  const undone = await f.call('veneta-agenda-live-action', { action: 'undoSwitch', itemId: 'p1' });
+  assert.equal(undone.success, true);
+  assert.equal(undone.live.items.p1.status, 'loopt');
+  assert.equal(undone.live.items.p2.status, 'open');
+  assert.equal((await f.call('veneta-agenda-live-action', { action: 'undoSwitch' })).code, 'stale');
+  f.finals.push(final('Wie boekt de zaal voor de volgende keer?', 1, 'Others'), final('Sanne boekt de zaal voor de volgende keer.', 9));
+  const noteFile = path.join(f.root, 'notes', 'werkoverleg_summary.md');
+  assert.equal(f.agenda.bindSessionToNote({ noteFile, recordingId: String(startedAtMs), appended: false }), true);
+  await f.agenda.live.finish();
+  assert.deepEqual(f.modelCalls.map((request) => request.mode ?? 'live'), ['live', 'questions']);
+  assert.equal(f.modelCalls[1].segments.length, 2, 'the whole conversation');
+  const note = await f.call('veneta-agenda-note-result', { noteFile });
+  assert.equal(note.minutes.counts.questions, 0);
+  assert.equal(note.minutes.counts.answered, 1);
+  assert.equal(note.minutes.other.questions[0].answer.quote, 'Sanne boekt de zaal');
+  assert.equal(note.minutes.questionsReview.status, 'done');
+  assert.match(note.markdown, /Beantwoord: "Sanne boekt de zaal" \(00:09, Jij\)/);
+  assert.ok(f.logs.every((entry) => !/zaal|Sanne/.test(JSON.stringify(entry))), 'diagnostics are content-free');
+});
+
 test('the one model slot is shared with the checklist: a busy slot is "busy", never a second parallel model call', async (t) => {
   let release;
   const f = fixture(t, { model: (request) => new Promise((resolve) => { release = () => resolve({ revision: request.revision, currentItem: null, findings: [] }); }) });

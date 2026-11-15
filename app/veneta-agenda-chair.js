@@ -8,6 +8,8 @@
  * - createAgendaPlanner: per recording, in the main process, like the live checklist planner (0.9.4). It plans the
  *   local-model check on final live segments only, single flight, bounded input (newest contiguous tail), and keeps
  *   the meeting state (running item, time per item, findings). The renderer only shows what this planner pushes.
+ *   After stopping it checks the open questions once more over the whole conversation (0.11.0): which were answered
+ *   later. Within the same bounds; a longer conversation is read as its newest tail, and the minutes say so.
  *
  * The agenda and everything participants say are source data, never instructions: nothing here executes, mails,
  * calls Hermes or any tool. The chair has no utterances of its own in stand 1.
@@ -20,12 +22,14 @@ const { mapFinals, liveSessionId } = require('./veneta-live-checklist');
 const OUTCOMES = Object.freeze(['besluit', 'informatie', 'discussie', 'actie']);
 const STATUSES = Object.freeze(['open', 'loopt', 'afgerond', 'overgeslagen', 'doorgeschoven']);
 const KINDS = Object.freeze(['besluit', 'actie', 'vraag']);
-const ACTIONS = Object.freeze(['start', 'finish', 'skip', 'defer', 'confirmSuggestion', 'dismissSuggestion']);
+const ACTIONS = Object.freeze(['start', 'finish', 'skip', 'defer', 'confirmSuggestion', 'dismissSuggestion', 'undoSwitch']);
 const LIMITS = Object.freeze({
   items: 32, sourceChars: 24_000, titleChars: 200, agendaTitleChars: 120, ownerChars: 80, minutes: 480,
   segments: 256, characters: 24_000, requestChars: 100_000, findings: 400, findingsPerCheck: 48,
-  findingText: 300, dueChars: 80, context: 6, recentAssessed: 1024, dismissed: 256,
+  findingText: 300, dueChars: 80, context: 6, recentAssessed: 1024, dismissed: 256, questions: 64,
 });
+/** The state of the question check after stopping (0.11.0). */
+const QUESTION_REVIEW_STATUSES = Object.freeze(['done', 'failed', 'tooLarge']);
 const STABLE_MS = 10_000;
 const MAX_WAIT_MS = 30_000;
 const FINAL_GRACE_MS = 3_000;
@@ -355,9 +359,11 @@ const effectiveOf = (finding, reviews) => {
  * The signals of stand 1, at `nowMs`. Pure: the same session and time give the same list.
  *  tijd_bijna_om           the running item has used 80% of its time block
  *  tijd_om                 the running item has used 100% of its time block
- *  besluit_zonder_eigenaar a decision (not rejected) without owner or without deadline
+ *  besluit_zonder_eigenaar a decision (not rejected) without an owner (a missing deadline is no signal: the decision
+ *                          shows it quietly, 0.11.0)
  *  uitkomst_ontbreekt      an item with outcome 'besluit' ended (or ran out of time) without a decision
  *  vereist_punt_open       less than ten minutes left of the total planned time and a required item is still open
+ *                          or running (a deferred item is not open: deferring is a decision of the chair)
  * (afdwaling is not built in stand 1.)
  */
 function signalsOf(session, nowMs, reviews = {}) {
@@ -378,9 +384,7 @@ function signalsOf(session, nowMs, reviews = {}) {
   }
   for (const finding of live) {
     if (finding.kind !== 'besluit') continue;
-    const effective = effectiveOf(finding, reviews);
-    const missing = [!effective.owner && 'eigenaar', !effective.due && 'termijn'].filter(Boolean);
-    if (missing.length) signals.push({ code: 'besluit_zonder_eigenaar', itemId: finding.itemId, findingId: finding.id, missing });
+    if (!effectiveOf(finding, reviews).owner) signals.push({ code: 'besluit_zonder_eigenaar', itemId: finding.itemId, findingId: finding.id });
   }
   const planned = plannedMs(session.agenda);
   if (planned > 0 && planned - meetingMs(session, nowMs) < REQUIRED_MARGIN_MS) {
@@ -444,7 +448,76 @@ function planAgendaWindow(items, segments, isAssessed) {
     assessedUntil: fresh.length ? Math.max(...fresh.map((segment) => segment.start)) : null };
 }
 
+/**
+ * The window of the question check after stopping: the whole conversation if it fits, else its newest contiguous tail
+ * within 256 segments and 24.000 characters (the question texts count too). Same tail rule as a live check.
+ */
+function planQuestionWindow(questions, segments) {
+  const budget = LIMITS.characters - questions.reduce((sum, question) => sum + question.text.length, 0);
+  if (budget <= 0) return { kind: 'tooLarge' };
+  const picked = []; let chars = 0;
+  for (let index = segments.length - 1; index >= 0 && picked.length < LIMITS.segments; index--) {
+    const length = segments[index].text.length;
+    if (chars + length > budget) break;
+    picked.unshift(segments[index]); chars += length;
+  }
+  while (picked.length && JSON.stringify({ questions, segments: picked }).length > LIMITS.requestChars - 2000) picked.shift();
+  if (!picked.length) return { kind: 'tooLarge' };
+  return { kind: 'ok', segments: picked, tail: picked.length < segments.length };
+}
+const REASON_CODE = /^[a-z_]{1,40}$/;
+
+function validateSegments(segments) {
+  const segmentIds = new Set(); let chars = 0;
+  for (const segment of segments) {
+    if (!onlyKeys(segment, ['id', 'text', 'speaker', 'start', 'end']) || typeof segment.id !== 'string' || segmentIds.has(segment.id) ||
+        typeof segment.text !== 'string' || !['self', 'other', 'unknown'].includes(segment.speaker) ||
+        !Number.isFinite(segment.start) || !Number.isFinite(segment.end) || segment.start < 0 || segment.end < segment.start) throw new Error('Ongeldig segment.');
+    segmentIds.add(segment.id); chars += segment.text.length;
+  }
+  return chars;
+}
+
+/** The question check after stopping: the open questions and the conversation (its newest tail within the bounds). */
+function validateQuestionRequest(request) {
+  if (!onlyKeys(request, ['sessionId', 'revision', 'mode', 'segments', 'questions']) || request.mode !== 'questions' ||
+      typeof request.sessionId !== 'string' || !request.sessionId.trim() || request.sessionId.length > 128 ||
+      typeof request.revision !== 'string' || !request.revision || request.revision.length > 128 ||
+      !Array.isArray(request.segments) || request.segments.length < 1 || request.segments.length > LIMITS.segments ||
+      !Array.isArray(request.questions) || request.questions.length < 1 || request.questions.length > LIMITS.questions ||
+      JSON.stringify(request).length > LIMITS.requestChars) throw new Error('Ongeldig vragenverzoek.');
+  let chars = validateSegments(request.segments);
+  const ids = new Set();
+  for (const question of request.questions) {
+    if (!onlyKeys(question, ['id', 'text', 'start']) || typeof question.id !== 'string' || !/^f[a-f0-9]{12}$/.test(question.id) || ids.has(question.id) ||
+        typeof question.text !== 'string' || !question.text.trim() || question.text.length > LIMITS.findingText ||
+        !Number.isFinite(question.start) || question.start < 0) throw new Error('Ongeldige vraag.');
+    ids.add(question.id); chars += question.text.length;
+  }
+  if (chars > LIMITS.characters) throw new Error('Te veel tekst.');
+}
+
+/** Strict: an answer names a known question and quotes a segment that starts after it, literally and in whole words. */
+function validateQuestionResponse(response, request) {
+  if (!onlyKeys(response, ['revision', 'answered']) || response.revision !== request.revision || !Array.isArray(response.answered) ||
+      response.answered.length > LIMITS.questions) throw new Error('De vragencontrole leverde geen geldig resultaat.');
+  const questions = new Map(request.questions.map((question) => [question.id, question]));
+  const segments = new Map(request.segments.map((segment) => [segment.id, segment]));
+  const seen = new Set();
+  const answered = response.answered.map((answer) => {
+    const question = onlyKeys(answer, ['questionId', 'segmentId', 'quote']) ? questions.get(answer.questionId) : null;
+    const segment = question ? segments.get(answer.segmentId) : null;
+    if (!question || !segment || seen.has(answer.questionId) || !(segment.start > question.start) || !wholeWordQuote(segment.text, answer.quote)) {
+      throw new Error('Onbetrouwbaar antwoord op een vraag.');
+    }
+    seen.add(answer.questionId);
+    return { questionId: answer.questionId, segmentId: answer.segmentId, quote: answer.quote };
+  });
+  return { revision: response.revision, answered };
+}
+
 function validateAgendaRequest(request) {
+  if (request && request.mode === 'questions') { validateQuestionRequest(request); return; }
   if (!onlyKeys(request, ['sessionId', 'revision', 'currentItemId', 'items', 'segments']) ||
       typeof request.sessionId !== 'string' || !request.sessionId.trim() || request.sessionId.length > 128 ||
       typeof request.revision !== 'string' || !request.revision || request.revision.length > 128 ||
@@ -460,13 +533,7 @@ function validateAgendaRequest(request) {
     ids.add(item.id);
   }
   if (!(request.currentItemId === null || ids.has(request.currentItemId))) throw new Error('Ongeldig lopend punt.');
-  const segmentIds = new Set(); let chars = 0;
-  for (const segment of request.segments) {
-    if (!onlyKeys(segment, ['id', 'text', 'speaker', 'start', 'end']) || typeof segment.id !== 'string' || segmentIds.has(segment.id) ||
-        typeof segment.text !== 'string' || !['self', 'other', 'unknown'].includes(segment.speaker) ||
-        !Number.isFinite(segment.start) || !Number.isFinite(segment.end) || segment.start < 0 || segment.end < segment.start) throw new Error('Ongeldig segment.');
-    segmentIds.add(segment.id); chars += segment.text.length;
-  }
+  const chars = validateSegments(request.segments);
   if (chars + request.items.reduce((sum, item) => sum + item.title.length, 0) > LIMITS.characters) throw new Error('Te veel tekst.');
 }
 
@@ -476,6 +543,7 @@ function validateAgendaRequest(request) {
  * the finding stays. Strict: anything else rejects the whole answer (the Python backend already salvaged per item).
  */
 function validateAgendaResponse(response, request) {
+  if (request && request.mode === 'questions') return validateQuestionResponse(response, request);
   if (!object(response) || response.revision !== request.revision || !Array.isArray(response.findings) || response.error ||
       response.findings.length > LIMITS.findingsPerCheck || !(response.currentItem === null || object(response.currentItem))) {
     throw new Error('De agendacontrole leverde geen geldig resultaat.');
@@ -515,23 +583,27 @@ function newSession(sessionId, agenda) {
   const items = {};
   for (const item of agenda.items) items[item.id] = { status: 'open', spentMs: 0, runningSince: null, runs: [], recognition: null };
   return { schemaVersion: 1, sessionId, agenda: clone(agenda), items, currentItemId: null, suggestion: null, dismissed: [],
-    findings: [], assessed: { until: null, recent: [] }, stateVersion: 0, meetingMs: 0, meetingSince: null, recordingStartedAtMs: null, ended: false };
+    findings: [], assessed: { until: null, recent: [] }, stateVersion: 0, meetingMs: 0, meetingSince: null, recordingStartedAtMs: null, ended: false,
+    undo: null, questionsReview: null };
 }
+
+const validItemState = (state) => onlyKeys(state, ['status', 'spentMs', 'runningSince', 'runs', 'recognition']) && STATUSES.includes(state.status) &&
+  Number.isFinite(state.spentMs) && state.spentMs >= 0 && (state.runningSince === null || Number.isFinite(state.runningSince)) &&
+  Array.isArray(state.runs) && state.runs.length <= 64 && (state.recognition === null || ['mens', 'agent_bevestigd'].includes(state.recognition)) &&
+  state.runs.every((run) => onlyKeys(run, ['from', 'to']) && Number.isFinite(run.from) && (run.to === null || Number.isFinite(run.to)));
+const validEvidence = (evidence) => onlyKeys(evidence, ['segmentId', 'quote', 'start', 'end', 'speaker']) &&
+  typeof evidence.segmentId === 'string' && typeof evidence.quote === 'string' && evidence.quote.trim().length >= 3 &&
+  Number.isFinite(evidence.start) && Number.isFinite(evidence.end) && ['self', 'other', 'unknown'].includes(evidence.speaker);
 
 function validateSession(value) {
   if (!onlyKeys(value, ['schemaVersion', 'sessionId', 'savedAt', 'agenda', 'items', 'currentItemId', 'suggestion', 'dismissed', 'findings',
-    'assessed', 'stateVersion', 'meetingMs', 'meetingSince', 'recordingStartedAtMs', 'ended']) || value.schemaVersion !== 1 ||
+    'assessed', 'stateVersion', 'meetingMs', 'meetingSince', 'recordingStartedAtMs', 'ended', 'undo', 'questionsReview']) || value.schemaVersion !== 1 ||
       typeof value.sessionId !== 'string' || value.sessionId.length > 128) throw new Error('Ongeldige agendasessie.');
   const agenda = validateAgenda(value.agenda);
   const items = {};
   for (const item of agenda.items) {
     const state = value.items?.[item.id];
-    if (!onlyKeys(state, ['status', 'spentMs', 'runningSince', 'runs', 'recognition']) || !STATUSES.includes(state.status) ||
-        !Number.isFinite(state.spentMs) || state.spentMs < 0 || !(state.runningSince === null || Number.isFinite(state.runningSince)) ||
-        !Array.isArray(state.runs) || state.runs.length > 64 || !(state.recognition === null || ['mens', 'agent_bevestigd'].includes(state.recognition)) ||
-        !state.runs.every((run) => onlyKeys(run, ['from', 'to']) && Number.isFinite(run.from) && (run.to === null || Number.isFinite(run.to)))) {
-      throw new Error('Ongeldige punttoestand.');
-    }
+    if (!validItemState(state)) throw new Error('Ongeldige punttoestand.');
     items[item.id] = clone(state);
   }
   if (!(value.currentItemId === null || Object.hasOwn(items, value.currentItemId)) || !Array.isArray(value.findings) ||
@@ -541,14 +613,27 @@ function validateSession(value) {
       !Array.isArray(value.dismissed) || value.dismissed.length > LIMITS.dismissed || !Number.isInteger(value.stateVersion) ||
       typeof value.ended !== 'boolean' || !Number.isFinite(value.meetingMs)) throw new Error('Ongeldige agendasessie.');
   for (const finding of value.findings) {
-    if (!onlyKeys(finding, ['id', 'kind', 'itemId', 'text', 'owner', 'due', 'evidence', 'origin']) || typeof finding.id !== 'string' ||
+    if (!onlyKeys(finding, ['id', 'kind', 'itemId', 'text', 'owner', 'due', 'evidence', 'origin', 'answer']) || typeof finding.id !== 'string' ||
         !KINDS.includes(finding.kind) || !(finding.itemId === null || Object.hasOwn(items, finding.itemId)) || typeof finding.text !== 'string' ||
-        finding.origin !== 'ai' || !onlyKeys(finding.evidence, ['segmentId', 'quote', 'start', 'end', 'speaker']) ||
-        typeof finding.evidence.segmentId !== 'string' || typeof finding.evidence.quote !== 'string' || finding.evidence.quote.trim().length < 3 ||
-        !Number.isFinite(finding.evidence.start) || !Number.isFinite(finding.evidence.end) ||
-        !['self', 'other', 'unknown'].includes(finding.evidence.speaker)) throw new Error('Ongeldige bevinding.');
+        finding.origin !== 'ai' || !validEvidence(finding.evidence) ||
+        (Object.hasOwn(finding, 'answer') && (finding.kind !== 'vraag' || !validEvidence(finding.answer)))) throw new Error('Ongeldige bevinding.');
   }
-  return clone({ ...value, agenda, items });
+  // Both are optional, so sessions stored before 0.11.0 stay readable.
+  const undo = value.undo ?? null;
+  if (undo !== null && (!onlyKeys(undo, ['previousItemId', 'startedItemId', 'previous', 'started', 'at', 'fromSuggestion']) ||
+      !Object.hasOwn(items, undo.previousItemId) || !Object.hasOwn(items, undo.startedItemId) || undo.previousItemId === undo.startedItemId ||
+      !validItemState(undo.previous) || !validItemState(undo.started) || !Number.isFinite(undo.at) ||
+      !(undo.fromSuggestion === null || (onlyKeys(undo.fromSuggestion, ['itemId', 'segmentId']) && typeof undo.fromSuggestion.segmentId === 'string')))) {
+    throw new Error('Ongeldige ongedaanmaking.');
+  }
+  const review = value.questionsReview ?? null;
+  if (review !== null && (!onlyKeys(review, ['status', 'checked', 'answered', 'tail', 'from', 'reason', 'at']) || !QUESTION_REVIEW_STATUSES.includes(review.status) ||
+      !Number.isInteger(review.checked) || review.checked < 0 || !Number.isInteger(review.answered) || review.answered < 0 ||
+      typeof review.tail !== 'boolean' || !(review.from === null || Number.isFinite(review.from)) ||
+      !(review.reason === null || (typeof review.reason === 'string' && review.reason.length <= 40)) || typeof review.at !== 'string')) {
+    throw new Error('Ongeldige vragencontrole.');
+  }
+  return clone({ ...value, agenda, items, undo, questionsReview: review });
 }
 
 const offsetOf = (session, nowMs) => (session.recordingStartedAtMs === null ? 0 : Math.max(0, (nowMs - session.recordingStartedAtMs) / 1000));
@@ -593,13 +678,36 @@ function mergeAnswer(session, { request, response, fresh, stateVersion, nowMs })
   return { added, stale };
 }
 
-/** A human action on the meeting. Returns { ok: true } or { ok: false, code } and never touches findings. */
+/**
+ * Undo the last switch (0.11.0): starting an item finishes the running one, and one tap takes that back. The previous
+ * item runs again as if it never stopped (the time since the switch counts for it), the started item returns to its
+ * state before the switch, and findings the timeline gave the started item since the switch go back to the previous
+ * one. A confirmed suggestion that is undone counts as dismissed. Only the last switch, only until the next action.
+ */
+function undoSwitch(session, itemId) {
+  const undo = session.undo;
+  if (!undo || session.ended || session.currentItemId !== undo.startedItemId || (itemId !== undefined && itemId !== undo.previousItemId)) {
+    return { ok: false, code: 'stale' };
+  }
+  session.items[undo.previousItemId] = clone(undo.previous);
+  session.items[undo.startedItemId] = clone(undo.started);
+  session.currentItemId = undo.previousItemId;
+  for (const finding of session.findings) {
+    if (finding.itemId === undo.startedItemId && finding.evidence.start >= undo.at) finding.itemId = undo.previousItemId;
+  }
+  if (undo.fromSuggestion) session.dismissed = [...session.dismissed, clone(undo.fromSuggestion)].slice(-LIMITS.dismissed);
+  session.suggestion = null; session.undo = null; session.stateVersion++;
+  return { ok: true };
+}
+
+/** A human action on the meeting. Returns { ok: true } or { ok: false, code }; findings only move back on an undo. */
 function applyAction(session, { action, itemId }, nowMs) {
   if (!ACTIONS.includes(action)) return { ok: false, code: 'invalid' };
+  if (action === 'undoSwitch') return undoSwitch(session, itemId);
   if (action === 'dismissSuggestion') {
     if (!session.suggestion || (itemId !== undefined && itemId !== session.suggestion.itemId)) return { ok: false, code: 'stale' };
     session.dismissed = [...session.dismissed, { itemId: session.suggestion.itemId, segmentId: session.suggestion.segmentId }].slice(-LIMITS.dismissed);
-    session.suggestion = null; session.stateVersion++;
+    session.suggestion = null; session.undo = null; session.stateVersion++;
     return { ok: true };
   }
   let recognition = 'mens';
@@ -618,15 +726,22 @@ function applyAction(session, { action, itemId }, nowMs) {
   const target = session.items[itemId];
   if (action === 'start' || action === 'confirmSuggestion') {
     if (target.status === 'loopt') { if (action === 'confirmSuggestion') session.suggestion = null; session.stateVersion++; return { ok: true }; }
-    if (session.currentItemId && session.currentItemId !== itemId && session.items[session.currentItemId].status === 'loopt') {
-      stop(session.currentItemId); session.items[session.currentItemId].status = 'afgerond';
+    let undo = null;
+    const previousId = session.currentItemId;
+    if (previousId && previousId !== itemId && session.items[previousId].status === 'loopt') {
+      // Snapshot before anything changes, so one tap can take the switch back with the time intact.
+      undo = { previousItemId: previousId, startedItemId: itemId, previous: clone(session.items[previousId]), started: clone(target), at: offset,
+        fromSuggestion: action === 'confirmSuggestion' ? { itemId, segmentId: session.suggestion.segmentId } : null };
+      stop(previousId); session.items[previousId].status = 'afgerond';
     }
+    session.undo = session.ended ? null : undo;
     target.status = 'loopt'; target.recognition = recognition;
     target.runningSince = session.ended ? null : nowMs;
     if (target.runs.length < 64) target.runs.push({ from: offset, to: null });
     session.currentItemId = itemId; session.suggestion = null;
   } else {
     stop(itemId);
+    session.undo = null;
     target.status = action === 'finish' ? 'afgerond' : action === 'skip' ? 'overgeslagen' : 'doorgeschoven';
     if (session.currentItemId === itemId) session.currentItemId = null;
     if (session.suggestion && session.suggestion.itemId === itemId) session.suggestion = null;
@@ -700,6 +815,8 @@ function createAgendaPlanner(deps) {
           startOffset: state.runs.length ? state.runs[0].from : null }];
       })),
       currentItemId: data.currentItemId, suggestion: data.suggestion, findings: data.findings,
+      undo: data.undo && !data.ended ? { itemId: data.undo.previousItemId, startedItemId: data.undo.startedItemId } : null,
+      questionsReview: data.questionsReview ?? null,
       signals: signalsOf(data, at, reviewsOf(sess)),
       planned: { totalMinutes: plannedMs(data.agenda) / 60_000, meetingMs: meetingMs(data, at) },
       phase: phaseOf(sess),
@@ -829,6 +946,61 @@ function createAgendaPlanner(deps) {
     });
     return { promise, clear: () => { if (sess.sleepers.delete(entry)) clearT(entry.handle); } };
   }
+  /** Open questions: not rejected by a human, not yet answered (the last check after stopping may answer them). */
+  const openQuestions = (sess) => {
+    const reviews = reviewsOf(sess);
+    return sess.data.findings.filter((finding) => finding.kind === 'vraag' && !finding.answer && !isRejected(finding, reviews));
+  };
+  /**
+   * After stopping, once: are the open questions answered later in the conversation? The whole conversation within the
+   * same bounds as a live check (256 segments, 24.000 characters, question texts included). A longer conversation is
+   * read as its newest contiguous tail (never the middle) and the result says so (`tail`, `from`).
+   */
+  async function reviewQuestions(sess) {
+    const reviews = reviewsOf(sess);
+    const open = openQuestions(sess).slice(0, LIMITS.questions);
+    const segments = agendaSegments(finalsOf(sess));
+    if (!open.length || !segments.length) return;
+    const questions = open.map((finding) => ({ id: finding.id, text: effectiveOf(finding, reviews).text.slice(0, LIMITS.findingText), start: finding.evidence.start }));
+    const plan = planQuestionWindow(questions, segments);
+    const at = () => new Date(now()).toISOString();
+    if (plan.kind !== 'ok') {
+      sess.data.questionsReview = { status: 'tooLarge', checked: 0, answered: 0, tail: true, from: null, reason: 'te_veel_tekst', at: at() };
+      log('questions_too_large', { questions: questions.length });
+      save(sess); publish(sess);
+      return;
+    }
+    const request = { sessionId: sess.data.sessionId, revision: crypto.randomUUID(), mode: 'questions', questions,
+      segments: plan.segments.map((segment) => ({ id: segment.id, text: segment.text, speaker: segment.speaker, start: segment.start, end: segment.end })) };
+    log('questions_start', { questions: questions.length, window: plan.segments.length, tail: plan.tail ? 1 : 0 });
+    let outcome;
+    for (let attempt = 0; ; attempt++) {
+      try { outcome = await deps.analyze(clone(request), { final: true }); }
+      catch (_) { outcome = { ok: false, reason: 'failed' }; }
+      if (sess.cancelled) return;
+      if (outcome.ok || outcome.reason !== 'busy' || attempt >= 24) break;
+      await sleep(sess, busyRetryMs).promise;
+      if (sess.cancelled) return;
+    }
+    const base = { checked: questions.length, tail: plan.tail, from: plan.tail ? plan.segments[0].start : null, at: at() };
+    if (outcome.ok) {
+      const byId = new Map(request.segments.map((segment) => [segment.id, segment]));
+      let answered = 0;
+      for (const answer of outcome.response.answered) {
+        const finding = sess.data.findings.find((item) => item.id === answer.questionId);
+        const segment = byId.get(answer.segmentId);
+        if (!finding || finding.answer || !segment) continue;
+        finding.answer = { segmentId: segment.id, quote: answer.quote, start: segment.start, end: segment.end, speaker: segment.speaker };
+        answered++;
+      }
+      sess.data.questionsReview = { status: 'done', answered, reason: null, ...base };
+      log('questions_done', { questions: questions.length, answered });
+    } else {
+      sess.data.questionsReview = { status: 'failed', answered: 0, reason: REASON_CODE.test(outcome.reason || '') ? outcome.reason : 'failed', ...base };
+      log('questions_failed', { reason: sess.data.questionsReview.reason });
+    }
+    save(sess); publish(sess);
+  }
   const cancelSession = (sess) => {
     sess.cancelled = true; clearTimer(sess); sess.inFlight = false; sess.finalRunning = false; finalizing.delete(sess); stopping.delete(sess);
     if (sess.signalTimer) { clearT(sess.signalTimer); sess.signalTimer = null; }
@@ -860,6 +1032,7 @@ function createAgendaPlanner(deps) {
       if (!data) { seq++; log('begin_none', {}); return false; }
       const at = now();
       data.ended = false; data.meetingSince = at; data.recordingStartedAtMs = Number.isFinite(startedAtMs) ? startedAtMs : at;
+      data.undo = null;
       // A continued note resumes the running item's clock; its earlier runs keep their own time codes.
       for (const state of Object.values(data.items)) {
         if (state.status === 'loopt') { state.runningSince = at; if (state.runs.length < 64) state.runs.push({ from: 0, to: null }); }
@@ -911,10 +1084,11 @@ function createAgendaPlanner(deps) {
       sess.data.ended = true; clearTimer(sess);
       if (!moduleOn()) { cancelSession(sess); return Promise.resolve(); }
       freeze(sess);
+      sess.data.undo = null;
       save(sess);
       stopping.add(sess);
       const claim = () => { if (!sess.finalRunning) { sess.finalRunning = true; finalizing.add(sess); log('final_start', { lines: sess.lines }); publish(sess); } };
-      if (sess.inFlight || unassessed(sess)) claim(); else publish(sess);
+      if (sess.inFlight || unassessed(sess) || openQuestions(sess).length) claim(); else publish(sess);
       const done = (async () => {
         if (drained && typeof drained.then === 'function') {
           const limit = sleep(sess, Math.max(0, drainTimeoutMs));
@@ -926,6 +1100,10 @@ function createAgendaPlanner(deps) {
           claim();
           sess.lines = finalsOf(sess).filter((item) => item && item.isFinal && item.text).length;
           await run(sess, 'stop');
+        }
+        if (!sess.cancelled && moduleOn() && openQuestions(sess).length) {
+          claim();
+          await reviewQuestions(sess);
         }
         if (sess.finalRunning) log('final_done', { checks: sess.checks });
         sess.finalRunning = false; finalizing.delete(sess); stopping.delete(sess);
@@ -970,7 +1148,7 @@ function buildMinutes(session, reviews = {}) {
     const effective = effectiveOf(finding, reviews);
     return { id: finding.id, kind: finding.kind, text: effective.text, owner: effective.owner, due: effective.due,
       ai: { text: finding.text, owner: finding.owner, due: finding.due }, evidence: finding.evidence,
-      review: review ? review.status : 'voorstel', reason: review?.reason ?? null };
+      review: review ? review.status : 'voorstel', reason: review?.reason ?? null, answer: finding.answer ?? null };
   };
   const signals = signalsOf(session, 0, reviews).filter((signal) => signal.code !== 'tijd_bijna_om');
   const group = (itemId) => {
@@ -986,15 +1164,28 @@ function buildMinutes(session, reviews = {}) {
       ...group(item.id) };
   });
   const other = group(null);
-  const counts = { decisions: 0, actions: 0, questions: 0, proposals: 0, confirmed: 0 };
+  const counts = { decisions: 0, actions: 0, questions: 0, answered: 0, proposals: 0, confirmed: 0 };
   for (const finding of session.findings) {
     if (isRejected(finding, reviews)) continue;
-    counts[finding.kind === 'besluit' ? 'decisions' : finding.kind === 'actie' ? 'actions' : 'questions']++;
+    // A question the last check found answered later is no longer open.
+    if (finding.kind === 'vraag' && finding.answer) counts.answered++;
+    else counts[finding.kind === 'besluit' ? 'decisions' : finding.kind === 'actie' ? 'actions' : 'questions']++;
     if (reviews[finding.id]) counts.confirmed++; else counts.proposals++;
   }
   return { schemaVersion: 1, title: session.agenda.title, items, other, counts,
     totals: { plannedMinutes: plannedMs(session.agenda) / 60_000, spentSec: Math.round(session.agenda.items.reduce((sum, item) => sum + session.items[item.id].spentMs, 0) / 1000) },
-    ownerMissing: signals.filter((signal) => signal.code === 'besluit_zonder_eigenaar').map((signal) => signal.findingId) };
+    ownerMissing: signals.filter((signal) => signal.code === 'besluit_zonder_eigenaar').map((signal) => signal.findingId),
+    questionsReview: session.questionsReview ?? null };
+}
+
+/** One honest sentence about the question check after stopping (also shown in the note tab). */
+function questionsReviewText(review) {
+  if (review.status === 'done' && review.tail) {
+    return `Na het stoppen zijn de open vragen nog eens nagegaan, alleen in het laatste deel van het gesprek (vanaf ${clock(review.from ?? 0)}): het hele gesprek past niet in één controle. ${review.answered} van ${review.checked} beantwoord.`;
+  }
+  if (review.status === 'done') return `Na het stoppen zijn de open vragen nog eens nagegaan over het hele gesprek: ${review.answered} van ${review.checked} beantwoord.`;
+  if (review.status === 'tooLarge') return 'Na het stoppen konden de open vragen niet opnieuw worden nagegaan: te veel tekst voor één controle.';
+  return 'Na het stoppen konden de open vragen niet opnieuw worden nagegaan.';
 }
 
 const mdEscape = (text) => String(text).replace(/([\\`*_[\]<>#|])/g, '\\$1').replace(/\n+/g, ' ');
@@ -1006,27 +1197,32 @@ function minutesMarkdown(minutes, { title } = {}) {
     const parts = [`- [${REVIEW_TEXT[f.review]}] ${mdEscape(f.text)}`];
     if (f.kind !== 'vraag') parts.push(`Eigenaar: ${f.owner ? mdEscape(f.owner) : 'niet genoemd'}`);
     if (f.kind !== 'vraag') parts.push(`Termijn: ${f.due ? mdEscape(f.due) : 'niet genoemd'}`);
-    return [parts.join(' · '), `  > "${mdEscape(f.evidence.quote)}" (${clock(f.evidence.start)}, ${SPEAKER_TEXT[f.evidence.speaker] || SPEAKER_TEXT.unknown})`];
+    const out = [parts.join(' · '), `  > "${mdEscape(f.evidence.quote)}" (${clock(f.evidence.start)}, ${SPEAKER_TEXT[f.evidence.speaker] || SPEAKER_TEXT.unknown})`];
+    if (f.answer) out.push(`  Beantwoord: "${mdEscape(f.answer.quote)}" (${clock(f.answer.start)}, ${SPEAKER_TEXT[f.answer.speaker] || SPEAKER_TEXT.unknown})`);
+    return out;
   };
   const section = (name, rows) => {
     const shown = rows.filter((row) => row.review !== 'afgewezen');
     if (!shown.length) return [];
     return [`**${name}**`, '', ...shown.flatMap(finding), ''];
   };
+  const questions = (rows) => [...section('Open vragen', rows.filter((row) => !row.answer)), ...section('Beantwoorde vragen', rows.filter((row) => row.answer))];
+  const review = minutes.questionsReview;
+  if (review) lines.push(`_${questionsReviewText(review)}_`, '');
   for (const item of minutes.items) {
     const meta = [OUTCOME_TEXT[item.outcome], item.minutes ? `${item.minutes} min` : null, item.owner ? `eigenaar ${mdEscape(item.owner)}` : null, item.required ? 'vereist' : null].filter(Boolean).join(', ');
     lines.push(`## ${item.number}. ${mdEscape(item.title)}${meta ? ` (${meta})` : ''}`, '');
     lines.push(`Status: ${STATUS_TEXT[item.status]} · besteed ${clock(item.spentSec)}${item.minutes ? ` van ${clock(item.minutes * 60)}` : ''}${item.missingOutcome ? ' · geen besluit herkend' : ''}`, '');
-    lines.push(...section('Besluiten', item.decisions), ...section('Acties', item.actions), ...section('Open vragen', item.questions));
+    lines.push(...section('Besluiten', item.decisions), ...section('Acties', item.actions), ...questions(item.questions));
   }
-  const rest = [...section('Besluiten', minutes.other.decisions), ...section('Acties', minutes.other.actions), ...section('Open vragen', minutes.other.questions)];
+  const rest = [...section('Besluiten', minutes.other.decisions), ...section('Acties', minutes.other.actions), ...questions(minutes.other.questions)];
   if (rest.length) lines.push('## Overig (geen agendapunt)', '', ...rest);
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
 module.exports = {
   OUTCOMES, STATUSES, KINDS, ACTIONS, LIMITS, REVIEW_STATUSES, STABLE_MS, MAX_WAIT_MS, NEAR_RATIO, REQUIRED_MARGIN_MS,
-  wholeWordQuote, saidIn, parseAgenda, parseItemText, validateAgenda, signalsOf, nextSignalAt, agendaSegments, planAgendaWindow,
+  wholeWordQuote, saidIn, parseAgenda, parseItemText, validateAgenda, signalsOf, nextSignalAt, agendaSegments, planAgendaWindow, planQuestionWindow,
   validateAgendaRequest, validateAgendaResponse, newSession, validateSession, mergeAnswer, applyAction, createAgendaPlanner,
-  buildMinutes, minutesMarkdown, findingId, assessedTest,
+  buildMinutes, minutesMarkdown, questionsReviewText, findingId, assessedTest,
 };

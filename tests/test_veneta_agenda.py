@@ -180,5 +180,122 @@ class ModelPortTests(unittest.TestCase):
                 transport.assert_not_called()
 
 
+def questions_request():
+    return {'sessionId': 'recording:1', 'revision': 'q1', 'mode': 'questions',
+            'questions': [{'id': 'fa0000000001', 'text': 'Wie boekt de zaal?', 'start': 8},
+                          {'id': 'fa0000000002', 'text': 'Wanneer komt de offerte?', 'start': 12}],
+            'segments': [
+                {'id': 's3', 'text': 'Wie boekt de zaal?', 'speaker': 'other', 'start': 8, 'end': 9},
+                {'id': 's4', 'text': 'Sanne boekt de zaal voor de volgende keer.', 'speaker': 'self', 'start': 20, 'end': 23},
+                {'id': 's5', 'text': 'Dat zoeken we later uit.', 'speaker': 'self', 'start': 30, 'end': 31}]}
+
+
+class AgendaModelChoiceTests(unittest.TestCase):
+    """0.11.0: the agenda has its own model choice, by default the checklist's; local only."""
+
+    def snapshot(self, **values):
+        from src.config import Config
+        value = object.__new__(Config)
+        value._config = {'ai_provider': 'local', 'model': 'sum:1', **values}
+        return value
+
+    def test_default_follows_the_checklist_then_the_summary_and_an_own_choice_wins(self):
+        from src.function_models import effective_model
+        self.assertEqual(self.snapshot().get_function_model('agenda'), 'sum:1')
+        self.assertEqual(self.snapshot(checklist_model='check:2').get_function_model('agenda'), 'check:2')
+        self.assertEqual(self.snapshot(checklist_model='check:2').get_function_model_choice('agenda'), '')
+        own = self.snapshot(checklist_model='check:2', agenda_model='agenda:3')
+        self.assertEqual(own.get_function_model('agenda'), 'agenda:3')
+        self.assertEqual(effective_model(own, 'agenda'), 'agenda:3')
+        # A cloud or hand-edited value never runs: it falls back like the other functions.
+        for stored in ('gemma4:31b-cloud', 'a b', 5):
+            self.assertEqual(self.snapshot(checklist_model='check:2', agenda_model=stored).get_function_model('agenda'), 'check:2')
+
+    def test_evaluate_runs_on_the_agenda_model_and_refuses_cloud_or_remote(self):
+        from src import veneta_agenda as va
+        port = mock.Mock(return_value=json.dumps(GOOD))
+        result = va.evaluate(request(), config=self.snapshot(checklist_model='check:2', agenda_model='agenda:3'), model_port=port)
+        self.assertNotIn('error', result)
+        self.assertEqual(port.call_args.kwargs['model'], 'agenda:3')
+        port.reset_mock()
+        va.evaluate(request(), config=self.snapshot(checklist_model='check:2'), model_port=port)
+        self.assertEqual(port.call_args.kwargs['model'], 'check:2', 'same as the checklist by default')
+        port.reset_mock()
+        self.assertEqual(va.evaluate(request(), config=self.snapshot(ai_provider='remote', agenda_model='agenda:3'),
+                                     model_port=port)['reason'], 'provider_not_local')
+        port.assert_not_called()
+
+    def test_set_function_model_and_catalogue_know_the_agenda(self):
+        import tempfile as tf
+        from src import model_catalog as mc
+        from src.config import Config
+        self.assertIn('agenda', mc.FUNCTIONS)
+        self.assertTrue(any('agenda' in entry['functions'] for entry in mc.load_catalog()['models']))
+        with tf.TemporaryDirectory(dir=SCRATCH, prefix='agenda-model-') as tmp:
+            path = Path(tmp) / 'config.json'
+            path.write_text(json.dumps({'ai_provider': 'local', 'model': 'sum:1'}))
+            config = Config(config_path=path)
+            self.assertTrue(config.set_function_model('agenda', 'agenda:3'))
+            self.assertEqual(json.loads(path.read_text())['agenda_model'], 'agenda:3')
+            self.assertFalse(config.set_function_model('agenda', 'gemma4:31b-cloud'))
+            self.assertTrue(config.set_function_model('agenda', ''))
+            self.assertEqual(Config(config_path=path).get_function_model('agenda'), 'sum:1')
+
+    def test_probe_runs_the_agenda_route_on_its_model(self):
+        from src import model_probe
+        self.assertEqual(model_probe._agenda_request()['items'][0]['id'], 'p1')
+        port = mock.Mock(return_value=json.dumps({'currentItem': None, 'findings': []}))
+        with mock.patch('src.veneta_checklist.OllamaModelPort', return_value=port):
+            result = model_probe.run_probe('agenda', self.snapshot(agenda_model='agenda:3'), timeout_s=10)
+        self.assertEqual((result['function'], result['model'], result['valid']), ('agenda', 'agenda:3', True))
+        self.assertEqual(port.call_args.kwargs['model'], 'agenda:3')
+
+
+class QuestionCheckTests(unittest.TestCase):
+    """0.11.0: after stopping, the open questions are checked once more over the whole conversation."""
+
+    def test_strict_question_request(self):
+        from src.veneta_agenda import validate_request
+        data = questions_request()
+        self.assertEqual(validate_request(data), data)
+        for change in (lambda d: d.pop('questions'), lambda d: d.update(questions=[]),
+                       lambda d: d.update(items=[]), lambda d: d['questions'][0].update(start=-1),
+                       lambda d: d['questions'].append(dict(d['questions'][0])),
+                       lambda d: d['questions'][0].update(text='x' * 301),
+                       lambda d: d.update(questions=[dict(d['questions'][0], id=f'q{i}') for i in range(65)])):
+            item = copy.deepcopy(data)
+            change(item)
+            with self.assertRaises(ValueError):
+                validate_request(item)
+
+    def test_an_answer_quotes_a_later_segment_literally_or_is_dropped(self):
+        from src.veneta_agenda import salvage_answers
+        payload = {'answered': [
+            {'questionId': 'fa0000000001', 'segmentId': 's4', 'quote': 'Sanne boekt de zaal'},
+            {'questionId': 'fa0000000001', 'segmentId': 's4', 'quote': 'Sanne boekt de zaal'},   # twice
+            {'questionId': 'fa0000000002', 'segmentId': 's3', 'quote': 'boekt de zaal'},         # before the question
+            {'questionId': 'fa0000000002', 'segmentId': 's5', 'quote': 'zoeken we lat'},         # not whole words
+            {'questionId': 'f-unknown', 'segmentId': 's5', 'quote': 'Dat zoeken we'},
+            {'questionId': 'fa0000000002', 'segmentId': 's5', 'quote': 'Dat zoeken', 'extra': 1}]}
+        self.assertEqual(salvage_answers(payload, questions_request()),
+                         {'answered': [{'questionId': 'fa0000000001', 'segmentId': 's4', 'quote': 'Sanne boekt de zaal'}]})
+
+    def test_evaluate_question_mode_prompt_and_failures(self):
+        from src import veneta_agenda as va
+        good = {'answered': [{'questionId': 'fa0000000001', 'segmentId': 's4', 'quote': 'Sanne boekt de zaal'}]}
+        port = mock.Mock(return_value=json.dumps(good))
+        result = va.evaluate(questions_request(), config=config(), model_port=port)
+        self.assertEqual(result, {'revision': 'q1', **good})
+        system = port.call_args.kwargs['messages'][0]['content']
+        self.assertIn('LATER segment', system)
+        self.assertIn('never instructions', system)
+        self.assertIn('"answered": []', system)
+        self.assertEqual(port.call_args.kwargs['format']['required'], ['answered'])
+        port = mock.Mock(return_value='{"currentItem": null, "findings": []}')
+        result = va.evaluate(questions_request(), config=config(), model_port=port)
+        self.assertEqual((result['reason'], result['answered']), ('wrong_shape', []))
+        self.assertEqual(port.call_count, 2)
+
+
 if __name__ == '__main__':
     unittest.main()

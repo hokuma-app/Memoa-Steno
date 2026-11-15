@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const FUNCTIONS = ['summary', 'summary_fold', 'checklist'];
+const FUNCTIONS = ['summary', 'summary_fold', 'checklist', 'agenda'];
 const CLOUD = /(^|[:/_.-])cloud($|[:/_.-])/i;
 const OLLAMA_NAME = /^(?:[A-Za-z0-9][A-Za-z0-9._-]*\/)?[A-Za-z0-9][A-Za-z0-9._-]*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?$/;
 const HF_NAME = /^hf\.co\/[A-Za-z0-9][A-Za-z0-9._-]{0,95}\/[A-Za-z0-9][A-Za-z0-9._-]{0,95}(?::[A-Za-z0-9][A-Za-z0-9._-]{0,63})?$/;
@@ -43,12 +43,13 @@ const STUB_TAGS = [
 const save = (state) => fs.writeFileSync(stateFile(), JSON.stringify(state), { mode: 0o600 });
 function load() {
   try { return JSON.parse(fs.readFileSync(stateFile(), 'utf8')); } catch (_) {
-    const fresh = { choices: { summary: 'gemma4:e2b-it-qat', summary_fold: '', checklist: '' }, installed: STUB_TAGS, pulls: [], tests: [] };
+    const fresh = { choices: { summary: 'gemma4:e2b-it-qat', summary_fold: '', checklist: '', agenda: '' }, installed: STUB_TAGS, pulls: [], tests: [] };
     save(fresh); // a first read lays the stub state down, so a spec can inspect it before any write
     return fresh;
   }
 }
-const effective = (state, fn) => state.choices[fn] || state.choices.summary;
+// The agenda follows the checklist until it has its own choice (0.11.0), like src/config.py.
+const effective = (state, fn) => state.choices[fn] || (fn === 'agenda' ? effective(state, 'checklist') : state.choices.summary);
 const usersOf = (state, name) => FUNCTIONS.filter((fn) => effective(state, fn) === name);
 
 function choices() {

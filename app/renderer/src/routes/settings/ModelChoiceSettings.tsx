@@ -61,11 +61,13 @@ const FUNCTION_LABEL: Record<ModelFunction, () => string> = {
   summary: () => t('models.fn.summary'),
   summary_fold: () => t('models.fn.summary_fold'),
   checklist: () => t('models.fn.checklist'),
+  agenda: () => t('models.fn.agenda'),
 };
 const FUNCTION_DESCRIPTION: Record<ModelFunction, () => string> = {
   summary: () => t('models.fnDesc.summary'),
   summary_fold: () => t('models.fnDesc.summary_fold'),
   checklist: () => t('models.fnDesc.checklist'),
+  agenda: () => t('models.fnDesc.agenda'),
 };
 /** Copy for a content-free reason code, with the generic text as the fallback. */
 const lookup = (table: Record<string, () => string>, code: unknown) =>
@@ -247,7 +249,11 @@ function FunctionRow({
   const chosenName = state.choice || state.effective;
   const chosenEntry = catalogFor(data.catalog, chosenName);
   const display = chosenEntry?.name ?? chosenName;
-  const summary = state.choice === '' && sameAsSummary ? t('models.sameAsSummaryNow', { model: display }) : display;
+  // The agenda follows the checklist's model until it has a choice of its own (0.11.0); the others follow the summary.
+  const followsChecklist = fn === 'agenda';
+  const summary = state.choice === '' && sameAsSummary
+    ? (followsChecklist ? t('models.sameAsChecklistNow', { model: display }) : t('models.sameAsSummaryNow', { model: display }))
+    : display;
   const groupName = `model-${fn}`;
   const recommended = data.catalog.filter((entry) => entry.functions.includes(fn) && !entry.installed);
 
@@ -333,7 +339,7 @@ function FunctionRow({
             {sameAsSummary && (
               <label className="flex items-center gap-2 py-1.5 text-[13px]" style={{ color: 'var(--fg-1)' }}>
                 <input type="radio" name={groupName} checked={state.choice === ''} onChange={() => onChoose(fn, '')} />
-                {t('models.sameAsSummary')}
+                {followsChecklist ? t('models.sameAsChecklist') : t('models.sameAsSummary')}
               </label>
             )}
             <div className="mt-2 text-[12px] font-medium uppercase tracking-wide" style={{ color: 'var(--fg-2)' }}>

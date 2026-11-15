@@ -13,7 +13,7 @@
       "ollama_tags": { "gguf": "gemma4:e2b-it-qat", "nvfp4": "gemma4:e2b-nvfp4" },
       "nvfp4_size_bytes": 7476595162,
       "hf_repo": "",
-      "functions": ["summary", "summary_fold", "checklist"],
+      "functions": ["summary", "summary_fold", "checklist", "agenda"],
       "device_class": "klein",
       "status": "aanbevolen",
       "note": "Standaardmodel van de app. Kleinste Gemma 4, quantisatie-bewust."
@@ -28,7 +28,7 @@
       "ollama_tags": { "gguf": "gemma4:e4b-it-qat", "nvfp4": "gemma4:e4b-nvfp4" },
       "nvfp4_size_bytes": 9461576343,
       "hf_repo": "",
-      "functions": ["summary", "summary_fold", "checklist"],
+      "functions": ["summary", "summary_fold", "checklist", "agenda"],
       "device_class": "mac",
       "status": "aanbevolen",
       "note": "Meer ruimte dan E2B voor lange gesprekken, met een bescheiden geheugenbeslag."
@@ -43,7 +43,7 @@
       "ollama_tags": { "gguf": "gemma4:12b-it-qat", "nvfp4": "gemma4:12b-nvfp4" },
       "nvfp4_size_bytes": 7714091504,
       "hf_repo": "",
-      "functions": ["summary", "summary_fold", "checklist"],
+      "functions": ["summary", "summary_fold", "checklist", "agenda"],
       "device_class": "mac",
       "status": "aanbevolen",
       "note": "Groot contextvenster, bedoeld voor lange gesprekken op een Mac met genoeg geheugen."
@@ -58,7 +58,7 @@
       "ollama_tags": { "gguf": "nemotron-3-nano:4b", "nvfp4": "nemotron-3-nano:4b-nvfp4" },
       "nvfp4_size_bytes": 2949073080,
       "hf_repo": "nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16",
-      "functions": ["summary", "summary_fold", "checklist"],
+      "functions": ["summary", "summary_fold", "checklist", "agenda"],
       "device_class": "klein",
       "status": "kandidaat",
       "note": "Uit de Ollama-bibliotheek. Genoemde talen: Engels, Duits, Spaans, Frans, Italiaans, Japans; Nederlands staat er niet bij."
@@ -72,7 +72,7 @@
       "source_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB",
       "ollama_tags": { "gguf": "hf.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB:Q4_K_M" },
       "hf_repo": "nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB",
-      "functions": ["summary", "summary_fold", "checklist"],
+      "functions": ["summary", "summary_fold", "checklist", "agenda"],
       "device_class": "klein",
       "status": "kandidaat",
       "note": "Q4_K_M van Hugging Face, afgeleid van Gemma 4 E4B. De downloadgrootte is ruim 6 GB, meer dan de naam doet vermoeden."
@@ -86,7 +86,7 @@
       "source_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4",
       "ollama_tags": {},
       "hf_repo": "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4",
-      "functions": ["summary", "summary_fold", "checklist"],
+      "functions": ["summary", "summary_fold", "checklist", "agenda"],
       "device_class": "mac",
       "status": "kandidaat",
       "note": "Via Hugging Face. Geen bevestigde Ollama-tag, dus niet direct in de app te downloaden. Safetensors-formaat, ruim 21 GB."
@@ -100,7 +100,7 @@
       "source_url": "https://ollama.com/library/qwen3.5",
       "ollama_tags": { "gguf": "qwen3.5:9b" },
       "hf_repo": "Qwen/Qwen3.5-9B",
-      "functions": ["summary", "summary_fold", "checklist"],
+      "functions": ["summary", "summary_fold", "checklist", "agenda"],
       "device_class": "mac",
       "status": "kandidaat",
       "note": "Stond al in de oude lijst van de app. Nog niet door ons gemeten voor deze functies."
@@ -114,7 +114,7 @@
       "source_url": "https://ollama.com/library/gpt-oss",
       "ollama_tags": { "gguf": "gpt-oss:20b" },
       "hf_repo": "openai/gpt-oss-20b",
-      "functions": ["summary", "summary_fold", "checklist"],
+      "functions": ["summary", "summary_fold", "checklist", "agenda"],
       "device_class": "mac",
       "status": "kandidaat",
       "note": "Stond al in de oude lijst van de app. Nog niet door ons gemeten voor deze functies."

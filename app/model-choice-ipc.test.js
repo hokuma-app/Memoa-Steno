@@ -35,7 +35,9 @@ test('choosing validates the function and the name before the CLI is reached', a
   assert.deepEqual(calls, []);
   await call('model-choice-set', 'summary_fold', 'gemma4:e4b-it-qat');
   await call('model-choice-set', 'checklist', '');
-  assert.deepEqual(calls, [['set-function-model', 'summary_fold', 'gemma4:e4b-it-qat'], ['set-function-model', 'checklist', '']]);
+  await call('model-choice-set', 'agenda', 'qwen3.5:9b');
+  assert.deepEqual(calls, [['set-function-model', 'summary_fold', 'gemma4:e4b-it-qat'], ['set-function-model', 'checklist', ''],
+    ['set-function-model', 'agenda', 'qwen3.5:9b']], 'the agenda has its own choice (0.11.0)');
 });
 
 test('a backend refusal on a non-zero exit comes back as a reason, not a crash', async () => {

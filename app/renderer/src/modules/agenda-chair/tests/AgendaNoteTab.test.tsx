@@ -11,7 +11,7 @@ vi.mock('@/lib/ipc', () => ({ ipc: () => ({ agenda: state }) }));
 
 const finding = (over: Partial<AgendaMinutesFinding>): AgendaMinutesFinding => ({
   id: 'f000000000001', kind: 'besluit', text: 'Rooster gaat in mei in.', owner: null, due: null, ai: { text: 'Rooster gaat in mei in.', owner: null, due: null },
-  evidence: { segmentId: 's2', quote: 'We besluiten het rooster in mei', start: 75, end: 78, speaker: 'other' }, review: 'voorstel', reason: null, ...over,
+  evidence: { segmentId: 's2', quote: 'We besluiten het rooster in mei', start: 75, end: 78, speaker: 'other' }, review: 'voorstel', reason: null, answer: null, ...over,
 });
 const minutes = (over: Partial<AgendaMinutes> = {}): AgendaMinutes => ({
   schemaVersion: 1, title: 'Werkoverleg Kastanje',
@@ -26,7 +26,8 @@ const minutes = (over: Partial<AgendaMinutes> = {}): AgendaMinutes => ({
       questions: [] },
   ],
   other: { decisions: [], actions: [], questions: [finding({ id: 'f000000000003', kind: 'vraag', text: 'Wie boekt de zaal?', evidence: { segmentId: 's4', quote: 'boekt de zaal', start: 3700, end: 3702, speaker: 'unknown' } })] },
-  counts: { decisions: 1, actions: 1, questions: 1, proposals: 2, confirmed: 1 }, totals: { plannedMinutes: 15, spentSec: 990 }, ownerMissing: ['f000000000001'], ...over,
+  counts: { decisions: 1, actions: 1, questions: 1, answered: 0, proposals: 2, confirmed: 1 }, totals: { plannedMinutes: 15, spentSec: 990 }, ownerMissing: ['f000000000001'],
+  questionsReview: null, ...over,
 });
 const found = (over: Partial<AgendaNoteFound> = {}): AgendaNoteFound => ({ found: true, title: 'Werkoverleg Kastanje', minutes: minutes(), markdown: '# Notulen Werkoverleg Kastanje\n', finalRunning: false, ...over });
 beforeEach(() => { state.enabled = true; state.correctNote.mockReset(); state.noteResult.mockReset(); });
@@ -34,6 +35,27 @@ afterEach(() => { cleanup(); vi.useRealTimers(); });
 const renderTab = (result = found(), onChanged = vi.fn()) => ({ onChanged, ...render(<AgendaNoteTab noteFile="/n/kastanje_summary.md" result={result} onChanged={onChanged} />) });
 
 describe('minutes per agenda item inside the note', () => {
+  it('after stopping: answered questions are listed apart with their answer, and the check says what it read (0.11.0)', () => {
+    const answered = finding({ id: 'f000000000004', kind: 'vraag', text: 'Wie maakt de notulen?',
+      evidence: { segmentId: 's5', quote: 'Wie maakt de notulen', start: 100, end: 102, speaker: 'other' },
+      answer: { segmentId: 's6', quote: 'Sanne maakt de notulen', start: 130, end: 133, speaker: 'self' } });
+    const base = minutes();
+    renderTab(found({ minutes: minutes({ other: { ...base.other, questions: [...base.other.questions, answered] },
+      counts: { ...base.counts, answered: 1 },
+      questionsReview: { status: 'done', checked: 2, answered: 1, tail: true, from: 1800, reason: null, at: 'x' } }) }));
+    expect(screen.getByTestId('agenda-pills').textContent).toBe('1 besluiten1 acties1 open vragen1 beantwoord2 voorstellen');
+    expect(screen.getByTestId('agenda-questions-review').textContent).toBe(
+      'Na het stoppen zijn de open vragen nog eens nagegaan, alleen in het laatste deel van het gesprek (vanaf 30:00): het hele gesprek past niet in één controle. 1 van 2 beantwoord.');
+    const row = document.querySelector('[data-finding="f000000000004"]') as HTMLElement;
+    expect(within(row).getByText('Beantwoord')).toBeTruthy();
+    expect(within(row).getByTestId('agenda-answer').textContent).toBe('Antwoord: “Sanne maakt de notulen” · 02:10 · Jij');
+    expect(screen.getByRole('heading', { name: 'Beantwoorde vragen' })).toBeTruthy();
+    cleanup();
+    renderTab(found({ minutes: minutes({ questionsReview: { status: 'failed', checked: 1, answered: 0, tail: false, from: null, reason: 'timeout', at: 'x' } }) }));
+    expect(screen.getByTestId('agenda-questions-review').textContent).toBe('Na het stoppen konden de open vragen niet opnieuw worden nagegaan.');
+    expect(screen.queryByRole('heading', { name: 'Beantwoorde vragen' })).toBeNull();
+  });
+
   it('pills, status and time per item, citations with time and speaker, proposals marked, Kopieer als markdown', async () => {
     const copy = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copy } });
@@ -45,7 +67,8 @@ describe('minutes per agenda item inside the note', () => {
     expect(within(item).getByText('over tijd')).toBeTruthy();
     const decision = item.querySelector('[data-finding="f000000000001"]') as HTMLElement;
     expect(within(decision).getByText('Voorstel')).toBeTruthy();
-    expect(within(decision).getByText('Eigenaar of termijn ontbreekt')).toBeTruthy();
+    expect(within(decision).getByText('Eigenaar ontbreekt')).toBeTruthy();
+    expect(within(decision).getByText('Eigenaar: niet genoemd · Termijn: niet genoemd')).toBeTruthy();
     expect(within(decision).getByText('01:15 · Anderen')).toBeTruthy();
     expect(within(decision).getByText(/We besluiten het rooster in mei/)).toBeTruthy();
     const action = item.querySelector('[data-finding="f000000000002"]') as HTMLElement;

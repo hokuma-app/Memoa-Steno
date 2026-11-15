@@ -60,3 +60,21 @@ test('the stub still reads the repository catalogue in development', async () =>
     fs.rmSync(userData, { recursive: true, force: true });
   }
 });
+
+test('the stub: the agenda follows the checklist until it has its own choice (0.11.0)', async () => {
+  const userData = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'mock-userdata-'));
+  const before = process.env.STENOAI_USER_DATA_DIR;
+  process.env.STENOAI_USER_DATA_DIR = userData;
+  try {
+    const { runPythonScript } = require(MOCK);
+    const list = async () => JSON.parse(await runPythonScript('unused', ['model-choices'])).functions.agenda;
+    assert.deepStrictEqual(await list(), { choice: '', effective: 'gemma4:e2b-it-qat' });
+    await runPythonScript('unused', ['set-function-model', 'checklist', 'stub-extra:1b']);
+    assert.deepStrictEqual(await list(), { choice: '', effective: 'stub-extra:1b' });
+    await runPythonScript('unused', ['set-function-model', 'agenda', 'gemma4:e2b-it-qat']);
+    assert.deepStrictEqual(await list(), { choice: 'gemma4:e2b-it-qat', effective: 'gemma4:e2b-it-qat' });
+  } finally {
+    if (before === undefined) delete process.env.STENOAI_USER_DATA_DIR; else process.env.STENOAI_USER_DATA_DIR = before;
+    fs.rmSync(userData, { recursive: true, force: true });
+  }
+});

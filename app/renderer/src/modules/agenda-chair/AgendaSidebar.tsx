@@ -20,7 +20,6 @@ function statusLine(live: AgendaLiveActive): string {
   }
 }
 function signalText(signal: AgendaSignal, items: AgendaItem[]): string {
-  if (signal.code === 'besluit_zonder_eigenaar') return t('signal_besluit_zonder_eigenaar', { missing: signal.missing.map((key) => t(`missing_${key}`)).join(t('missingJoin')) });
   if (signal.code === 'vereist_punt_open') {
     return t('signal_vereist_punt_open', { titles: signal.itemIds.map((id) => items.find((item) => item.id === id)?.title ?? id).join(t('listJoin')) });
   }
@@ -48,6 +47,8 @@ export function AgendaSidebar({ live, receivedAt, onAction, error }: {
   const suggestion = live.suggestion;
   const suggested = suggestion ? items.find((item) => item.id === suggestion.itemId) : null;
   const requiredOpen = live.signals.find((signal) => signal.code === 'vereist_punt_open');
+  const undo = live.undo && !live.ended ? live.undo : null;
+  const undoTitle = undo ? items.find((item) => item.id === undo.itemId)?.title ?? undo.itemId : '';
   const elapsedMs = live.planned.meetingMs + (live.ended ? 0 : since);
 
   return <section className="veneta-agenda-live space-y-3 p-4 text-sm" data-agenda-runtime aria-label={t('liveRegion')}>
@@ -69,6 +70,10 @@ export function AgendaSidebar({ live, receivedAt, onAction, error }: {
         <Button type="button" size="sm" onClick={() => onAction('confirmSuggestion', suggestion.itemId)}>{t('liveConfirm')}</Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => onAction('dismissSuggestion', suggestion.itemId)}>{t('liveDismiss')}</Button>
       </div>
+    </div>}
+    {undo && <div className="veneta-agenda-undo flex items-center justify-between gap-2 rounded-md p-2" role="status" data-testid="agenda-undo">
+      <span>{t('liveUndoText', { title: undoTitle })}</span>
+      <Button type="button" size="sm" variant="outline" aria-label={t('liveUndoLabel', { title: undoTitle })} onClick={() => onAction('undoSwitch', undo.itemId)}>{t('liveUndo')}</Button>
     </div>}
     {requiredOpen && <p role="alert" className="veneta-agenda-warn rounded-md p-2" data-signal="vereist_punt_open">{signalText(requiredOpen, items)}</p>}
     {error && <p role="alert">{error}</p>}
@@ -123,6 +128,7 @@ function Findings({ findings }: { findings: AgendaFinding[] }) {
         <span className="veneta-agenda-tag">{t(`kind_${finding.kind}`)}</span> <span className="veneta-agenda-tag">{t('liveFindingProposal')}</span> {finding.text}
         {finding.owner && <span className="block text-[color:var(--fg-2)]">{t('liveOwner', { owner: finding.owner })}</span>}
         {finding.due && <span className="block text-[color:var(--fg-2)]">{t('liveDue', { due: finding.due })}</span>}
+        {!finding.due && finding.kind === 'besluit' && <span className="block text-[color:var(--fg-2)]" data-due-missing>{t('liveDueMissing')}</span>}
       </li>)}
     </ul>
   </div>;

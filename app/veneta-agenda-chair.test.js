@@ -209,14 +209,101 @@ test('vereist_punt_open: less than ten minutes left of the planned 20 minutes wh
   assert.equal(h.state().signals.some((s) => s.code === 'vereist_punt_open'), false);
 });
 
+test('vereist_punt_open: a deferred required item does not count as open (decision 4, kept as is)', async () => {
+  const h = harness();
+  h.planner.begin({ startedAtMs: h.c.now() });
+  h.planner.act({ action: 'start', itemId: 'p2' });
+  await h.c.advance(11 * 60_000);
+  assert.deepEqual(h.state().signals.find((s) => s.code === 'vereist_punt_open'), { code: 'vereist_punt_open', itemIds: ['p2'] }, 'running counts as open');
+  h.planner.act({ action: 'defer', itemId: 'p2' });
+  assert.equal(h.state().items.p2.status, 'doorgeschoven');
+  assert.equal(h.state().signals.some((s) => s.code === 'vereist_punt_open'), false);
+  await h.c.advance(5 * 60_000);
+  assert.equal(h.emitted.at(-1).signals.some((s) => s.code === 'vereist_punt_open'), false, 'not pushed back later either');
+  h.planner.act({ action: 'start', itemId: 'p2' });
+  assert.equal(h.state().signals.some((s) => s.code === 'vereist_punt_open'), true, 'resumed: open again');
+});
+
+test('undo: starting an item finishes the running one, and one tap takes it back with the time intact (decision 3)', async () => {
+  const h = harness();
+  h.outcome = (request) => answer(request, { findings: request.segments.filter((s) => s.text.includes('besluiten'))
+    .map((s) => ({ kind: 'besluit', itemId: null, text: 'Opening kort.', owner: null, due: null, segmentId: s.id, quote: 'We besluiten' })) });
+  h.planner.begin({ startedAtMs: h.c.now() });
+  h.planner.act({ action: 'start', itemId: 'p1' });
+  await h.c.advance(4 * 60_000);
+  assert.equal(h.state().undo, null, 'nothing to undo before a switch');
+  h.planner.act({ action: 'start', itemId: 'p2' });
+  let state = h.state();
+  assert.equal(state.items.p1.status, 'afgerond');
+  assert.deepEqual(state.undo, { itemId: 'p1', startedItemId: 'p2' });
+  // Something is said while the wrong item runs; the timeline gives it to p2.
+  h.add(final(0, 'We besluiten de opening kort te houden.', 'You', 250));
+  await h.c.advance(30_000);
+  assert.equal(h.state().findings[0].itemId, 'p2');
+  const outcome = h.planner.act({ action: 'undoSwitch' });
+  assert.equal(outcome.ok, true);
+  state = h.state();
+  assert.equal(state.items.p1.status, 'loopt');
+  assert.equal(state.items.p1.recognition, 'mens');
+  assert.equal(state.items.p1.spentMs, 4 * 60_000 + 30_000, 'the time since the switch counts for the previous item');
+  assert.equal(state.items.p2.status, 'open');
+  assert.equal(state.items.p2.spentMs, 0);
+  assert.equal(state.items.p2.startOffset, null, 'the started item is back as it was');
+  assert.equal(state.currentItemId, 'p1');
+  assert.equal(state.undo, null);
+  assert.equal(state.findings[0].itemId, 'p1', 'findings of the undone run go back to the previous item');
+  await h.c.advance(60_000);
+  assert.equal(h.state().items.p1.spentMs, 5 * 60_000 + 30_000, 'and the clock keeps running');
+  assert.deepEqual(h.planner.act({ action: 'undoSwitch' }), { ok: false, code: 'stale' }, 'only once');
+  // Any other action ends the chance to undo; so does stopping.
+  h.planner.act({ action: 'start', itemId: 'p3' });
+  h.planner.act({ action: 'skip', itemId: 'p4' });
+  assert.equal(h.state().undo, null);
+  assert.deepEqual(h.planner.act({ action: 'undoSwitch' }), { ok: false, code: 'stale' });
+  h.planner.act({ action: 'start', itemId: 'p4' });
+  assert.deepEqual(h.state().undo, { itemId: 'p3', startedItemId: 'p4' });
+  await h.planner.finish();
+  assert.equal(h.state().undo, null);
+  assert.deepEqual(h.planner.act({ action: 'undoSwitch' }), { ok: false, code: 'stale' });
+  // The stored session keeps the undo state valid for a remount.
+  assert.doesNotThrow(() => validateSession(h.persisted.at(-1)));
+});
+
+test('undo of a confirmed suggestion: the previous item runs again and the suggestion counts as dismissed', async () => {
+  const h = harness();
+  h.outcome = (request) => {
+    const segment = request.segments.find((s) => s.text.includes('planningstool'));
+    return answer(request, { currentItem: segment ? { itemId: 'p2', segmentId: segment.id, quote: 'nieuwe planningstool' } : null });
+  };
+  h.planner.begin({ startedAtMs: h.c.now() });
+  h.planner.act({ action: 'start', itemId: 'p1' });
+  h.add(final(0, 'Dan nu de keuze voor de nieuwe planningstool.'));
+  await h.c.advance(10_000);
+  assert.equal(h.state().suggestion.itemId, 'p2');
+  h.planner.act({ action: 'confirmSuggestion', itemId: 'p2' });
+  assert.equal(h.state().items.p2.recognition, 'agent_bevestigd');
+  assert.equal(h.planner.act({ action: 'undoSwitch', itemId: 'p1' }).ok, true);
+  assert.equal(h.state().items.p1.status, 'loopt');
+  assert.equal(h.state().items.p2.recognition, null);
+  assert.equal(h.state().suggestion, null);
+  assert.equal(h.persisted.at(-1).dismissed.some((entry) => entry.itemId === 'p2'), true);
+  assert.deepEqual(h.planner.act({ action: 'undoSwitch', itemId: 'p3' }), { ok: false, code: 'stale' });
+});
+
 test('signals: besluit_zonder_eigenaar and uitkomst_ontbreekt follow findings and human reviews (pure function)', () => {
   const session = newSession('recording:1', agenda());
   session.items.p2.status = 'afgerond';
   assert.deepEqual(signalsOf(session, 0).map((s) => s.code), ['uitkomst_ontbreekt']);
   session.findings.push({ id: 'f000000000001', kind: 'besluit', itemId: 'p2', text: 'We kiezen Planbord.', owner: null, due: null,
     evidence: { segmentId: 's1', quote: 'kiezen Planbord', start: 1, end: 2, speaker: 'self' }, origin: 'ai' });
-  assert.deepEqual(signalsOf(session, 0), [{ code: 'besluit_zonder_eigenaar', itemId: 'p2', findingId: 'f000000000001', missing: ['eigenaar', 'termijn'] }]);
+  assert.deepEqual(signalsOf(session, 0), [{ code: 'besluit_zonder_eigenaar', itemId: 'p2', findingId: 'f000000000001' }]);
   assert.deepEqual(signalsOf(session, 0, { f000000000001: { status: 'gecorrigeerd', owner: 'Sanne', due: 'vrijdag', at: 'x' } }), []);
+  // 0.11.0: only a missing owner is a signal; a missing deadline is shown quietly at the decision.
+  assert.deepEqual(signalsOf(session, 0, { f000000000001: { status: 'gecorrigeerd', owner: 'Sanne', due: null, at: 'x' } }), []);
+  session.findings[0].owner = 'Sanne';
+  assert.deepEqual(signalsOf(session, 0), [], 'owner known, deadline missing: no signal');
+  assert.deepEqual(signalsOf(session, 0, { f000000000001: { status: 'gecorrigeerd', owner: null, at: 'x' } }).map((s) => s.code), ['besluit_zonder_eigenaar']);
+  session.findings[0].owner = null;
   assert.deepEqual(signalsOf(session, 0, { f000000000001: { status: 'afgewezen', at: 'x' } }).map((s) => s.code), ['uitkomst_ontbreekt']);
 });
 
@@ -444,7 +531,142 @@ test('the host keeps the state across remounts: getState is complete and seq onl
   const second = h.state().seq;
   assert.ok(second > first);
   assert.deepEqual(Object.keys(h.state()).sort(), ['active', 'agenda', 'counters', 'currentItemId', 'ended', 'failure', 'findings', 'hostNow', 'items',
-    'lastReason', 'lastRunAt', 'phase', 'planned', 'seq', 'sessionId', 'signals', 'stateVersion', 'suggestion'].sort());
+    'lastReason', 'lastRunAt', 'phase', 'planned', 'questionsReview', 'seq', 'sessionId', 'signals', 'stateVersion', 'suggestion', 'undo'].sort());
+});
+
+// ---- After stopping: the open questions once more over the whole conversation (decision 5) -----------------------
+
+const questionAnswers = (request, pick) => ({ ok: true, response: validateAgendaResponse({ revision: request.revision, answered: pick(request) }, request) });
+
+test('stop: the open questions are checked once more over the whole conversation; answered ones are no longer open', async () => {
+  const h = harness();
+  h.outcome = (request) => {
+    if (request.mode === 'questions') {
+      return questionAnswers(request, (r) => r.questions.flatMap((q) => {
+        const later = r.segments.find((s) => s.start > q.start && s.text.includes('boekt de zaal'));
+        return later && q.text.includes('zaal') ? [{ questionId: q.id, segmentId: later.id, quote: 'boekt de zaal' }] : [];
+      }));
+    }
+    return answer(request, { findings: request.segments.filter((s) => s.text.endsWith('?'))
+      .map((s) => ({ kind: 'vraag', itemId: null, text: s.text, owner: null, due: null, segmentId: s.id, quote: s.text.slice(0, -1) })) });
+  };
+  h.planner.begin({ startedAtMs: h.c.now() });
+  h.add(final(0, 'Wie boekt de zaal?'), final(1, 'Wie maakt de notulen?'));
+  await h.c.advance(10_000);
+  for (let i = 2; i < 40; i++) h.add(final(i, `Tussenzin ${i} van het overleg.`));
+  h.add(final(40, 'Sanne boekt de zaal voor de volgende keer.'));
+  await h.c.advance(10_000);
+  assert.equal(h.state().findings.filter((f) => f.kind === 'vraag').length, 2);
+  await h.planner.finish();
+  const questionCall = h.analyzed.find((call) => call.request.mode === 'questions');
+  assert.ok(questionCall, 'one question check after stopping');
+  assert.equal(questionCall.options.final, true);
+  assert.equal(questionCall.request.segments.length, 41, 'the whole conversation, not only the last window');
+  assert.deepEqual(questionCall.request.questions.map((q) => q.text), ['Wie boekt de zaal?', 'Wie maakt de notulen?']);
+  assert.equal(h.analyzed.filter((call) => call.request.mode === 'questions').length, 1);
+  const state = h.state();
+  const zaal = state.findings.find((f) => f.text === 'Wie boekt de zaal?');
+  assert.deepEqual([zaal.answer.quote, zaal.answer.start, zaal.answer.speaker], ['boekt de zaal', 120, 'self']);
+  assert.equal(state.findings.find((f) => f.text === 'Wie maakt de notulen?').answer, undefined);
+  assert.deepEqual({ ...state.questionsReview, at: 'x' }, { status: 'done', checked: 2, answered: 1, tail: false, from: null, reason: null, at: 'x' });
+  const minutes = buildMinutes(validateSession(h.persisted.at(-1)), {});
+  assert.deepEqual([minutes.counts.questions, minutes.counts.answered], [1, 1]);
+  const markdown = minutesMarkdown(minutes);
+  assert.match(markdown, /_Na het stoppen zijn de open vragen nog eens nagegaan over het hele gesprek: 1 van 2 beantwoord\._/);
+  assert.match(markdown, /\*\*Open vragen\*\*\n\n- \[voorstel\] Wie maakt de notulen\?/);
+  assert.match(markdown, /\*\*Beantwoorde vragen\*\*\n\n- \[voorstel\] Wie boekt de zaal\?\n {2}> "Wie boekt de zaal" \(00:00, Jij\)\n {2}Beantwoord: "boekt de zaal" \(02:00, Jij\)/);
+  assert.ok(h.logs.every((entry) => !JSON.stringify(entry).includes('zaal')), 'diagnostics carry no text');
+});
+
+test('question check: none open or all rejected asks nothing; too long reads the newest tail and says so; failure is reported', async () => {
+  // No open question: no extra call.
+  const none = harness();
+  none.planner.begin({ startedAtMs: none.c.now() });
+  none.add(final(0, 'Een zin zonder vraag.'));
+  await none.c.advance(10_000);
+  await none.planner.finish();
+  assert.equal(none.analyzed.some((call) => call.request.mode === 'questions'), false);
+  assert.equal(none.state().questionsReview, null);
+  // A question a human rejected is not checked.
+  const rejected = harness();
+  rejected.outcome = (request) => (request.mode === 'questions' ? questionAnswers(request, () => [])
+    : answer(request, { findings: [{ kind: 'vraag', itemId: null, text: 'Wie?', owner: null, due: null, segmentId: request.segments[0].id, quote: 'Wie boekt' }] }));
+  rejected.planner.begin({ startedAtMs: rejected.c.now() });
+  rejected.add(final(0, 'Wie boekt de zaal?'));
+  await rejected.c.advance(10_000);
+  rejected.reviews = { [rejected.state().findings[0].id]: { status: 'afgewezen', at: 'x' } };
+  await rejected.planner.finish();
+  assert.equal(rejected.analyzed.some((call) => call.request.mode === 'questions'), false);
+  // Longer than one check: the newest contiguous tail, never the middle, and the result says so.
+  const long = harness();
+  long.outcome = (request) => (request.mode === 'questions' ? questionAnswers(request, () => [])
+    : answer(request, { findings: request.segments.filter((s) => s.text.startsWith('Vraag'))
+      .map((s) => ({ kind: 'vraag', itemId: null, text: 'Een vraag.', owner: null, due: null, segmentId: s.id, quote: 'Vraag' })) }));
+  long.planner.begin({ startedAtMs: long.c.now() });
+  long.add(final(0, 'Vraag nul, wie weet het?'));
+  await long.c.advance(10_000);
+  for (let batch = 0; batch < 3; batch++) {
+    long.add(...Array.from({ length: 100 }, (_, i) => final(1 + batch * 100 + i, `Zin ${batch}-${i} van een lang overleg.`)));
+    await long.c.advance(10_000);
+  }
+  await long.planner.finish();
+  const call = long.analyzed.find((c) => c.request.mode === 'questions');
+  assert.equal(call.request.segments.length, LIMITS.segments);
+  assert.equal(call.request.segments.at(-1).text, 'Zin 2-99 van een lang overleg.', 'newest tail');
+  const review = long.state().questionsReview;
+  assert.deepEqual([review.status, review.tail, review.from], ['done', true, call.request.segments[0].start]);
+  assert.match(chair.questionsReviewText(review), /alleen in het laatste deel van het gesprek \(vanaf \d\d:\d\d\): het hele gesprek past niet in één controle/);
+  // A failing check keeps the questions open and says it could not check them.
+  const failing = harness();
+  failing.outcome = (request) => (request.mode === 'questions' ? { ok: false, reason: 'timeout' }
+    : answer(request, { findings: [{ kind: 'vraag', itemId: null, text: 'Wie?', owner: null, due: null, segmentId: request.segments[0].id, quote: 'Wie boekt' }] }));
+  failing.planner.begin({ startedAtMs: failing.c.now() });
+  failing.add(final(0, 'Wie boekt de zaal?'));
+  await failing.c.advance(10_000);
+  await failing.planner.finish();
+  assert.deepEqual([failing.state().questionsReview.status, failing.state().questionsReview.reason], ['failed', 'timeout']);
+  assert.equal(failing.state().findings[0].answer, undefined);
+  assert.equal(buildMinutes(validateSession(failing.persisted.at(-1))).counts.questions, 1);
+});
+
+test('question check: a busy model slot is waited for, and the final check is reported as running until it is done', async () => {
+  const h = harness();
+  let busy = 2;
+  h.outcome = (request) => {
+    if (request.mode !== 'questions') return answer(request, { findings: [{ kind: 'vraag', itemId: null, text: 'Wie?', owner: null, due: null, segmentId: request.segments[0].id, quote: 'Wie boekt' }] });
+    if (busy-- > 0) return { ok: false, reason: 'busy' };
+    return questionAnswers(request, () => []);
+  };
+  h.planner.begin({ startedAtMs: h.c.now() });
+  h.add(final(0, 'Wie boekt de zaal?'));
+  await h.c.advance(10_000);
+  const done = h.planner.finish();
+  await h.c.advance(1);
+  assert.equal(h.planner.finalRunningFor('key:recording:1000000'), true);
+  await h.c.advance(15_000);
+  await done;
+  assert.equal(h.analyzed.filter((call) => call.request.mode === 'questions').length, 3);
+  assert.equal(h.state().questionsReview.status, 'done');
+  assert.equal(h.planner.finalRunningFor('key:recording:1000000'), false);
+});
+
+test('question answers are strict: known question, a later segment, literal whole-word quote, once', () => {
+  const request = { sessionId: 'recording:1', revision: 'q1', mode: 'questions',
+    questions: [{ id: 'f00000000000a', text: 'Wie boekt de zaal?', start: 5 }],
+    segments: [{ id: 's1', text: 'Wie boekt de zaal?', speaker: 'other', start: 5, end: 6 }, { id: 's2', text: 'Sanne boekt de zaal.', speaker: 'self', start: 9, end: 11 }] };
+  validateAgendaRequest(request);
+  const ok = (answered) => validateAgendaResponse({ revision: 'q1', answered }, request);
+  assert.deepEqual(ok([{ questionId: 'f00000000000a', segmentId: 's2', quote: 'Sanne boekt' }]).answered.length, 1);
+  assert.deepEqual(ok([]).answered, []);
+  for (const bad of [
+    [{ questionId: 'f00000000000a', segmentId: 's1', quote: 'boekt de zaal' }], [{ questionId: 'f00000000000a', segmentId: 's2', quote: 'anne boekt' }],
+    [{ questionId: 'f00000000000b', segmentId: 's2', quote: 'Sanne boekt' }], [{ questionId: 'f00000000000a', segmentId: 's2', quote: 'Sanne boekt', x: 1 }],
+    [{ questionId: 'f00000000000a', segmentId: 's2', quote: 'Sanne boekt' }, { questionId: 'f00000000000a', segmentId: 's2', quote: 'de zaal' }],
+  ]) assert.throws(() => ok(bad), JSON.stringify(bad));
+  assert.throws(() => validateAgendaResponse({ revision: 'q1', answered: [], findings: [] }, request));
+  for (const change of [{ questions: [] }, { questions: [{ id: 'bad', text: 'x', start: 1 }] }, { items: [] }, { mode: 'other' }]) {
+    assert.throws(() => validateAgendaRequest({ ...request, ...change }), JSON.stringify(change));
+  }
 });
 
 // ---- Answer validation (literal quotes) -------------------------------------------------------------------------
@@ -500,7 +722,7 @@ test('minutes per item with status, time, citations; human correction wins; reje
   assert.deepEqual(item.decisions.map((d) => [d.text, d.owner, d.due, d.review, d.ai.text]), [['We kiezen Planbord als planningstool.', 'Sanne', '1 april', 'gecorrigeerd', 'We kiezen Planbord.']]);
   assert.deepEqual(item.actions.map((a) => a.review), ['voorstel', 'afgewezen']);
   assert.equal(minutes.other.questions.length, 1);
-  assert.deepEqual(minutes.counts, { decisions: 1, actions: 1, questions: 1, proposals: 2, confirmed: 1 });
+  assert.deepEqual(minutes.counts, { decisions: 1, actions: 1, questions: 1, answered: 0, proposals: 2, confirmed: 1 });
   const markdown = minutesMarkdown(minutes);
   assert.match(markdown, /^# Notulen Teamoverleg Zonnebloem\n/);
   assert.match(markdown, /## 2\. Keuze nieuwe planningstool \(Besluit, 10 min, eigenaar Sanne, vereist\)/);
@@ -515,6 +737,11 @@ test('minutes per item with status, time, citations; human correction wins; reje
 test('validateSession refuses foreign shapes and keeps stored sessions readable', () => {
   const session = newSession('recording:1', agenda());
   assert.deepEqual(validateSession(session), session);
+  // A session stored before 0.11.0 has no undo or question-check state: still readable.
+  const { undo: _undo, questionsReview: _review, ...older } = session;
+  assert.deepEqual(validateSession(older), session);
+  assert.throws(() => validateSession({ ...session, undo: { previousItemId: 'p1' } }));
+  assert.throws(() => validateSession({ ...session, questionsReview: { status: 'gok' } }));
   assert.throws(() => validateSession({ ...session, extra: 1 }));
   assert.throws(() => validateSession({ ...session, items: { ...session.items, p1: { ...session.items.p1, status: 'bezig' } } }));
   assert.throws(() => validateSession({ ...session, findings: [{ id: 'f1', kind: 'besluit', itemId: null, text: 'x', owner: null, due: null, origin: 'ai',

@@ -37,6 +37,7 @@ function choices(over: Partial<ModelChoices> = {}): { success: true } & ModelCho
       summary: { choice: 'gemma4:e2b-it-qat', effective: 'gemma4:e2b-it-qat' },
       summary_fold: { choice: '', effective: 'gemma4:e2b-it-qat' },
       checklist: { choice: '', effective: 'gemma4:e2b-it-qat' },
+      agenda: { choice: '', effective: 'gemma4:e2b-it-qat' },
     },
     installed: [
       { name: 'gemma4:e2b-it-qat', size_bytes: 4_336_358_185, format: 'gguf', quantization: 'Q4_0', parameter_size: '5B', functions: ['summary', 'summary_fold', 'checklist'] },
@@ -54,8 +55,9 @@ const user = { choices: choices() };
 beforeEach(() => {
   user.choices = choices();
   bridge.modelChoice.list.mockImplementation(async () => structuredClone(user.choices));
-  bridge.modelChoice.set.mockImplementation(async (fn: 'summary' | 'summary_fold' | 'checklist', name: string) => {
-    user.choices.functions[fn] = { choice: name, effective: name || user.choices.functions.summary.effective };
+  bridge.modelChoice.set.mockImplementation(async (fn: 'summary' | 'summary_fold' | 'checklist' | 'agenda', name: string) => {
+    const fallback = fn === 'agenda' ? user.choices.functions.checklist.effective : user.choices.functions.summary.effective;
+    user.choices.functions[fn] = { choice: name, effective: name || fallback };
     return { success: true, function: fn, choice: name, effective: user.choices.functions[fn].effective };
   });
   bridge.models.pull.mockResolvedValue({ success: true });
@@ -74,6 +76,24 @@ const open = async (fn: string) => {
 };
 
 describe('ModelChoiceSettings', () => {
+  it('0.11.0: the agenda has its own row, by default the same as the checklist, and can get its own local model', async () => {
+    user.choices = choices({ functions: { ...choices().functions, checklist: { choice: 'stub-extra:1b', effective: 'stub-extra:1b' },
+      agenda: { choice: '', effective: 'stub-extra:1b' } } });
+    render(<ModelChoiceSettings />);
+    expect((await screen.findByTestId('model-current-agenda')).textContent).toBe(t('models.sameAsChecklistNow', { model: 'stub-extra:1b' }));
+    const picker = await open('agenda');
+    const same = picker.getByRole('radio', { name: t('models.sameAsChecklist') }) as HTMLInputElement;
+    expect(same.checked).toBe(true);
+    expect(picker.queryByRole('radio', { name: t('models.sameAsSummary') })).toBeNull();
+    fireEvent.click(picker.getByRole('radio', { name: /gemma4:e2b-it-qat/ }));
+    await waitFor(() => expect(bridge.modelChoice.set).toHaveBeenCalledWith('agenda', 'gemma4:e2b-it-qat'));
+    await waitFor(() => expect(screen.getByTestId('model-current-agenda').textContent).toBe('Gemma 4 E2B'));
+    fireEvent.click(picker.getByRole('radio', { name: t('models.sameAsChecklist') }));
+    await waitFor(() => expect(bridge.modelChoice.set).toHaveBeenLastCalledWith('agenda', ''));
+    expect(screen.getByTestId('model-current-summary')).toBeTruthy();
+    expect(screen.getByTestId('model-current-checklist').textContent).toBe('stub-extra:1b');
+  });
+
   it('shows a row per function with the effective model, and same-as-summary for the other two', async () => {
     render(<ModelChoiceSettings />);
     expect((await screen.findByTestId('model-current-summary')).textContent).toBe('Gemma 4 E2B');

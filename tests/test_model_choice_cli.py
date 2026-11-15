@@ -60,6 +60,8 @@ class ModelChoices(unittest.TestCase):
         self.assertEqual(data['functions']['summary'], {'choice': 'sum:1', 'effective': 'sum:1'})
         self.assertEqual(data['functions']['summary_fold'], {'choice': '', 'effective': 'sum:1'})
         self.assertEqual(data['functions']['checklist'], {'choice': 'check:2', 'effective': 'check:2'})
+        # 0.11.0: the agenda follows the checklist until it gets a choice of its own.
+        self.assertEqual(data['functions']['agenda'], {'choice': '', 'effective': 'check:2'})
 
     def test_installed_list_is_live_from_tags_and_names_the_functions_using_each_model(self):
         config, _ = make_config(model='gemma4:e2b-it-qat', checklist_model='extra:1')
@@ -70,7 +72,7 @@ class ModelChoices(unittest.TestCase):
         installed = {m['name']: m for m in data['installed']}
         self.assertEqual(set(installed), {'gemma4:e2b-it-qat', 'extra:1', 'unused:9'})
         self.assertEqual(installed['gemma4:e2b-it-qat']['functions'], ['summary', 'summary_fold'])
-        self.assertEqual(installed['extra:1']['functions'], ['checklist'])
+        self.assertEqual(installed['extra:1']['functions'], ['checklist', 'agenda'], 'the agenda follows the checklist')
         self.assertEqual(installed['unused:9']['functions'], [])
         self.assertEqual((installed['extra:1']['format'], installed['extra:1']['quantization']),
                          ('safetensors', 'nvfp4'))
@@ -268,7 +270,7 @@ class DeleteIsGuarded(unittest.TestCase):
         config, _ = make_config(model='sum:1', checklist_model='check:2')
         data, delete = self.delete('check:2', config, [tags_row('check:2')])
         self.assertFalse(data['success'])
-        self.assertEqual((data['reason'], data['functions']), ('in_use', ['checklist']))
+        self.assertEqual((data['reason'], data['functions']), ('in_use', ['checklist', 'agenda']))
         delete.assert_not_called()
         data, delete = self.delete('sum:1', config, [tags_row('sum:1')])
         self.assertEqual(data['functions'], ['summary', 'summary_fold'])

@@ -1191,8 +1191,11 @@ class Config:
     # conversation checklist get their own optional keys. An absent, empty or invalid
     # value means "same as the summary", so existing configs behave exactly as before
     # and nothing is migrated or written until the user makes a choice.
-    FUNCTION_MODEL_KEYS = {"summary_fold": "fold_model", "checklist": "checklist_model"}
-    MODEL_FUNCTIONS = ("summary", "summary_fold", "checklist")
+    FUNCTION_MODEL_KEYS = {"summary_fold": "fold_model", "checklist": "checklist_model", "agenda": "agenda_model"}
+    MODEL_FUNCTIONS = ("summary", "summary_fold", "checklist", "agenda")
+    # The agenda chair (0.11.0) defaults to the checklist's model, not the summary's: both are the
+    # local live-meeting slot, so a user who picked a model for the checklist keeps it for the agenda.
+    FUNCTION_MODEL_FALLBACK = {"agenda": "checklist"}
 
     def get_function_model_choice(self, function: str) -> str:
         """The stored choice for a function; "" means "same as the summary"."""
@@ -1209,8 +1212,13 @@ class Config:
             return ""  # hand-edited, cloud or malformed: safe fallback to the summary model
 
     def get_function_model(self, function: str) -> str:
-        """The model a function actually runs: its own choice, else the summary model."""
-        return self.get_function_model_choice(function) or self.get_model()
+        """The model a function actually runs: its own choice, else its fallback (the agenda: the
+        checklist's model), else the summary model."""
+        choice = self.get_function_model_choice(function)
+        if choice:
+            return choice
+        fallback = self.FUNCTION_MODEL_FALLBACK.get(function)
+        return self.get_function_model(fallback) if fallback else self.get_model()
 
     def set_function_model(self, function: str, model_name: str) -> bool:
         """Store a function's choice. "" returns a non-summary function to "same as summary"."""

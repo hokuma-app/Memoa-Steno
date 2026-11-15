@@ -2,10 +2,19 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ipc } from '@/lib/ipc';
 import { AGENDA_LIMITS } from './contracts';
-import type { AgendaFindingGroups, AgendaMinutesFinding, AgendaMinutesItem, AgendaNoteFound } from './contracts';
+import type { AgendaFindingGroups, AgendaMinutesFinding, AgendaMinutesItem, AgendaNoteFound, AgendaQuestionsReview } from './contracts';
 import { speakerText, stamp } from './format';
 import { agendaText as t } from './locales/nl';
 import './agenda.css';
+
+function questionsReviewText(review: AgendaQuestionsReview): string {
+  if (review.status === 'done') {
+    return review.tail
+      ? t('noteQuestionsTail', { from: stamp(review.from ?? 0), answered: review.answered, checked: review.checked })
+      : t('noteQuestionsWhole', { answered: review.answered, checked: review.checked });
+  }
+  return review.status === 'tooLarge' ? t('noteQuestionsTooLarge') : t('noteQuestionsFailed');
+}
 
 type Edit = { id: string; mode: 'correct' | 'reject'; text: string; owner: string; due: string; reason: string };
 
@@ -41,11 +50,13 @@ export function AgendaNoteTab({ noteFile, result, onChanged }: { noteFile: strin
         <span className="veneta-agenda-pill">{t('notePillDecisions', { count: minutes.counts.decisions })}</span>
         <span className="veneta-agenda-pill">{t('notePillActions', { count: minutes.counts.actions })}</span>
         <span className="veneta-agenda-pill">{t('notePillQuestions', { count: minutes.counts.questions })}</span>
+        {minutes.counts.answered > 0 && <span className="veneta-agenda-pill">{t('notePillAnswered', { count: minutes.counts.answered })}</span>}
         <span className="veneta-agenda-pill veneta-agenda-pill-warn">{t('notePillProposals', { count: minutes.counts.proposals })}</span>
       </div>
       <Button type="button" variant="outline" size="sm" onClick={() => void copy()}>{t('noteCopy')}</Button>
     </div>
     {result.finalRunning && <p role="status" data-testid="agenda-final-running">{t('noteFinalRunning')}</p>}
+    {minutes.questionsReview && <p className="text-[12px] text-[color:var(--fg-2)]" data-testid="agenda-questions-review">{questionsReviewText(minutes.questionsReview)}</p>}
     {message && <p role={message.failed ? 'alert' : 'status'}>{message.text}</p>}
     <ol className="space-y-4">
       {minutes.items.map((item) => <Item key={item.id} item={item} ownerMissing={minutes.ownerMissing} {...actions} />)}
@@ -86,7 +97,8 @@ function Groups({ groups, ownerMissing, ...actions }: { groups: AgendaFindingGro
   return <>
     {section(t('noteDecisions'), groups.decisions)}
     {section(t('noteActions'), groups.actions)}
-    {section(t('noteQuestions'), groups.questions)}
+    {section(t('noteQuestions'), groups.questions.filter((row) => !row.answer))}
+    {section(t('noteAnsweredHeading'), groups.questions.filter((row) => row.answer))}
   </>;
 }
 
@@ -97,7 +109,10 @@ function Finding({ row, ownerMissing, busy, edit, setEdit, review }: { row: Agen
   return <li className={`veneta-agenda-note-finding rounded-md p-2${rejected ? ' veneta-agenda-rejected' : ''}`} data-finding={row.id} data-review={row.review}>
     <div className="flex flex-wrap items-start justify-between gap-2">
       <span className={rejected ? 'line-through' : ''}>{row.text}</span>
-      <span className={`veneta-agenda-tag veneta-agenda-review-${row.review}`}>{t(`review_${row.review}`)}</span>
+      <span className="flex gap-1">
+        {row.answer && <span className="veneta-agenda-tag" data-answered>{t('noteAnswered')}</span>}
+        <span className={`veneta-agenda-tag veneta-agenda-review-${row.review}`}>{t(`review_${row.review}`)}</span>
+      </span>
     </div>
     {row.kind !== 'vraag' && <p className="text-[12px] text-[color:var(--fg-2)]">
       {t('noteOwner', { owner: row.owner ?? t('noteNotSaid') })}{t('noteMetaJoin')}{t('noteDue', { due: row.due ?? t('noteNotSaid') })}
@@ -107,6 +122,9 @@ function Finding({ row, ownerMissing, busy, edit, setEdit, review }: { row: Agen
       {t('noteQuote', { quote: row.evidence.quote })}
       <span className="block text-[color:var(--fg-2)]">{t('noteQuoteMeta', { time: stamp(row.evidence.start), speaker: speakerText(row.evidence.speaker) })}</span>
     </blockquote>
+    {row.answer && <p className="text-[12px] text-[color:var(--fg-2)]" data-testid="agenda-answer">
+      {t('noteAnsweredQuote', { quote: row.answer.quote })} · {t('noteQuoteMeta', { time: stamp(row.answer.start), speaker: speakerText(row.answer.speaker) })}
+    </p>}
     {changed && <p className="text-[12px] text-[color:var(--fg-2)]">{t('noteAiWas', { text: row.ai.text })}</p>}
     {row.reason && <p className="text-[12px] text-[color:var(--fg-2)]">{t('noteReasonPrefix', { reason: row.reason })}</p>}
     {!editing && <div className="mt-1 flex flex-wrap gap-1">

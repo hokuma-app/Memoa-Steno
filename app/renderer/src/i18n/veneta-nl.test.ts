@@ -26,6 +26,7 @@ const SAME_IN_DUTCH = new Set([
   'settings.ai.diarization.nemotron3Name',
   'chat.context.label',
   'models.fn.checklist',
+  'models.fn.agenda',
   'models.add.start',
   'askBar.transcript',
   'liveTranscriptBar.transcript',

@@ -1,7 +1,8 @@
 """Which model a function runs, and the local-only guard shared by the functions that need it.
 
-Summary, detail levels (``summary_fold``) and the conversation checklist each have an optional
-model choice; the default is "same as the summary" (see ``Config.get_function_model``).
+Summary, detail levels (``summary_fold``), the conversation checklist and the agenda chair each
+have an optional model choice; the default is "same as the summary", for the agenda "same as the
+checklist" (see ``Config.get_function_model``).
 """
 
 
@@ -20,6 +21,8 @@ def effective_model(config, function):
             value = None
     if isinstance(value, str) and value:
         return value
+    if function == 'agenda':
+        return effective_model(config, 'checklist')
     return config.get_model()
 
 

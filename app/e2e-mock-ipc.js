@@ -1523,10 +1523,10 @@ function install({ ipcMain, bindChecklistNote, bindAgendaNote }) {
   // FAILED check, and it does so in the state the About tab rehydrates from —
   // so the T1 spec asserts the contract (check clears it for good), not just a
   // local setState. Seeded by STENOAI_E2E_SEED_UPDATE_ERROR.
+  // The text comes from the main-process catalogue (main-copy.js) in the language of the renderer build under test,
+  // so the Veneta T1 checks the Dutch sentence a Veneta user reads and the default T1 the English one.
   let seededUpdateError =
-    process.env.STENOAI_E2E_SEED_UPDATE_ERROR === '1'
-      ? "Steno couldn't reach the update server. Check your connection — it will try again later."
-      : null;
+    process.env.STENOAI_E2E_SEED_UPDATE_ERROR === '1' ? e2eMainText()('update.networkCheck') : null;
 
   // Only the FIRST get-update-status is delayed, so the About tab's mount-time
   // request is still in flight when the check that settles the error completes,
@@ -1980,12 +1980,49 @@ async function checklistModel(request) {
 // 'we gaan naar punt N' (or the title of an item) proposes item N; 'we besluiten' is a decision, '<Naam> pakt/regelt/stuurt'
 // an action with that owner, a sentence ending in '?' an open question. Quotes are whole segment texts, so they always
 // pass the host's literal check. STENOAI_E2E_AGENDA_FAIL=<reason> proves the visible failure status.
+/**
+ * The main-process copy that matches the renderer build under test. A package carries `venetaMemoAi` in its
+ * package.json; a development run of the Veneta T1 has only the Veneta renderer build (VITE_VENETA_MEMOAI), so the
+ * built renderer decides, by the same marker e2e/fixtures/ui-copy.ts reads.
+ */
+function rendererIsVeneta(appDir = __dirname) {
+  const forced = process.env.E2E_RENDERER_BUILD;
+  if (forced === 'veneta') return true;
+  if (forced === 'default') return false;
+  const path = require('path');
+  const assets = path.join(appDir, 'renderer', 'dist', 'assets');
+  const marker = /dataset\.product="veneta-memoai",document\.title=/;
+  try {
+    return fs.readdirSync(assets).filter((file) => file.endsWith('.js'))
+      .some((file) => marker.test(fs.readFileSync(path.join(assets, file), 'utf8')));
+  } catch (_) {
+    return false;
+  }
+}
+function e2eMainText({ packageMetadata = require('./package.json'), appDir = __dirname } = {}) {
+  const { createMainText, isVenetaBuild } = require('./main-copy');
+  return createMainText(isVenetaBuild(packageMetadata) || rendererIsVeneta(appDir));
+}
+
 async function agendaModel(request) {
   global.__agendaModelCalls = (global.__agendaModelCalls || 0) + 1;
   if (process.env.STENOAI_E2E_AGENDA_FAIL) throw Object.assign(new Error('mock failure'), { reason: process.env.STENOAI_E2E_AGENDA_FAIL });
   const delay = Number(process.env.STENOAI_E2E_AGENDA_DELAY_MS || 0);
   if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
   const lower = (text) => String(text).normalize('NFKC').toLocaleLowerCase('nl-NL');
+  if (request.mode === 'questions') {
+    // The question check after stopping: a later segment (not itself a question) that shares at least two words of
+    // four letters or more with the question answers it. Synthetic and deterministic, like the rest of this labeller.
+    const words = (text) => new Set(lower(text).match(/\p{L}{4,}/gu) || []);
+    const answered = [];
+    for (const question of request.questions) {
+      const asked = words(question.text);
+      const later = request.segments.find((segment) => segment.start > question.start && !/\?\s*$/.test(segment.text)
+        && [...words(segment.text)].filter((word) => asked.has(word)).length >= 2);
+      if (later) answered.push({ questionId: question.id, segmentId: later.id, quote: later.text });
+    }
+    return { revision: request.revision, answered };
+  }
   let currentItem = null;
   const findings = [];
   for (const segment of request.segments) {
@@ -2005,4 +2042,4 @@ async function agendaModel(request) {
   return { revision: request.revision, currentItem, findings: findings.slice(0, 48) };
 }
 
-module.exports = { install, checklistModel, agendaModel };
+module.exports = { install, checklistModel, agendaModel, e2eMainText, rendererIsVeneta };

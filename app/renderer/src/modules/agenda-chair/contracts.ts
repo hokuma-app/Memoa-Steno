@@ -5,7 +5,7 @@ export type AgendaFindingKind = 'besluit' | 'actie' | 'vraag';
 export type AgendaSpeaker = 'self' | 'other' | 'unknown';
 export type AgendaRecognition = 'mens' | 'agent_bevestigd' | null;
 export type AgendaReview = 'voorstel' | 'bevestigd' | 'afgewezen' | 'gecorrigeerd';
-export type AgendaAction = 'start' | 'finish' | 'skip' | 'defer' | 'confirmSuggestion' | 'dismissSuggestion';
+export type AgendaAction = 'start' | 'finish' | 'skip' | 'defer' | 'confirmSuggestion' | 'dismissSuggestion' | 'undoSwitch';
 
 export const AGENDA_LIMITS = { items: 32, sourceChars: 24_000, fileBytes: 256 * 1024, titleChars: 200, ownerChars: 80, minutes: 480 } as const;
 export const AGENDA_OUTCOMES: readonly AgendaOutcome[] = ['besluit', 'informatie', 'discussie', 'actie'];
@@ -40,7 +40,7 @@ export interface AgendaFinding {
 }
 export type AgendaSignal =
   | { code: 'tijd_bijna_om' | 'tijd_om' | 'uitkomst_ontbreekt'; itemId: string }
-  | { code: 'besluit_zonder_eigenaar'; itemId: string | null; findingId: string; missing: ('eigenaar' | 'termijn')[] }
+  | { code: 'besluit_zonder_eigenaar'; itemId: string | null; findingId: string }
   | { code: 'vereist_punt_open'; itemIds: string[] };
 export type AgendaPhase = 'noText' | 'waiting' | 'busy' | 'finalBusy' | 'listening' | 'error' | 'tooLarge' | 'ended';
 export interface AgendaItemState {
@@ -51,6 +51,16 @@ export interface AgendaItemState {
   startOffset: number | null;
 }
 export interface AgendaSuggestion { itemId: string; segmentId: string; quote: string; start: number; speaker: AgendaSpeaker; at: string }
+/** The question check after stopping (0.11.0): over the whole conversation, or only its newest tail (`tail`, from `from` s). */
+export interface AgendaQuestionsReview {
+  status: 'done' | 'failed' | 'tooLarge';
+  checked: number;
+  answered: number;
+  tail: boolean;
+  from: number | null;
+  reason: string | null;
+  at: string;
+}
 export type AgendaLive =
   | { active: false; seq: number }
   | {
@@ -64,6 +74,9 @@ export type AgendaLive =
       items: Record<string, AgendaItemState>;
       currentItemId: string | null;
       suggestion: AgendaSuggestion | null;
+      /** The last switch, while one tap can still take it back: `itemId` runs again, `startedItemId` returns. */
+      undo: { itemId: string; startedItemId: string } | null;
+      questionsReview: AgendaQuestionsReview | null;
       findings: AgendaFinding[];
       signals: AgendaSignal[];
       planned: { totalMinutes: number; meetingMs: number };
@@ -85,6 +98,8 @@ export interface AgendaMinutesFinding {
   evidence: AgendaEvidence;
   review: AgendaReview;
   reason: string | null;
+  /** A question the last check after stopping found answered later in the conversation. */
+  answer: AgendaEvidence | null;
 }
 export interface AgendaFindingGroups { decisions: AgendaMinutesFinding[]; actions: AgendaMinutesFinding[]; questions: AgendaMinutesFinding[] }
 export interface AgendaMinutesItem extends AgendaItem, AgendaFindingGroups {
@@ -101,9 +116,10 @@ export interface AgendaMinutes {
   title: string | null;
   items: AgendaMinutesItem[];
   other: AgendaFindingGroups;
-  counts: { decisions: number; actions: number; questions: number; proposals: number; confirmed: number };
+  counts: { decisions: number; actions: number; questions: number; answered: number; proposals: number; confirmed: number };
   totals: { plannedMinutes: number; spentSec: number };
   ownerMissing: string[];
+  questionsReview: AgendaQuestionsReview | null;
 }
 export type AgendaNoteResult =
   | { found: false }

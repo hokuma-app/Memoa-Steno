@@ -58,11 +58,18 @@ test('each function keeps its own model after a restart; the other functions are
   const picker = await openPicker(page, 'checklist');
   await picker.getByRole('radio', { name: /stub-extra:1b/ }).click();
   await expect(page.getByTestId('model-current-checklist')).toHaveText('stub-extra:1b');
-  await expect.poll(() => stateOf(userDataDir).choices).toEqual({ summary: 'gemma4:e2b-it-qat', summary_fold: '', checklist: 'stub-extra:1b' });
+  await expect.poll(() => stateOf(userDataDir).choices).toEqual({ summary: 'gemma4:e2b-it-qat', summary_fold: '', checklist: 'stub-extra:1b', agenda: '' });
+  // 0.11.0: the agenda follows the checklist until it gets its own model.
+  await expect(page.getByTestId('model-current-agenda')).toHaveText(c('models.sameAsChecklistNow', { model: 'stub-extra:1b' }));
+  const agendaPicker = await openPicker(page, 'agenda');
+  await expect(agendaPicker.getByLabel(c('models.sameAsChecklist'))).toBeChecked();
+  await agendaPicker.getByRole('radio', { name: /gemma4:e2b-it-qat/ }).click();
+  await expect.poll(() => stateOf(userDataDir).choices.agenda).toBe('gemma4:e2b-it-qat');
   await app.close();
   ({ app, page } = await launchApp(launchOptions));
   await openAi(page);
   await expect(page.getByTestId('model-current-checklist')).toHaveText('stub-extra:1b');
+  await expect(page.getByTestId('model-current-agenda')).toHaveText('Gemma 4 E2B');
   await expect(page.getByTestId('model-current-summary')).toHaveText('Gemma 4 E2B');
   await expect(page.getByTestId('model-current-summary_fold')).toContainText('Gemma 4 E2B');
   await openPicker(page, 'checklist');
@@ -123,7 +130,7 @@ test('adding a model validates the name, refuses cloud tags and downloads only a
   await expect(picker.getByTestId('installed-hf.co/org/mini-model:Q4_K_M')).toBeVisible({ timeout: 15_000 });
   expect(stateOf(userDataDir).pulls).toEqual(['hf.co/org/mini-model:Q4_K_M']);
   // Adding a model does not choose it for any function.
-  expect(stateOf(userDataDir).choices).toEqual({ summary: 'gemma4:e2b-it-qat', summary_fold: '', checklist: '' });
+  expect(stateOf(userDataDir).choices).toEqual({ summary: 'gemma4:e2b-it-qat', summary_fold: '', checklist: '', agenda: '' });
   await input.fill('unknown-size:1');
   await add.getByRole('button', { name: c('models.add.check') }).click();
   await expect(status).toContainText(c('models.sizeUnknown'));

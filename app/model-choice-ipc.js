@@ -7,7 +7,7 @@
  * the size preview of a typed name and the "Test dit model" trial. Every argument is validated
  * here too, so a compromised renderer cannot reach the CLI with an unchecked value.
  */
-const FUNCTIONS = new Set(['summary', 'summary_fold', 'checklist']);
+const FUNCTIONS = new Set(['summary', 'summary_fold', 'checklist', 'agenda']);
 const NAME_MAX = 200;
 const failure = (reason) => ({ success: false, reason });
 // Same shape as the backend's own name check; the backend remains the authority.

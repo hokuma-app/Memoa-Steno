@@ -1,7 +1,8 @@
 """'Test dit model': one function, one model, one fixed synthetic conversation.
 
 Runs only on explicit request and only against the local Ollama, through the same code paths
-the real function uses (summary prompt, detail-level preparation, checklist evaluation). The
+the real function uses (summary prompt, detail-level preparation, checklist evaluation, agenda
+labelling). The
 conversation below is invented and ships with the app; no user data is read. The result is
 content-free: whether the answer was valid, how long it took and a reason code on failure.
 Nothing is downloaded and the saved configuration is never changed.
@@ -54,6 +55,21 @@ def _checklist_request():
             'criteria': [dict(c) for c in CRITERIA], 'segments': segments}
 
 
+AGENDA_ITEMS = [
+    {'id': 'p1', 'title': 'Opening', 'outcome': 'informatie'},
+    {'id': 'p2', 'title': 'Keuze abonnement', 'outcome': 'besluit'},
+    {'id': 'p3', 'title': 'Afspraken', 'outcome': 'actie'},
+]
+
+
+def _agenda_request():
+    speakers = {'seller': 'self', 'other': 'other'}
+    segments = [{'id': f's{i}', 'text': text, 'speaker': speakers[speaker], 'start': i * 5, 'end': i * 5 + 4}
+                for i, (speaker, text) in enumerate(SEGMENTS, 1)]
+    return {'sessionId': 'synthetisch-proefgesprek', 'revision': 'proef-1', 'currentItemId': 'p1',
+            'items': [dict(item) for item in AGENDA_ITEMS], 'segments': segments}
+
+
 def _fold_request():
     digest = hashlib.sha256('|'.join(s['full'] for s in SUMMARY_SECTIONS).encode()).hexdigest()
     return {'schemaVersion': 2, 'sourceHash': digest, 'sections': [dict(s) for s in SUMMARY_SECTIONS]}
@@ -101,6 +117,12 @@ def _probe_checklist(config, port):
     return None if 'error' not in result else result.get('reason', 'failed')
 
 
+def _probe_agenda(config, port):
+    from .veneta_agenda import evaluate
+    result = evaluate(_agenda_request(), config=config, model_port=port)
+    return None if 'error' not in result else result.get('reason', 'failed')
+
+
 def _probe_fold(model, config, port):
     from .config import resolve_runtime_tag
     from .summary_folding import FoldError, prepare_folding
@@ -143,6 +165,8 @@ def _attempt(function, model, endpoint, config):
     port = OllamaModelPort(endpoint)
     if function == 'checklist':
         return _probe_checklist(config, port)
+    if function == 'agenda':
+        return _probe_agenda(config, port)
     if function == 'summary_fold':
         return _probe_fold(model, config, port)
     return _probe_summary(model, config, port)

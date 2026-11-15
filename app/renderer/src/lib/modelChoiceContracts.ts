@@ -1,6 +1,7 @@
 /** Settings > AI > "Model per functie" (0.10.0): wire types between the pickers and the host. */
-export type ModelFunction = 'summary' | 'summary_fold' | 'checklist';
-export const MODEL_FUNCTIONS: readonly ModelFunction[] = ['summary', 'summary_fold', 'checklist'];
+export type ModelFunction = 'summary' | 'summary_fold' | 'checklist' | 'agenda';
+/** 0.11.0: the agenda chair has its own choice; empty means "same as the checklist" (the others: the summary). */
+export const MODEL_FUNCTIONS: readonly ModelFunction[] = ['summary', 'summary_fold', 'checklist', 'agenda'];
 
 export interface InstalledModel {
   name: string;

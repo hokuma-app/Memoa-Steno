@@ -77,6 +77,17 @@ test('before, during and after: agenda in, silent chair with a confirmed suggest
   await expect(sidebar.locator('[data-agenda-item="p2"]')).toHaveAttribute('data-status', 'loopt');
   await expect(sidebar.locator('[data-agenda-item="p1"]')).toHaveAttribute('data-status', 'afgerond');
   await expect(sidebar.locator('[data-agenda-item="p2"]')).toContainText('voorstel bevestigd');
+  // 0.11.0: the switch can be taken back with one tap (p1 runs again, with its time), and confirmed again.
+  const undo = sidebar.getByTestId('agenda-undo');
+  await expect(undo).toContainText('Opening afgerond.');
+  await undo.getByRole('button', { name: 'Wissel ongedaan maken: Opening loopt weer', exact: true }).click();
+  await expect(sidebar.locator('[data-agenda-item="p1"]')).toHaveAttribute('data-status', 'loopt');
+  await expect(sidebar.locator('[data-agenda-item="p2"]')).toHaveAttribute('data-status', 'open');
+  await expect(undo).toHaveCount(0);
+  await sidebar.locator('[data-agenda-item="p2"]').getByRole('button', { name: 'Start', exact: true }).click();
+  await expect(sidebar.locator('[data-agenda-item="p2"]')).toHaveAttribute('data-status', 'loopt');
+  await expect(sidebar.locator('[data-agenda-item="p1"]')).toHaveAttribute('data-status', 'afgerond');
+  await expect(sidebar.locator('[data-agenda-item="p2"]')).toContainText('gestart door jou');
   await emitLiveSegments(app, session, [
     { text: 'We besluiten het nieuwe rooster in mei in te voeren.', start: 600, end: 604, isFinal: true, speaker: 'Others' },
     { text: 'Noor stuurt het rooster voor vrijdag rond.', start: 606, end: 609, isFinal: true, speaker: 'You' },
@@ -84,8 +95,14 @@ test('before, during and after: agenda in, silent chair with a confirmed suggest
   ]);
   const running = sidebar.locator('[data-agenda-item="p2"]');
   await expect(running).toContainText('Besluiten 1 · acties 1 · vragen 1', { timeout: 75_000 });
-  await expect(running.locator('[data-signal="besluit_zonder_eigenaar"]')).toHaveText('Besluit zonder eigenaar of termijn');
-  await expect(sidebar.locator('[data-agenda-diagnostics]')).toHaveText(/^tekstregels 5 · controles \d+ · laatste reden (stil|maxwacht)$/);
+  // 0.11.0: only a missing owner is a signal; the missing deadline is shown quietly at the decision.
+  await expect(running.locator('[data-signal="besluit_zonder_eigenaar"]')).toHaveText('Besluit zonder eigenaar');
+  await expect(running.locator('[data-finding-kind="besluit"] [data-due-missing]')).toHaveText('Termijn: niet genoemd');
+  // The answer comes later; the question check after stopping finds it (over the whole conversation).
+  await emitLiveSegments(app, session, [
+    { text: 'Sanne boekt de zaal voor de volgende keer.', start: 640, end: 643, isFinal: true, speaker: 'You' },
+  ]);
+  await expect(sidebar.locator('[data-agenda-diagnostics]')).toHaveText(/^tekstregels 6 · controles \d+ · laatste reden (stil|maxwacht)$/, { timeout: 75_000 });
   // The renderer plans nothing itself.
   expect(await modelCalls(app)).toBeGreaterThanOrEqual(2);
   await page.screenshot({ path: test.info().outputPath('agenda-tijdens.png'), animations: 'disabled' });
@@ -96,7 +113,12 @@ test('before, during and after: agenda in, silent chair with a confirmed suggest
   await expect(tab).toHaveText('Notulen');
   await tab.click();
   const minutes = page.getByTestId('agenda-note-tab');
-  await expect(page.getByTestId('agenda-pills')).toHaveText('1 besluiten1 acties1 open vragen3 voorstellen');
+  // The question check after stopping found the answer: the question is no longer open.
+  await expect(page.getByTestId('agenda-questions-review')).toHaveText(
+    'Na het stoppen zijn de open vragen nog eens nagegaan over het hele gesprek: 1 van 1 beantwoord.', { timeout: 30_000 });
+  await expect(page.getByTestId('agenda-pills')).toHaveText('1 besluiten1 acties0 open vragen1 beantwoord3 voorstellen');
+  await expect(minutes.locator('[data-review]').filter({ hasText: 'Wie boekt de zaal' }).getByTestId('agenda-answer'))
+    .toHaveText('Antwoord: “Sanne boekt de zaal voor de volgende keer.” · 10:40 · Jij');
   const item = minutes.locator('[data-agenda-note-item="p2"]');
   await expect(item).toContainText('Liep nog bij het stoppen');
   const decision = item.locator('[data-review]').filter({ hasText: 'We besluiten het nieuwe rooster in mei in te voeren.' }).first();
@@ -111,7 +133,7 @@ test('before, during and after: agenda in, silent chair with a confirmed suggest
   const action = item.locator('[data-review]').filter({ hasText: 'Noor stuurt het rooster' }).first();
   await action.getByRole('button', { name: 'Bevestig', exact: true }).click();
   await expect(action).toHaveAttribute('data-review', 'bevestigd');
-  await expect(page.getByTestId('agenda-pills')).toHaveText('1 besluiten1 acties1 open vragen1 voorstellen');
+  await expect(page.getByTestId('agenda-pills')).toHaveText('1 besluiten1 acties0 open vragen1 beantwoord1 voorstellen');
   await page.screenshot({ path: test.info().outputPath('agenda-na.png'), animations: 'disabled' });
   const noteFile = path.join(userDataDir, 'notes', 'klantgesprek_summary.md');
   const note = await page.evaluate((file) => window.stenoai.agenda.noteResult({ noteFile: file }), noteFile);
@@ -120,6 +142,8 @@ test('before, during and after: agenda in, silent chair with a confirmed suggest
   expect(note.markdown).toContain('[gecorrigeerd] We besluiten het nieuwe rooster in mei in te voeren. · Eigenaar: Noor · Termijn: 1 mei');
   expect(note.markdown).toContain('[bevestigd] Noor stuurt het rooster voor vrijdag rond.');
   expect(note.markdown).toContain('[voorstel] Wie boekt de zaal voor de volgende keer?');
+  expect(note.markdown).toContain('**Beantwoorde vragen**');
+  expect(note.markdown).toContain('Beantwoord: "Sanne boekt de zaal voor de volgende keer." (10:40, Jij)');
   const root = path.join(userDataDir, 'veneta-modules');
   for (const directory of ['agenda-sessions', 'agenda-reviews', 'agenda-note-results']) expect(readdirSync(path.join(root, directory))).toHaveLength(1);
   // The canonical note is never written by the module.

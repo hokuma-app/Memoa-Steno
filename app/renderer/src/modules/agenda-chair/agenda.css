@@ -61,6 +61,7 @@ html[data-theme='dark'] .veneta-agenda-note {
 .veneta-agenda-signal[data-signal='over_tijd'] { background: var(--ag-over-bg); color: var(--ag-over); }
 .veneta-agenda-warn { background: var(--ag-warn-bg); color: var(--ag-warn); }
 .veneta-agenda-suggestion { border: 1px dashed var(--fg-1); background: var(--surface-raised); }
+.veneta-agenda-undo { border: 1px solid var(--border-subtle); background: var(--surface-raised); }
 .veneta-agenda-bar {
   position: relative;
   height: 4px;

@@ -18,7 +18,7 @@ const live = (over: Partial<AgendaLiveActive> = {}): AgendaLiveActive => ({
   active: true, seq: 5, sessionId: 'recording:1', hostNow: 0, ended: false, stateVersion: 0,
   agenda: { title: 'Werkoverleg Kastanje', version: 1, items },
   items: { p1: { status: 'open', spentMs: 0, running: false, recognition: null, startOffset: null }, p2: { status: 'open', spentMs: 0, running: false, recognition: null, startOffset: null } },
-  currentItemId: null, suggestion: null, findings: [], signals: [], planned: { totalMinutes: 15, meetingMs: 0 }, phase: 'waiting',
+  currentItemId: null, suggestion: null, undo: null, questionsReview: null, findings: [], signals: [], planned: { totalMinutes: 15, meetingMs: 0 }, phase: 'waiting',
   lastRunAt: null, failure: null, counters: { lines: 2, checks: 0, failures: 0, stale: 0, skipped: 0 }, lastReason: null, ...over,
 });
 const settle = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
@@ -102,9 +102,54 @@ describe('silent chair during a recording (display of the host state)', () => {
     expect(screen.getByRole('alert').textContent).toBe('Minder dan 10 minuten over. Vereist punt nog open: Nieuwe roosters');
     expect(within(row).getByText('Besluiten 1 · acties 0 · vragen 0')).toBeTruthy();
     expect(within(row).getByText('Voorstel')).toBeTruthy();
+    // A missing deadline is shown quietly at the decision, never as a signal (0.11.0).
+    expect(row.querySelector('[data-due-missing]')?.textContent).toBe('Termijn: niet genoemd');
+    expect(row.querySelector('[data-signal="besluit_zonder_eigenaar"]')).toBeNull();
     await act(async () => { vi.advanceTimersByTime(5_000); });
     expect(within(row).getByText('08:05 van 10:00')).toBeTruthy();
     expect(row.querySelector('[data-signal="tijd_om"]')).toBeNull();
+  });
+
+  it('besluit_zonder_eigenaar reads "Besluit zonder eigenaar"; a decision with an owner and no deadline shows the deadline quietly', async () => {
+    state.enabled = true;
+    const decision = (id: string, owner: string | null) => ({ id, kind: 'besluit' as const, itemId: 'p2', text: `Besluit ${id}.`, owner, due: null, origin: 'ai' as const,
+      evidence: { segmentId: 's2', quote: 'rooster in mei', start: 300, end: 303, speaker: 'other' as const } });
+    state.liveState.mockResolvedValue({ success: true, live: live({
+      findings: [decision('f000000000001', null), decision('f000000000002', 'Noor')],
+      signals: [{ code: 'besluit_zonder_eigenaar', itemId: 'p2', findingId: 'f000000000001' }] }) });
+    render(<AgendaRuntime />);
+    await settle();
+    const row = screen.getByRole('listitem', { name: '2. Nieuwe roosters' });
+    expect(row.querySelector('[data-signal="besluit_zonder_eigenaar"]')?.textContent).toBe('Besluit zonder eigenaar');
+    expect(row.querySelectorAll('[data-due-missing]')).toHaveLength(2);
+    expect(within(row).getByText('Eigenaar: Noor')).toBeTruthy();
+  });
+
+  it('a switch can be undone with one tap; the host decides what runs again', async () => {
+    state.enabled = true;
+    const running = (id: 'p1' | 'p2') => ({ status: 'loopt' as const, spentMs: 0, running: true, recognition: 'mens' as const, startOffset: id === 'p1' ? 0 : 240 });
+    state.liveState.mockResolvedValue({ success: true, live: live({ currentItemId: 'p2', undo: { itemId: 'p1', startedItemId: 'p2' },
+      items: { p1: { status: 'afgerond', spentMs: 240_000, running: false, recognition: 'mens', startOffset: 0 }, p2: running('p2') } }) });
+    state.liveAction.mockResolvedValue({ success: true, live: live({ seq: 6, currentItemId: 'p1', undo: null,
+      items: { p1: { ...running('p1'), spentMs: 270_000 }, p2: { status: 'open', spentMs: 0, running: false, recognition: null, startOffset: null } } }) });
+    render(<AgendaRuntime />);
+    await settle();
+    const bar = screen.getByTestId('agenda-undo');
+    expect(within(bar).getByText('Opening afgerond.')).toBeTruthy();
+    fireEvent.click(within(bar).getByRole('button', { name: 'Wissel ongedaan maken: Opening loopt weer' }));
+    await settle();
+    expect(state.liveAction).toHaveBeenCalledWith({ action: 'undoSwitch', itemId: 'p1' });
+    expect(screen.queryByTestId('agenda-undo')).toBeNull();
+    expect(within(screen.getByRole('listitem', { name: '1. Opening' })).getByText('Loopt')).toBeTruthy();
+    expect(within(screen.getByRole('listitem', { name: '2. Nieuwe roosters' })).getByText('Open')).toBeTruthy();
+  });
+
+  it('no undo once the recording has stopped', async () => {
+    state.enabled = true;
+    state.liveState.mockResolvedValue({ success: true, live: live({ ended: true, undo: { itemId: 'p1', startedItemId: 'p2' } }) });
+    render(<AgendaRuntime />);
+    await settle();
+    expect(screen.queryByTestId('agenda-undo')).toBeNull();
   });
 
   it('a failed host action is reported and nothing changes; an error phase shows concrete advice', async () => {

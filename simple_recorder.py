@@ -10423,7 +10423,8 @@ def model_choices_cmd():
 @click.argument('function')
 @click.argument('model_name')
 def set_function_model_cmd(function, model_name):
-    """Choose the model of one function (summary, summary_fold, checklist); '' = same as summary."""
+    """Choose the model of one function (summary, summary_fold, checklist, agenda); '' = same as summary
+    (the agenda: same as the checklist)."""
     from src import model_choices
     from src.config import get_config
     result = model_choices.choose_model(get_config(), function, model_name)
