@@ -28,10 +28,15 @@ import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/compon
 import { useQueryClient } from '@tanstack/react-query';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { MeetingsShell } from '@/components/MeetingsShell';
+import { SummaryFoldingPanel, type FoldView } from '@/components/SummaryFoldingPanel';
+import { SummaryRegeneration } from '@/components/SummaryRegeneration';
+import type { SummaryDetail } from '@/lib/summaryFoldingContracts';
 import { SpeakerReviewPanel } from '@/components/SpeakerReviewPanel';
 import { MeetingCalendarSection } from '@/components/MeetingCalendarSection';
 import { MeetingLanguageSelect } from '@/components/MeetingLanguageSelect';
 import { VaultSyncStatusLine } from '@/components/VaultSyncStatusLine';
+import { ChecklistNoteTab } from '@/modules/conversation-checklist/ChecklistNoteTab';
+import { useNoteChecklist } from '@/modules/conversation-checklist/useNoteChecklist';
 import {
   Select,
   SelectContent,
@@ -86,7 +91,9 @@ import {
 import { useActiveMeeting } from '@/lib/askBarContext';
 import { ipc, type Meeting, type Report, type Template } from '@/lib/ipc';
 import { buildTranscriptBundle, defaultExportFilename } from '@/lib/transcriptBundle';
-import { buildNotesCopyText, type StructuredNoteSections } from '@/lib/notesCopy';
+import { buildLevelCopyText, buildNotesCopyText, NOTES_COPY_TEXT, type StructuredNoteSections } from '@/lib/notesCopy';
+import { applySpeakerNames, applySpeakerNamesMarkdown, applySpeakerNamesToList } from '@/lib/speakerNames';
+import { foldMarkdown } from '@/modules/summary-folding/foldCopy';
 import { buildNotesHtml, hasNotesContent } from '@/lib/notesPdf';
 import { unwrap } from '@/lib/result';
 import { cn } from '@/lib/utils';
@@ -399,6 +406,20 @@ function DetailContent({
           setStreamPhase('idle');
           streamCache.delete(summaryFile);
         }, 400);
+      } else if (!e.report) {
+        // 0.10.1: the stream is over once its summary is saved. The recording pipeline's closing event names the
+        // job (not this note) and a regenerated title makes it miss, which left the streamed text on screen for
+        // good and the detail bar (the pill) away. The saved note is the end state, so hand over to it here.
+        void qc
+          .invalidateQueries({ queryKey: meetingsKeys.detail(summaryFile) })
+          .catch(() => undefined)
+          .then(() => {
+            setTimeout(() => {
+              setStreamText('');
+              setStreamPhase('idle');
+              streamCache.delete(summaryFile);
+            }, 400);
+          });
       }
     });
     const offProcessing = ipc().on.processingComplete((e) => {
@@ -456,7 +477,7 @@ function DetailContent({
   // structured summary, not an on-demand report.
   const reportTemplates = templates.filter((t) => !t.locked);
 
-  const onGenerateReport = (templateId: string) => {
+  const onGenerateReport = (templateId: string, summaryDetail?: SummaryDetail) => {
     setStreamText('');
     setStreamPhase('analyzing');
     setChunkProgress(null);
@@ -466,7 +487,7 @@ function DetailContent({
     setProgressLine(null);
     receivedProgress.current = false;
     generateReport.mutate(
-      { summaryFile, templateId },
+      { summaryFile, templateId, summaryDetail },
       {
         // Failures before the first stream event (e.g. the backend never starts
         // streaming) won't emit summary-complete, so roll the UI back here instead
@@ -482,7 +503,7 @@ function DetailContent({
     );
   };
 
-  const startReprocess = () => {
+  const startReprocessWithDetail = (summaryDetail?: SummaryDetail) => {
     // Synchronous re-entrancy guard (#313 review): the floating dock button's
     // disabled state arrives one commit late (published via effect to the
     // reprocess bridge), so a fast double-click there could fire two
@@ -507,7 +528,7 @@ function DetailContent({
     setProgressLine(null);
     receivedProgress.current = false;
     reprocess.mutate(
-      { summaryFile, regenTitle: false, name: info.name },
+      { summaryFile, regenTitle: false, name: info.name, summaryDetail },
       {
         // A rejection here means the IPC call itself failed (e.g. the backend
         // never spawned) BEFORE any processing-complete/summary-complete event
@@ -524,6 +545,9 @@ function DetailContent({
       }
     );
   };
+
+  // Re-transcribe (#266): re-run ASR on the source recording with the current
+  const startReprocess = () => startReprocessWithDetail();
 
   // Re-transcribe (#266): re-run ASR on the source recording with the current
   // settings, then re-summarise. Reuses the SAME streaming UI as reprocess —
@@ -623,6 +647,10 @@ function DetailContent({
   // exports consume — Copy notes (clipboard) and Save notes as PDF. Reasoning
   // blocks are stripped like the rendered views, so neither export carries
   // <think> content the screen hides. One memo so the two can't drift.
+  // Speaker labels that have since been linked to a name show (and copy) as the name. The saved note keeps its own
+  // words; this only changes what is shown, so linking or unlinking a name needs no reload.
+  const speakerNames = meeting.speaker_label_names;
+  const foldViewRef = React.useRef<FoldView | null>(null);
   const noteSections = React.useMemo<StructuredNoteSections>(() => {
     const meta = [formatDetailDate(info), formatDuration(info.duration_seconds)]
       .filter(Boolean)
@@ -630,13 +658,20 @@ function DetailContent({
     return {
       name: info.name,
       meta: meta || undefined,
-      summary: meeting.summary ? stripReasoning(meeting.summary) : undefined,
-      discussionAreas: asDiscussionAreas(meeting.discussion_areas),
-      keyPoints: meeting.key_points ?? [],
-      actionItems: asStringArray(meeting.action_items),
-      participants: asStringArray(meeting.participants),
+      summary: meeting.summary ? applySpeakerNames(stripReasoning(meeting.summary), speakerNames) : undefined,
+      discussionAreas: asDiscussionAreas(meeting.discussion_areas).map((area) => ({
+        title: applySpeakerNames(area.title, speakerNames),
+        analysis: area.analysis ? applySpeakerNames(area.analysis, speakerNames) : area.analysis,
+      })),
+      keyPoints: applySpeakerNamesToList(meeting.key_points ?? [], speakerNames),
+      actionItems: applySpeakerNamesToList(asStringArray(meeting.action_items), speakerNames),
+      participants: applySpeakerNamesToList(asStringArray(meeting.participants), speakerNames),
     };
-  }, [info, meeting]);
+  }, [info, meeting, speakerNames]);
+  // The open report as shown and copied (names applied); its stored content stays the fold's source. It is the only
+  // string here that is rendered as Markdown (view and PDF), so only its names are Markdown-escaped; the sections,
+  // chips and fold tokens above and below show text, where a backslash would be visible.
+  const reportText = activeReport ? applySpeakerNamesMarkdown(stripReasoning(activeReport.content), speakerNames) : '';
 
   // Whether there is anything worth exporting to PDF — the disabled state only
   // needs this boolean, so the ~45KB branded HTML (base64 font included) is
@@ -644,7 +679,7 @@ function DetailContent({
   // counts on its own: a transcript-only note (auto-summarise off) has no
   // structured sections but can still have a generated report on screen.
   const canExportNotesPdf = activeReport
-    ? Boolean(stripReasoning(activeReport.content).trim())
+    ? Boolean(reportText.trim())
     : hasNotesContent(noteSections);
 
   // Branded-PDF export of whichever note is on screen — the open template
@@ -660,7 +695,7 @@ function DetailContent({
         ? {
             templateName: activeReport.template_name,
             contentHtml: renderToStaticMarkup(
-              <ReactMarkdown>{stripReasoning(activeReport.content)}</ReactMarkdown>,
+              <ReactMarkdown>{reportText}</ReactMarkdown>,
             ),
           }
         : null;
@@ -676,23 +711,34 @@ function DetailContent({
     }
   };
 
-  // Copies whichever note is on screen: the open template report when one is
-  // selected, otherwise the Standard structured note.
-  const copyNotes = () => {
-    const text = buildNotesCopyText(
-      noteSections,
-      activeReport ? { content: stripReasoning(activeReport.content) } : null
-    );
+  // Copies what is on screen: the detail level the reader shows (Beknopt, Kern, ...) of the note or the open report,
+  // as Markdown, with the speaker names that are linked now. At Volledig, or when the reader has no levels (yet),
+  // that is the whole note.
+  const writeCopy = (text: string) => {
     void navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+  const copyFullNotes = () =>
+    writeCopy(buildNotesCopyText(noteSections, activeReport ? { content: reportText } : null));
+  const copyNotes = () => {
+    const view = foldViewRef.current;
+    if (view && view.level !== 'full') {
+      writeCopy(buildLevelCopyText(noteSections, foldMarkdown(view.document, view.level), !activeReport));
+      return;
+    }
+    copyFullNotes();
+  };
 
   const summary = meeting.summary?.trim();
-  const participants = asStringArray(meeting.participants);
+  const participants = noteSections.participants;
   const keyPoints = meeting.key_points ?? [];
-  const actionItems = asStringArray(meeting.action_items);
+  const actionItems = noteSections.actionItems;
   const discussionAreas = asDiscussionAreas(meeting.discussion_areas);
+  // What the note shows: the same words with linked speaker names (the plain values above feed the fold's source).
+  const shownSummary = summary ? applySpeakerNames(summary, speakerNames) : summary;
+  const shownKeyPoints = noteSections.keyPoints;
+  const shownAreas = noteSections.discussionAreas;
   const transcriptionFailed = Boolean(meeting.session_info.transcription_failed);
   const transcriptionError = meeting.session_info.error?.trim();
   // The real signal for "auto-summarize was off" (#258) — NOT `!summary`, which
@@ -795,8 +841,147 @@ function DetailContent({
   // the summary. Persists to the `## User Notes` section (autosave). Local
   // state resets per meeting because DetailContent is keyed by summaryFile.
   const hasUserNotes = Boolean((meeting.user_notes ?? '').trim());
-  const [tab, setTab] = React.useState<'summary' | 'notes'>(() =>
+  const [chosenTab, setTab] = React.useState<'summary' | 'notes' | 'checklist'>(() =>
     meeting.steno_transfer && !summary && hasUserNotes ? 'notes' : 'summary'
+  );
+  // The checklist result of this note (0.9.3): a tab in the note itself, only when the note has one.
+  const checklist = useNoteChecklist(summaryFile);
+  const tab = chosenTab === 'checklist' && !checklist.result ? 'summary' : chosenTab;
+
+  const summaryAndTopics = (
+    <>
+      {transcriptionFailed ? (
+        <section
+          className="flex flex-col gap-2 rounded-lg p-4"
+          style={{
+            background: 'var(--surface-raised)',
+            border: '1px solid var(--border-subtle, var(--surface-raised))',
+          }}
+          data-testid="transcription-failed-notice"
+        >
+          <div className="text-[15px] font-medium" style={{ color: 'var(--fg-1)' }}>
+            Transcription failed
+          </div>
+          <p
+            className="text-[14px] leading-[1.6]"
+            style={{ color: 'var(--fg-2)', maxWidth: '64ch' }}
+          >
+            No notes could be generated for this recording. Your audio was preserved (not
+            deleted), so nothing was lost.
+          </p>
+          {transcriptionError && (
+            <p
+              className="text-[12.5px] leading-[1.5]"
+              style={{ color: 'var(--fg-2)', opacity: 0.8 }}
+            >
+              Details: {transcriptionError}
+            </p>
+          )}
+        </section>
+      ) : isProcessing ? (
+        <section
+          className="flex flex-col gap-2 rounded-lg p-4"
+          style={{
+            background: 'var(--surface-raised)',
+            border: '1px solid var(--border-subtle, var(--surface-raised))',
+          }}
+          data-testid="note-processing"
+        >
+          <div
+            className="flex items-center gap-1.5 text-[15px] font-medium"
+            style={{ color: 'var(--fg-1)' }}
+          >
+            Finishing up
+            <span className="thinking-dot" />
+            <span className="thinking-dot" />
+            <span className="thinking-dot" />
+          </div>
+          <p
+            className="text-[14px] leading-[1.6]"
+            style={{ color: 'var(--fg-2)', maxWidth: '64ch' }}
+          >
+            {willGenerateNotes ? (
+              <>
+                Finishing your transcript in the background, then generating notes. You can
+                read and edit <strong>My notes</strong> now.
+              </>
+            ) : (
+              <>
+                Finishing your transcript in the background. You can read and edit{' '}
+                <strong>My notes</strong> now, and generate notes when it's done.
+              </>
+            )}
+          </p>
+        </section>
+      ) : summary ? (
+        <section className="flex flex-col gap-3">
+          <SectionTitle>Summary</SectionTitle>
+          <div data-testid="tab-summary-content">
+            {stripReasoning(shownSummary ?? '')
+              .split(/\n{2,}/)
+              .map((para, i) => (
+                <p
+                  key={i}
+                  className="text-[15.5px] leading-[1.65]"
+                  style={{ color: 'var(--fg-1)', maxWidth: '64ch' }}
+                >
+                  {para}
+                </p>
+              ))}
+          </div>
+        </section>
+      ) : notesNotGenerated && meeting.transcript ? (
+        <section
+          className="flex flex-col items-start gap-2 rounded-lg p-4"
+          style={{
+            background: 'var(--surface-raised)',
+            border: '1px solid var(--border-subtle, var(--surface-raised))',
+          }}
+          data-testid="no-notes-yet"
+        >
+          <div className="text-[15px] font-medium" style={{ color: 'var(--fg-1)' }}>
+            No notes yet
+          </div>
+          <p
+            className="text-[14px] leading-[1.6]"
+            style={{ color: 'var(--fg-2)', maxWidth: '64ch' }}
+          >
+            This recording was transcribed but notes were not generated automatically. Use
+            the <strong>Generate notes</strong> button below to create them, or copy or save
+            the transcript from the actions above.
+          </p>
+        </section>
+      ) : (
+        <p className="py-2 text-sm" style={{ color: 'var(--fg-2)' }}>
+          No summary available for this meeting.
+        </p>
+      )}
+
+      {discussionAreas.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <SectionTitle>Key topics</SectionTitle>
+          <div className="mv-topics">
+            {shownAreas.map((area, i) => (
+              <div key={i} className="flex flex-col gap-1">
+                <div className="mv-topic-title">{area.title}</div>
+                {area.analysis && <div className="mv-topic-body">{area.analysis}</div>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+
+  const keyPointsSection = keyPoints.length > 0 && (
+    <section className="flex flex-col gap-3">
+      <SectionTitle>Key points</SectionTitle>
+      <ul className="mv-bullets">
+        {shownKeyPoints.map((p, i) => (
+          <li key={i}>{p}</li>
+        ))}
+      </ul>
+    </section>
   );
 
   return (
@@ -913,6 +1098,17 @@ function DetailContent({
                 >
                   <Download className="size-[13px] shrink-0" style={{ color: 'var(--fg-2)' }} />
                   Save transcript as .md…
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
+                  style={{ color: 'var(--fg-1)' }}
+                  data-testid="copy-full-notes"
+                  onClick={copyFullNotes}
+                  disabled={streamPhase !== 'idle'}
+                >
+                  <Copy className="size-[13px] shrink-0" style={{ color: 'var(--fg-2)' }} />
+                  {NOTES_COPY_TEXT.copyFull}
                 </button>
                 <button
                   type="button"
@@ -1164,9 +1360,15 @@ function DetailContent({
         )}
       </header>
 
+      {!!meeting.transcript?.trim() && !transcriptionFailed && !isRecordingThisNote && <SummaryRegeneration
+        templates={templates}
+        disabled={isProcessing || reprocess.isPending || generateReport.isPending || streamPhase !== 'idle'}
+        onGenerate={(detail, templateId) => templateId === 'standard' ? startReprocessWithDetail(detail) : onGenerateReport(templateId, detail)}
+      />}
       <NoteViewToggle
         tab={tab}
         onTab={setTab}
+        checklistTab={checklist.label}
         hasNotes={hasUserNotes}
         activeReportId={activeReportId}
         reports={reports}
@@ -1222,145 +1424,31 @@ function DetailContent({
           {streamPhase !== 'idle' ? (
             <StreamingView text={streamText} phase={streamPhase} chunkProgress={chunkProgress} progressLine={progressLine} />
           ) : activeReport ? (
+            <SummaryFoldingPanel summaryFile={summaryFile} reportId={activeReport.id} sourceRevision={activeReport.content} speakerNames={speakerNames} viewRef={foldViewRef}>
             <section
               className="stream-markdown"
               data-testid="report-content"
               style={{ color: 'var(--fg-1)', maxWidth: '72ch' }}
             >
-              <ReactMarkdown>{stripReasoning(activeReport.content)}</ReactMarkdown>
+              <ReactMarkdown>{reportText}</ReactMarkdown>
             </section>
+            </SummaryFoldingPanel>
           ) : (
             <div className="flex flex-col gap-9">
-              {transcriptionFailed ? (
-                <section
-                  className="flex flex-col gap-2 rounded-lg p-4"
-                  style={{
-                    background: 'var(--surface-raised)',
-                    border: '1px solid var(--border-subtle, var(--surface-raised))',
-                  }}
-                  data-testid="transcription-failed-notice"
-                >
-                  <div className="text-[15px] font-medium" style={{ color: 'var(--fg-1)' }}>
-                    Transcription failed
+              {summary && !transcriptionFailed && !isProcessing && !reprocessFailed && !notesNotGenerated && !isRecordingThisNote ? (
+                // The whole note folds: summary, topics and key points. Volledig
+                // renders exactly this canonical markup; actions stay outside.
+                <SummaryFoldingPanel summaryFile={summaryFile} sourceRevision={JSON.stringify({ summary, discussionAreas, keyPoints })} speakerNames={speakerNames} viewRef={foldViewRef}>
+                  <div className="flex flex-col gap-9">
+                    {summaryAndTopics}
+                    {keyPointsSection}
                   </div>
-                  <p
-                    className="text-[14px] leading-[1.6]"
-                    style={{ color: 'var(--fg-2)', maxWidth: '64ch' }}
-                  >
-                    No notes could be generated for this recording. Your audio was preserved (not
-                    deleted), so nothing was lost.
-                  </p>
-                  {transcriptionError && (
-                    <p
-                      className="text-[12.5px] leading-[1.5]"
-                      style={{ color: 'var(--fg-2)', opacity: 0.8 }}
-                    >
-                      Details: {transcriptionError}
-                    </p>
-                  )}
-                </section>
-              ) : isProcessing ? (
-                <section
-                  className="flex flex-col gap-2 rounded-lg p-4"
-                  style={{
-                    background: 'var(--surface-raised)',
-                    border: '1px solid var(--border-subtle, var(--surface-raised))',
-                  }}
-                  data-testid="note-processing"
-                >
-                  <div
-                    className="flex items-center gap-1.5 text-[15px] font-medium"
-                    style={{ color: 'var(--fg-1)' }}
-                  >
-                    Finishing up
-                    <span className="thinking-dot" />
-                    <span className="thinking-dot" />
-                    <span className="thinking-dot" />
-                  </div>
-                  <p
-                    className="text-[14px] leading-[1.6]"
-                    style={{ color: 'var(--fg-2)', maxWidth: '64ch' }}
-                  >
-                    {willGenerateNotes ? (
-                      <>
-                        Finishing your transcript in the background, then generating notes. You can
-                        read and edit <strong>My notes</strong> now.
-                      </>
-                    ) : (
-                      <>
-                        Finishing your transcript in the background. You can read and edit{' '}
-                        <strong>My notes</strong> now, and generate notes when it's done.
-                      </>
-                    )}
-                  </p>
-                </section>
-              ) : summary ? (
-                <section className="flex flex-col gap-3">
-                  <SectionTitle>Summary</SectionTitle>
-                  <div data-testid="tab-summary-content">
-                    {stripReasoning(summary)
-                      .split(/\n{2,}/)
-                      .map((para, i) => (
-                        <p
-                          key={i}
-                          className="text-[15.5px] leading-[1.65]"
-                          style={{ color: 'var(--fg-1)', maxWidth: '64ch' }}
-                        >
-                          {para}
-                        </p>
-                      ))}
-                  </div>
-                </section>
-              ) : notesNotGenerated && meeting.transcript ? (
-                <section
-                  className="flex flex-col items-start gap-2 rounded-lg p-4"
-                  style={{
-                    background: 'var(--surface-raised)',
-                    border: '1px solid var(--border-subtle, var(--surface-raised))',
-                  }}
-                  data-testid="no-notes-yet"
-                >
-                  <div className="text-[15px] font-medium" style={{ color: 'var(--fg-1)' }}>
-                    No notes yet
-                  </div>
-                  <p
-                    className="text-[14px] leading-[1.6]"
-                    style={{ color: 'var(--fg-2)', maxWidth: '64ch' }}
-                  >
-                    This recording was transcribed but notes were not generated automatically. Use
-                    the <strong>Generate notes</strong> button below to create them, or copy or save
-                    the transcript from the actions above.
-                  </p>
-                </section>
+                </SummaryFoldingPanel>
               ) : (
-                <p className="py-2 text-sm" style={{ color: 'var(--fg-2)' }}>
-                  No summary available for this meeting.
-                </p>
-              )}
-
-              {discussionAreas.length > 0 && (
-                <section className="flex flex-col gap-3">
-                  <SectionTitle>Key topics</SectionTitle>
-                  <div className="mv-topics">
-                    {discussionAreas.map((area, i) => (
-                      <div key={i} className="flex flex-col gap-1">
-                        <div className="mv-topic-title">{area.title}</div>
-                        {area.analysis && <div className="mv-topic-body">{area.analysis}</div>}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {keyPoints.length > 0 && (
-                <section className="flex flex-col gap-3">
-                  <SectionTitle>Key points</SectionTitle>
-                  <ul className="mv-bullets">
-                    {keyPoints.map((p, i) => (
-                      <li key={i}>{p}</li>
-                    ))}
-                  </ul>
-                </section>
+                <>
+                  {summaryAndTopics}
+                  {keyPointsSection}
+                </>
               )}
 
               {actionItems.length > 0 && (
@@ -1401,6 +1489,10 @@ function DetailContent({
 
       {tab === 'notes' && (
         <MyNotesEditor summaryFile={routeSummaryFile} initialNotes={meeting.user_notes ?? ''} />
+      )}
+
+      {tab === 'checklist' && checklist.result && (
+        <ChecklistNoteTab noteFile={summaryFile} result={checklist.result} onChanged={checklist.update} />
       )}
 
       <Dialog open={unshareOpen} onOpenChange={setUnshareOpen}>
@@ -1474,6 +1566,7 @@ function DetailContent({
 function NoteViewToggle({
   tab,
   onTab,
+  checklistTab,
   hasNotes,
   activeReportId,
   reports,
@@ -1483,8 +1576,10 @@ function NoteViewToggle({
   onGenerate,
   generating,
 }: {
-  tab: 'summary' | 'notes';
-  onTab: (t: 'summary' | 'notes') => void;
+  tab: 'summary' | 'notes' | 'checklist';
+  onTab: (t: 'summary' | 'notes' | 'checklist') => void;
+  /** "Adviseur Gesprek 7/8"; null when this note has no checklist result. */
+  checklistTab: string | null;
   hasNotes: boolean;
   activeReportId: string | null;
   reports: Report[];
@@ -1651,6 +1746,23 @@ function NoteViewToggle({
             )}
           </PopoverContent>
         </Popover>
+        {checklistTab && <>
+          <span aria-hidden="true" style={{ width: 1, background: 'var(--border-subtle)' }} />
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'checklist'}
+            data-testid="tab-checklist"
+            onClick={() => onTab('checklist')}
+            className="inline-flex items-center px-3 py-1 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            style={{
+              background: tab === 'checklist' ? 'var(--surface-active)' : 'transparent',
+              color: tab === 'checklist' ? 'var(--fg-1)' : 'var(--fg-2)',
+            }}
+          >
+            {checklistTab}
+          </button>
+        </>}
       </div>
 
       <ConfirmDialog

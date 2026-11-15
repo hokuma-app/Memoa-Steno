@@ -8,6 +8,9 @@
  * file and the e2e mock is enforced by `app/ipc-contract.test.js`.
  */
 
+import type { ProductSettingsGateway } from './productContracts';
+import type { ChecklistCriterion, ChecklistEvaluationRequest, ChecklistEvaluationResponse, ChecklistManualOverride } from '@/modules/conversation-checklist/contracts';
+
 // ---------- shared result envelope ----------
 export type VaultSyncStatus =
   | { status: 'synced'; lastRun: string | null; syncedAt: string; notePath: string | null }
@@ -74,6 +77,9 @@ export interface Meeting {
   /** Whether a per-meeting speaker sidecar exists. The detail view uses this
    *  to avoid spawning two speaker backend reads for ordinary notes. */
   has_speaker_sidecar?: boolean;
+  /** Speaker labels that are now names (`{ "Speaker 2": "Anna" }`), read by the host from the speaker sidecar and the
+   *  transcript. Applied when the note is shown or copied; the saved note is never rewritten. */
+  speaker_label_names?: Record<string, string>;
   diarised_text?: string | null;
   folders?: string[];
   /** Whether the ORIGINAL recording is still on disk (list-meetings only —
@@ -424,6 +430,8 @@ export interface QueueStatus {
    *  different one" by identity rather than the collidable display name. Null
    *  for a fresh new-note recording or when idle. */
   recordingSummaryFile?: string | null;
+  /** Renderer-only: set on the optimistic cache entry written at start. */
+  optimistic?: boolean;
   /** The real note file the current recording/processing session produces (the
    *  instant-stop placeholder, then rewritten by the pipeline). Deterministic
    *  from the audio stem and stable across record→process, so useMeetings can
@@ -710,7 +718,13 @@ export type GetCurrentModelResponse = Result<{ model: string }>;
 // main.js's verify-model/delete-model handlers (Task 8) return the Python CLI's
 // `{ success, error }` JSON verbatim, with no additional wrapping.
 export type VerifyModelResponse = { success: boolean; error: string | null };
-export type DeleteModelResponse = { success: boolean; error: string | null };
+export type DeleteModelResponse = {
+  success: boolean;
+  error: string | null;
+  /** Set when the backend refused: `in_use` names the functions still running on the model. */
+  reason?: string;
+  functions?: import('./modelChoiceContracts').ModelFunction[];
+};
 // model -> either its still-running progress string, or (done: true) its
 // terminal outcome if it finished while nothing was around to consume the
 // live model-pull-complete event (e.g. Settings was unmounted). Flat for the
@@ -1110,14 +1124,51 @@ type SendFn<Args extends unknown[]> = (...args: Args) => void;
 type Subscribe<P = void> = (cb: (payload: P) => void) => () => void;
 
 export interface StenoaiBridge {
+  summaryFolding: {
+    load: RequestFn<[summaryFile: string, reportId?: string], Result<{ document: import('./summaryFoldingContracts').FoldDocument | null }>>;
+    generate: RequestFn<[summaryFile: string, reportId?: string], Result<{ document: import('./summaryFoldingContracts').FoldDocument }> & { reason?: import('./summaryFoldingContracts').FoldFailureReason }>;
+    local: RequestFn<[summaryFile: string, reportId?: string], Result<{ document: import('./summaryFoldingContracts').FoldDocument }>>;
+    cancel: RequestFn<[], Result<Record<string, never>>>;
+    getSettings: RequestFn<[], Result<{ summary_detail: import('./summaryFoldingContracts').SummaryDetail }>>;
+    setSettings: RequestFn<[value: import('./summaryFoldingContracts').SummaryDetail], Result<{ summary_detail: import('./summaryFoldingContracts').SummaryDetail }>>;
+    onProgress: (cb: (progress: import('./summaryFoldingContracts').FoldProgress) => void) => () => void;
+  };
   version: number;
+  productSettings: ProductSettingsGateway;
+  checklists: {
+    listTemplates(): Promise<Result<{ templates: import('@/modules/conversation-checklist/contracts').ChecklistTemplate[]; standards: import('@/modules/conversation-checklist/contracts').ChecklistStandard[]; preparation: import('@/modules/conversation-checklist/contracts').ChecklistPrepared | null }>>;
+    saveNamedTemplate(request: { id?: string; name: string; criteria: ChecklistCriterion[] }): Promise<Result<{ template: import('@/modules/conversation-checklist/contracts').ChecklistTemplate }>>;
+    deleteNamedTemplate(request: { id: string }): Promise<Result<Record<never, never>>>;
+    prepare(request: { templateId: string }): Promise<Result<Record<never, never>>>;
+    clearPreparation(): Promise<Result<Record<never, never>>>;
+    attachPrepared(sessionId: string): Promise<Result<{ draft: import('@/modules/conversation-checklist/contracts').ChecklistDraft }>>;
+    evaluate(request: ChecklistEvaluationRequest): Promise<Result<ChecklistEvaluationResponse> & { reason?: import('@/modules/conversation-checklist/contracts').ChecklistFailureReason }>;
+    getDraft(sessionId: string): Promise<Result<{ draft: import('@/modules/conversation-checklist/contracts').ChecklistDraft }>>;
+    saveDraft(request: { sessionId: string; criteria: ChecklistCriterion[]; manualOverrides: Record<string, ChecklistManualOverride> }): Promise<Result<Record<never, never>>>;
+    saveTemplate(criteria: ChecklistCriterion[]): Promise<Result<Record<never, never>>>;
+    overview(request: import('@/modules/conversation-checklist/contracts').ChecklistOverviewRequest): Promise<Result<{ overview: import('@/modules/conversation-checklist/contracts').ChecklistOverview; markdown: string }>>;
+    exportOverview(request: import('@/modules/conversation-checklist/contracts').ChecklistOverviewRequest): Promise<Result<{ path: string; markdown: string }>>;
+    listOverviews(): Promise<Result<{ items: import('@/modules/conversation-checklist/contracts').ChecklistOverviewListItem[] }>>;
+    getSettings(): Promise<Result<{ settings: { micIsSeller: boolean } }>>;
+    setSettings(request: { micIsSeller: boolean }): Promise<Result<{ settings: { micIsSeller: boolean } }>>;
+    noteResult(request: { noteFile: string }): Promise<Result<import('@/modules/conversation-checklist/contracts').ChecklistNoteResult>>;
+    noteScores(request: { noteFiles: string[] }): Promise<Result<{ scores: Record<string, import('@/modules/conversation-checklist/contracts').ChecklistNoteScore> }>>;
+    correctNote(request: { noteFile: string; criterionId: string; action: 'reject' | 'notApplicable' | 'clear'; reason?: string }): Promise<Result<import('@/modules/conversation-checklist/contracts').ChecklistNoteResult>>;
+    /** The host-planned live check of the active recording (state, counters, result); stays valid across any remount. */
+    liveState(): Promise<Result<{ live: import('@/modules/conversation-checklist/contracts').ChecklistLive }>>;
+  };
 
   app: {
     platform: 'darwin' | 'linux' | 'win32';
     getVersion: RequestFn<[], AppVersionResponse>;
   };
 
-  window: { focus: SendFn<[]>; readyToShow: SendFn<[]> };
+  window: {
+    focus: SendFn<[]>;
+    readyToShow: SendFn<[]>;
+    isVisible: () => Promise<boolean>;
+    onVisibility: (cb: (visible: boolean) => void) => () => void;
+  };
 
   shell: {
     openExternal: RequestFn<[string], Result<Record<string, never>>>;
@@ -1235,7 +1286,7 @@ export interface StenoaiBridge {
     commitDelete: RequestFn<[id: string], Result<Record<string, never>>>;
     listPendingDeletes: RequestFn<[], ListPendingDeletesResponse>;
     reprocess: RequestFn<
-      [summaryFile: string, regenTitle: boolean, name: string],
+      [summaryFile: string, regenTitle: boolean, name: string, summaryDetail?: import('./summaryFoldingContracts').SummaryDetail],
       Result<{ message: string }>
     >;
     /** Re-run transcription on the source recording (#266) with the current
@@ -1257,7 +1308,7 @@ export interface StenoaiBridge {
     >;
     regenTitle: RequestFn<[summaryFile: string, name: string], Result<Record<string, never>>>;
     generateReport: RequestFn<
-      [summaryFile: string, templateId: string],
+      [summaryFile: string, templateId: string, summaryDetail?: import('./summaryFoldingContracts').SummaryDetail],
       Result<{ message: string }>
     >;
     setActiveReport: RequestFn<
@@ -1348,6 +1399,13 @@ export interface StenoaiBridge {
       SetClusterReviewStateResponse
     >;
     namingStatus: RequestFn<[meetingStem: string], SpeakerNamingStatusResponse>;
+  };
+
+  modelChoice: {
+    list: RequestFn<[], import('./modelChoiceContracts').ModelChoicesResponse>;
+    set: RequestFn<[fn: import('./modelChoiceContracts').ModelFunction, name: string], import('./modelChoiceContracts').SetModelChoiceResponse>;
+    preview: RequestFn<[name: string], import('./modelChoiceContracts').AddPreviewResponse>;
+    test: RequestFn<[fn: import('./modelChoiceContracts').ModelFunction], import('./modelChoiceContracts').ModelTestResponse>;
   };
 
   models: {
@@ -1574,6 +1632,8 @@ export interface StenoaiBridge {
     liveTranscriptReady: Subscribe<LiveTranscriptReadyEvent>;
     liveTranscriptChunk: Subscribe<LiveTranscriptChunkEvent>;
     liveTranscriptError: Subscribe<LiveTranscriptErrorEvent>;
+    /** Pushed by the host planner on every change of the live checklist state. */
+    checklistLiveState: Subscribe<import('@/modules/conversation-checklist/contracts').ChecklistLive>;
     /** Raw interleaved s16 PCM from the Linux loopback capture — see
      *  recording.startLinuxLoopback. Electron serialises the main-side Buffer
      *  as a Uint8Array on this side of the bridge. */

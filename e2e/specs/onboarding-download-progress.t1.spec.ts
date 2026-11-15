@@ -263,13 +263,15 @@ test('Settings displays Parakeet file progress next to the pending model selecti
   await page.getByTestId('transcription-model-select').click();
   await page.getByRole('option', { name: /Parakeet TDT v3/ }).click();
   await expect(page.getByTestId('transcription-model-select')).toBeDisabled();
-  await expect(page.getByRole('status')).toContainText('Current file: 120.0 MB available.');
+  await expect(page.getByRole('status').filter({ hasText: 'Current file: 120.0 MB available.' }))
+    .toHaveCount(1);
   await app.evaluate(({ BrowserWindow }) => {
     const model = process.platform === 'darwin'
       ? 'mlx-community/parakeet-tdt-0.6b-v3' : 'istupakov/parakeet-tdt-0.6b-v3-onnx';
     BrowserWindow.getAllWindows()[0].webContents.send('parakeet-pull-progress', { model, stage: 'loading' });
   });
-  await expect(page.getByRole('status')).toContainText('Download complete. Preparing model…');
+  await expect(page.getByRole('status').filter({ hasText: 'Download complete. Preparing model…' }))
+    .toHaveCount(1);
 });
 
 for (const [platform, size] of [['darwin', '~2.5 GB'], ['win32', '~670 MB']] as const) {

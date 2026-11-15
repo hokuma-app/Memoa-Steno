@@ -21,6 +21,11 @@
   src: url('./assets/veneta/titillium-web-700.ttf') format('truetype');
 }
 
+html[data-product='veneta-memoai'] .veneta-new-note:hover {
+  background: #FFF8CF !important;
+  color: #000000 !important;
+}
+
 html[data-product='veneta-memoai'] {
   --veneta-yellow: #FFD900;
   --font-sans: 'Titillium Web', -apple-system, 'Segoe UI', sans-serif;

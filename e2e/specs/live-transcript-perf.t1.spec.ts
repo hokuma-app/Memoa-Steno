@@ -197,15 +197,11 @@ async function idleBaseline(cdp: CDPSession, page: Page) {
 /**
  * One sweep over LIST_SIZES in a given panel state.
  *
- * Both states matter and they are different code paths. Open, LiveTranscriptBar
- * owns the hook and renders every segment. Minimised (the usual state during a
- * meeting - the pill is what users leave on screen) LiveTranscriptBar is
- * unmounted and LiveDock holds its own `useLiveTranscript`, which keeps
- * accumulating and re-inserting into the same growing array while rendering no
- * list at all.
+ * Both states share one persistent provider. The open panel renders its rows;
+ * the minimised panel renders no list but the source keeps receiving segments.
  *
- * Each sweep starts from an empty list: toggling the panel unmounts the hook, so
- * the segment array is rebuilt from the (mock) backfill, not carried over.
+ * Each sweep uses a fresh fixture process. Toggling the panel must NOT reset
+ * the shared source, so reusing one recording would silently double the rows.
  */
 async function sweep(
   cdp: CDPSession,
@@ -242,6 +238,7 @@ async function sweep(
     const idle = await idleBaseline(cdp, page);
     const burst = await timeBurst(cdp, app, page, seeded, open);
     const after = await snapshot(page);
+    if (open) expect(after.rows).toBe(size + 1);
     const heap = await heapMb(cdp);
     // Net of the idle baseline, floored at zero - a negative would be noise,
     // not a negative cost, and printing it as one would be misleading.
@@ -276,15 +273,22 @@ test('@perf live transcript: per-tick cost against a growing segment list', asyn
   launchApp,
 }) => {
   test.setTimeout(600_000);
-  const { app, page } = await launchApp({ mockIpc: true, fakeAudio: true, env: PERF_ENV });
-  const cdp = await app.context().newCDPSession(page);
-  await cdp.send('Performance.enable');
-
-  await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
-  await expect(page.getByTestId('transcription-pill')).toBeVisible();
-
-  const minimised = await sweep(cdp, app, page, false);
-  const opened = await sweep(cdp, app, page, true);
+  const measure = async (open: boolean) => {
+    const { app, page } = await launchApp({ mockIpc: true, fakeAudio: true, env: PERF_ENV });
+    const cdp = await app.context().newCDPSession(page);
+    await cdp.send('Performance.enable');
+    await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
+    await expect(page.getByTestId('transcription-pill')).toBeVisible();
+    const rows = await sweep(cdp, app, page, open);
+    // This fixture is still recording. Stop only its own process, bypassing the
+    // app's recording-on-quit confirmation rather than hanging in app.close().
+    const closed = page.waitForEvent('close');
+    app.process().kill('SIGKILL');
+    await closed;
+    return rows;
+  };
+  const minimised = await measure(false);
+  const opened = await measure(true);
 
   console.log(
     `\nLive transcript cost per partial tick (${TICKS} paced ticks per row)\n` +

@@ -1,0 +1,171 @@
+/* All selectors are module-scoped; product and light/dark tokens remain inherited. The reader itself (TextFold) is
+   styled by textfold/reader.css and textfold/theme.css. */
+.summary-detail-setting {
+  color: var(--fg-1);
+  font: inherit;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.summary-detail-setting * {
+  box-sizing: border-box;
+}
+
+/* The TextFold-style zoom pill. The host positions .summary-fold-dock over the
+   notes column; it is fixed, outside the text flow, and sits above the bottom
+   dock (z-40) and its fade so it is never washed out. */
+.summary-fold-dock {
+  position: fixed;
+  bottom: 112px;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  pointer-events: none;
+  transition: left 180ms ease;
+}
+
+.summary-fold-hint {
+  margin: 0;
+  padding: 0.08rem 0.55rem;
+  border-radius: 999px;
+  background: var(--page, var(--surface-raised));
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--fg-2);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.summary-fold-status {
+  pointer-events: auto;
+  max-inline-size: min(34rem, 100%);
+  margin: 0;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.8rem;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-sm, 0 2px 10px #0001);
+  color: var(--fg-1);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.summary-fold-status[role='alert'] {
+  border-color: var(--border-strong);
+}
+
+/* Reserve room after the note so the fixed pill never hides its last lines. */
+.summary-fold-spacer {
+  block-size: 4.5rem;
+}
+
+.summary-fold-sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.summary-detail-setting {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.summary-detail-setting legend {
+  font-weight: 600;
+  margin-block-end: 0.7rem;
+}
+
+.summary-detail-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.summary-detail-choices label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.45rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.summary-detail-choices label:has(input:checked) {
+  background: var(--surface-active);
+  border-color: var(--fg-1);
+}
+
+.summary-detail-choices input {
+  margin: 0;
+  accent-color: var(--fg-1);
+  flex-shrink: 0;
+}
+
+.summary-detail-setting p {
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.summary-detail-setting:disabled label {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+
+
+@media (prefers-reduced-motion: reduce) {
+  .summary-fold-dock {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .summary-detail-choices label:has(input:checked) {
+    outline: 2px solid Highlight;
+  }
+  .summary-fold-dock .zoombar button.on {
+    outline: 2px solid Highlight;
+  }
+}
+
+@media (max-width: 480px) {
+  .summary-fold-dock .zoombar button {
+    padding: 0.34rem 0.42rem;
+    font-size: 0.72rem;
+  }
+  .summary-fold-hint {
+    white-space: normal;
+  }
+}
+/* The bar belongs to TextFold's scope (.tf-root) so its segmented control keeps TextFold's own styles. */
+.summary-fold-dock .zoombar {
+  pointer-events: auto;
+}
+.summary-fold-dock .summary-fold-provisional {
+  pointer-events: none;
+  color: var(--fg-2);
+  font-size: 0.72rem;
+}
+
+.summary-fold-make {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  pointer-events: auto;
+}

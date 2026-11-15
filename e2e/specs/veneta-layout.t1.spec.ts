@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/electron';
-import { emitLiveSegments } from '../fixtures/live-transcript';
+import { emitBufferedLiveSegments as emitLiveSegments } from '../fixtures/buffered-live-transcript';
 
 // Read the painted foreground against the first opaque background, including transparent controls.
 function paintedContrast(element: Element) {
@@ -33,10 +33,10 @@ function paintedContrast(element: Element) {
 
 // Run against a renderer built with VITE_VENETA_MEMOAI=1. Legacy builds skip this product-only contract.
 // Uses the existing mock IPC state machine and real preload live events, never a microphone or ASR model.
-test('Veneta live notes stay uncovered beside the real transcript, collapsing into an accessible sheet', async ({ launchApp }, testInfo) => {
+test('Veneta live notes stay uncovered beside the real transcript at supported desktop widths', async ({ launchApp }, testInfo) => {
   const { app, page } = await launchApp({
     mockIpc: true, fakeAudio: true, releaseHighlightsSeen: true,
-    env: { STENOAI_E2E_MOCK_PARAKEET_INSTALLED: '1' },
+    env: { STENOAI_E2E_MOCK_PARAKEET_INSTALLED: '1', STENOAI_E2E_PRODUCT_PROFILE: 'veneta' },
   });
   test.skip(await page.locator('html').getAttribute('data-product') !== 'veneta-memoai', 'Requires the Veneta renderer build');
   await page.setViewportSize({ width: 1600, height: 1000 });
@@ -46,8 +46,10 @@ test('Veneta live notes stay uncovered beside the real transcript, collapsing in
   }, session);
   await page.getByRole('button', { name: 'Open recording in progress' }).click();
   const panel = page.getByTestId('live-transcript-panel');
-  const notes = page.getByRole('textbox', { name: 'Mijn notities' });
+  const notes = page.locator('textarea[aria-labelledby="veneta-notes-heading"]');
   const column = page.locator('#veneta-live-transcript-slot');
+  await expect(panel).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show transcript' }).click();
   await expect(panel).toBeVisible();
   await expect(page.locator('[data-dock-fade]')).toHaveCount(2);
   await expect.poll(() => page.locator('[data-dock-fade]').evaluateAll((nodes: Element[]) =>
@@ -55,7 +57,7 @@ test('Veneta live notes stay uncovered beside the real transcript, collapsing in
   await expect(column.getByTestId('live-transcript-panel')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Stop recording', exact: true })).toHaveCount(1);
   await expect(page.getByTestId('transcription-pill')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Live transcriptie' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Live transcript' })).toBeVisible();
   await notes.fill('Decisions remain editable while speech arrives.');
   await emitLiveSegments(app, session, [
     { text: 'Approved decision', start: 0, end: 2, isFinal: true, speaker: 'You' },
@@ -120,11 +122,11 @@ test('Veneta live notes stay uncovered beside the real transcript, collapsing in
   expect((await filledStop.evaluate(paintedContrast)).ratio).toBeGreaterThanOrEqual(4.5);
   await expect(notes).toHaveValue('Decisions remain editable while speech arrives.');
 
-  // The same mounted panel becomes an in-flow sheet below 1100px. Notes never sit behind it.
-  await page.setViewportSize({ width: 1050, height: 900 });
+  // The smallest supported desktop window keeps the independent column beside notes.
+  await page.setViewportSize({ width: 1000, height: 900 });
   await expect.poll(async () => {
     const n = await page.locator('.veneta-recording-notes').boundingBox(); const p = await panel.boundingBox();
-    return !!n && !!p && n.y + n.height <= p.y + 1;
+    return !!n && !!p && n.x + n.width <= p.x + 1;
   }).toBe(true);
   await expect(notes).toBeVisible();
   await expect(panel.getByRole('button', { name: 'Stop recording', exact: true })).toBeInViewport();

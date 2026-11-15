@@ -27,6 +27,7 @@ import filelock
 
 from src.whisper_models import SUPPORTED_WHISPER_MODELS as _WHISPER_REGISTRY
 from src import templates as _templates
+from src.model_catalog import ModelNameError, validate_model_name
 from src.speaker_schema import validate_display_name, validate_embedding
 
 logger = logging.getLogger(__name__)
@@ -188,7 +189,7 @@ def _openai_asr_api_origin(value: object) -> Optional[str]:
     return f"{parsed.scheme}://{host}:{port}"
 
 
-def _atomic_write(path: Path, render, encoding: str = 'utf-8') -> None:
+def _atomic_write(path: Path, render, encoding: str = 'utf-8', newline=None) -> None:
     """Durably replace `path` with whatever `render(fh)` writes.
 
     The shared core behind _atomic_write_json and _atomic_write_text: a
@@ -213,6 +214,7 @@ def _atomic_write(path: Path, render, encoding: str = 'utf-8') -> None:
         suffix='.tmp',
         delete=False,
         encoding=encoding,
+        newline=newline,
     )
     try:
         render(tmp)
@@ -256,7 +258,7 @@ def _atomic_write_json(path: Path, payload) -> None:
     _atomic_write(path, lambda fh: json.dump(payload, fh, indent=2))
 
 
-def _atomic_write_text(path: Path, text: str, encoding: str = 'utf-8') -> None:
+def _atomic_write_text(path: Path, text: str, encoding: str = 'utf-8', newline=None) -> None:
     """Write `text` to `path` atomically — the Path.write_text replacement.
 
     The summary Markdown is the app's primary user artifact and is rewritten
@@ -269,7 +271,7 @@ def _atomic_write_text(path: Path, text: str, encoding: str = 'utf-8') -> None:
     NOT written as one transaction — a crash between the two can still leave
     them disagreeing. Out of scope here; the individual files stay readable.
     """
-    _atomic_write(path, lambda fh: fh.write(text), encoding=encoding)
+    _atomic_write(path, lambda fh: fh.write(text), encoding=encoding, newline=newline)
 
 
 def get_user_data_dir() -> Path:
@@ -1182,6 +1184,49 @@ class Config:
             logger.warning(f"Model {model_name} not in supported list, but allowing anyway")
 
         self._config["model"] = model_name
+        return self._save()
+
+    # --- Model per function (0.10.0) -----------------------------------------
+    # Summary keeps using the long-standing global "model" key. Detail levels and the
+    # conversation checklist get their own optional keys. An absent, empty or invalid
+    # value means "same as the summary", so existing configs behave exactly as before
+    # and nothing is migrated or written until the user makes a choice.
+    FUNCTION_MODEL_KEYS = {"summary_fold": "fold_model", "checklist": "checklist_model"}
+    MODEL_FUNCTIONS = ("summary", "summary_fold", "checklist")
+
+    def get_function_model_choice(self, function: str) -> str:
+        """The stored choice for a function; "" means "same as the summary"."""
+        if function == "summary":
+            return self.get_model()
+        if function not in self.FUNCTION_MODEL_KEYS:
+            raise ValueError(f"Unknown model function: {function!r}")
+        value = self._config.get(self.FUNCTION_MODEL_KEYS[function], "")
+        if not isinstance(value, str) or not value:
+            return ""
+        try:
+            return value if validate_model_name(value)["name"] == value else ""
+        except ModelNameError:
+            return ""  # hand-edited, cloud or malformed: safe fallback to the summary model
+
+    def get_function_model(self, function: str) -> str:
+        """The model a function actually runs: its own choice, else the summary model."""
+        return self.get_function_model_choice(function) or self.get_model()
+
+    def set_function_model(self, function: str, model_name: str) -> bool:
+        """Store a function's choice. "" returns a non-summary function to "same as summary"."""
+        if function not in self.MODEL_FUNCTIONS or not isinstance(model_name, str):
+            return False
+        if model_name == "" and function != "summary":
+            self._config[self.FUNCTION_MODEL_KEYS[function]] = ""
+            return self._save()
+        try:
+            name = validate_model_name(model_name)["name"]
+        except ModelNameError:
+            return False
+        if function == "summary":
+            self._config["model"] = name
+        else:
+            self._config[self.FUNCTION_MODEL_KEYS[function]] = name
         return self._save()
 
     # --- Report templates ---------------------------------------------------
@@ -2486,6 +2531,18 @@ class Config:
     def set_launch_on_login(self, enabled: bool) -> bool:
         """Set whether Steno launches automatically on login."""
         self._config["launch_on_login"] = enabled
+        return self._save()
+
+    def get_summary_detail(self) -> str:
+        """Detail level for newly generated summaries, never existing notes."""
+        value = self._config.get("summary_detail", "detailed")
+        return value if isinstance(value, str) and value in ("brief", "balanced", "detailed") else "detailed"
+
+    def set_summary_detail(self, value: str) -> bool:
+        """Persist an explicit supported preference using the normal config writer."""
+        if not isinstance(value, str) or value not in ("brief", "balanced", "detailed"):
+            return False
+        self._config["summary_detail"] = value
         return self._save()
 
     def get_language(self) -> str:

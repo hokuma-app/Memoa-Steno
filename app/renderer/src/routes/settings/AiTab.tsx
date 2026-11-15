@@ -4,6 +4,7 @@ import {
   speakerModelsProgressPercent,
 } from '@/lib/parakeetProgress';
 import { DownloadProgressBar } from '@/components/DownloadProgressBar';
+import { SummaryDetailSettings } from '@/components/SummaryDetailSettings';
 import * as React from 'react';
 import { Building2, Check, ChevronDown, ChevronRight, Cloud, Laptop, Loader2, Server, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -75,6 +76,7 @@ import { useOrgSession } from '@/hooks/useOrg';
 import { COMPACT_BTN, COMPACT_INPUT, COMPACT_TRIGGER, SectionHeading, SettingRow } from './primitives';
 import { ModelCard, formatModelSize, isDefaultModel, parsePullPercent } from './model-card';
 import { modelMayExceedMemory } from './model-memory';
+import { ModelChoiceSettings } from './ModelChoiceSettings';
 import { LANGUAGES_PARAKEET, LANGUAGES_WHISPER } from './languages';
 
 export function AiTab() {
@@ -870,6 +872,8 @@ function SummarisationSection() {
         />
       </SettingRow>
 
+      <SummaryDetailSettings />
+
       <SettingRow
         label="AI provider"
         description={
@@ -953,6 +957,7 @@ function SummarisationSection() {
             Which model generates your summaries, titles, and chat answers.
           </p>
           <ModelList />
+          <ModelChoiceSettings />
         </div>
       )}
     </>

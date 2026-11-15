@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { isMac, shortcut } from '@/lib/utils';
+import { APP_NAME } from '@/lib/productBrand';
 import { useTheme } from '@/hooks/useTheme';
 import {
   useAutoDetectMeetingsSetting,
@@ -432,7 +433,7 @@ export function GeneralTab() {
 
       <SettingRow
         label="Microphone"
-        description="Which input device Steno records from. Pins your choice so the OS switching its default (e.g. AirPods connecting) doesn't silently change what gets recorded. Applies the next time you start a recording."
+        description={`Which input device ${APP_NAME} records from. Pins your choice so the OS switching its default (e.g. AirPods connecting) doesn't silently change what gets recorded. Applies the next time you start a recording.`}
       >
         <Select
           value={microphone.data?.device_id ?? DEFAULT_MIC_VALUE}
@@ -525,7 +526,7 @@ export function GeneralTab() {
 
       <SettingRow
         label="Launch on login"
-        description="Start Steno automatically when you log in, hidden in the menu bar. Turn off to launch it manually."
+        description={`Start ${APP_NAME} automatically when you log in, hidden in the menu bar. Turn off to launch it manually.`}
       >
         <Switch
           checked={launchOnLogin.data ?? true}
@@ -549,10 +550,10 @@ export function GeneralTab() {
         label={isMac ? 'Show in menu bar' : 'Show in system tray'}
         description={
           bothIconsHidden
-            ? 'Both your dock icon and menu bar icon will be hidden. Reopen Steno from Applications or Spotlight to bring the window back.'
+            ? `Both your dock icon and menu bar icon will be hidden. Reopen ${APP_NAME} from Applications or Spotlight to bring the window back.`
             : isMac
-              ? 'Show a Steno icon in the menu bar for quick access.'
-              : 'Show a Steno icon in the system tray for quick access.'
+              ? `Show a ${APP_NAME} icon in the menu bar for quick access.`
+              : `Show a ${APP_NAME} icon in the system tray for quick access.`
         }
       >
         <Switch
@@ -572,7 +573,7 @@ export function GeneralTab() {
           label="Hide dock icon"
           description={
             bothIconsHidden
-              ? 'Both your dock icon and menu bar icon will be hidden. Reopen Steno from Applications or Spotlight to bring the window back.'
+              ? `Both your dock icon and menu bar icon will be hidden. Reopen ${APP_NAME} from Applications or Spotlight to bring the window back.`
               : 'Run as menu bar app only'
           }
           noBorder

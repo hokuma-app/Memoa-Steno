@@ -103,8 +103,10 @@ _WORD_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
 # multi-megabyte file.
 _MAX_CHARS = 8000
 # Require a solid base of evidence and a clear lead over the runner-up before
-# committing to a language; otherwise return None and let "en" apply.
-_MIN_HITS = 15
+# committing to a language; otherwise return None and let "en" apply. Ten hits
+# admits the short, unambiguous 6-second Dutch Parakeet regression while the
+# lead check still rejects competing-language text.
+_MIN_HITS = 10
 _LEAD_RATIO = 1.3
 
 

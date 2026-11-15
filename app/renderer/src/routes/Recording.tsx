@@ -1,4 +1,6 @@
-import { IS_VENETA_MEMOAI } from '@/lib/productBrand';
+import { useModuleEnabled, useVenetaProfile } from '@/hooks/useProductSettings';
+import { ChecklistRuntime } from '@/modules/conversation-checklist/ChecklistRuntime';
+import { runtimeText as checklistT } from '@/modules/conversation-checklist/runtimeCopy';
 
 import { t } from '@/i18n';
 import * as React from 'react';
@@ -25,9 +27,12 @@ import { useCaptureCheckStore } from '@/hooks/captureCheckStore';
 import { captureWarnings, type ChannelCheck } from '@/lib/captureCheck';
 
 export function Recording() {
+  const IS_VENETA_MEMOAI = useVenetaProfile();
   const navigate = useNavigate();
   const recording = useRecording();
   const live = useLiveMeeting();
+  const checklistEnabled = useModuleEnabled('conversation-checklist');
+  const checklistLabel = checklistT('tabChecklist');
 
   // If we land on /recording with no active recording (e.g. cold reload after
   // it stopped), bounce back home so we don't leave the user on a dead page.
@@ -151,7 +156,10 @@ export function Recording() {
             </section>
           </div>
         </div>
-        {IS_VENETA_MEMOAI && <aside id="veneta-live-transcript-slot" aria-label={t('recording.transcriptHeading')} />}
+        {IS_VENETA_MEMOAI && <aside className="veneta-conversation-sidebar relative z-50 min-h-0 overflow-y-auto bg-background" aria-label={checklistLabel}>
+          {checklistEnabled && <ChecklistRuntime />}
+          <div id="veneta-live-transcript-slot" aria-label={t('recording.transcriptHeading')} />
+        </aside>}
       </div>
     </MeetingsShell>
   );

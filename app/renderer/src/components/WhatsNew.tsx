@@ -63,6 +63,20 @@ export function WhatsNewProvider({
   const [manual, setManual] = React.useState(false);
   const [automaticallyOpened, setAutomaticallyOpened] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [hostVisible, setHostVisible] = React.useState(false);
+  React.useEffect(() => {
+    let active = true;
+    let revision = 0;
+    const unsubscribe = ipc().window.onVisibility((visible) => {
+      revision++;
+      if (active) setHostVisible(visible);
+    });
+    const initialRevision = revision;
+    void ipc().window.isVisible().then((visible) => {
+      if (active && revision === initialRevision) setHostVisible(visible);
+    }).catch(() => { /* Remain closed if the host is unavailable. */ });
+    return () => { active = false; unsubscribe(); };
+  }, []);
   const foreground = React.useSyncExternalStore(
     subscribeForeground,
     () => document.visibilityState === 'visible' && document.hasFocus()
@@ -104,7 +118,7 @@ export function WhatsNewProvider({
     isUnseenRelease(version, readSeenRelease());
   // Foreground is the initial trigger. Retain the open dialog across Alt-Tab
   // without acknowledging the release or restarting its entry animation.
-  if (automatic && foreground && !automaticallyOpened) {
+  if (automatic && foreground && hostVisible && !automaticallyOpened) {
     setAutomaticallyOpened(true);
   }
   // An explicit About click can open immediately even during a recording.

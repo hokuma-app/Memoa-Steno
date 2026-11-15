@@ -8,6 +8,7 @@ import { useAppVersion } from '@/hooks/useSettings';
 import { useRecording } from '@/hooks/useRecording';
 import { SettingsNav, SETTINGS_TAB_LABELS, type SettingsTabId } from './settings/SettingsNav';
 import { GeneralTab } from './settings/GeneralTab';
+import { ProductTab } from './settings/ProductTab';
 import { AiTab } from './settings/AiTab';
 import { TemplatesTab } from './settings/TemplatesTab';
 import { PeopleTab } from './settings/PeopleTab';
@@ -50,6 +51,7 @@ const SETTINGS_TAB_DESCRIPTIONS: Partial<Record<SettingsTabId, React.ReactNode>>
 // moved into AiTab's Transcription section, which renders first on that
 // page) — keeps `/settings?tab=transcription` links working unmodified.
 const DEEP_LINK_IDS = [
+  'product',
   'general',
   'transcription',
   'ai',
@@ -230,6 +232,7 @@ export function Settings() {
             )}
           >
             {tab === 'general' && <GeneralTab />}
+            {tab === 'product' && <ProductTab busy={recording.status !== 'idle'} />}
             {tab === 'ai' && <AiTab />}
             {tab === 'templates' && <TemplatesTab onEditingChange={setTemplateEditorOpen} />}
             {tab === 'people' && <PeopleTab />}

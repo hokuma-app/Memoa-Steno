@@ -60,6 +60,41 @@ const subscribeQueryStream = (queryId, { onChunk, onDone, onError } = {}) => {
 
 const stenoai = {
   version: VERSION,
+  summaryFolding: {
+    load: (summaryFile, reportId) => invoke('summary-fold-load', summaryFile, reportId),
+    generate: (summaryFile, reportId) => invoke('summary-fold-generate', summaryFile, reportId),
+    local: (summaryFile, reportId) => invoke('summary-fold-local', summaryFile, reportId),
+    cancel: () => invoke('summary-fold-cancel'),
+    getSettings: () => invoke('get-summary-detail'),
+    setSettings: (value) => invoke('set-summary-detail', value),
+    onProgress: (cb) => subscribe('summary-fold-progress', cb),
+  },
+
+  productSettings: {
+    get: () => invoke('get-product-settings'),
+    set: (patch) => invoke('set-product-settings', patch),
+  },
+  checklists: {
+    listTemplates: () => invoke('veneta-checklist-list-templates'),
+    saveNamedTemplate: (request) => invoke('veneta-checklist-save-named-template', request),
+    prepare: (request) => invoke('veneta-checklist-prepare', request),
+    attachPrepared: (sessionId) => invoke('veneta-checklist-attach-prepared', sessionId),
+    evaluate: (request) => invoke('veneta-checklist-evaluate', request),
+    getDraft: (sessionId) => invoke('veneta-checklist-load-draft', sessionId),
+    saveDraft: (request) => invoke('veneta-checklist-save-draft', request),
+    saveTemplate: (criteria) => invoke('veneta-checklist-save-template', criteria),
+    overview: (request) => invoke('veneta-checklist-overview', request),
+    exportOverview: (request) => invoke('veneta-checklist-export-overview', request),
+    listOverviews: () => invoke('veneta-checklist-list-overviews'),
+    deleteNamedTemplate: (request) => invoke('veneta-checklist-delete-named-template', request),
+    clearPreparation: () => invoke('veneta-checklist-clear-preparation'),
+    getSettings: () => invoke('veneta-checklist-get-settings'),
+    setSettings: (request) => invoke('veneta-checklist-set-settings', request),
+    noteResult: (request) => invoke('veneta-checklist-note-result', request),
+    noteScores: (request) => invoke('veneta-checklist-note-scores', request),
+    correctNote: (request) => invoke('veneta-checklist-note-correct', request),
+    liveState: () => invoke('veneta-checklist-live-state'),
+  },
 
   app: {
     platform: rendererPlatformOverride || process.platform,
@@ -69,6 +104,8 @@ const stenoai = {
   window: {
     focus: () => send('focus-window'),
     readyToShow: () => send('renderer-ready-to-show'),
+    isVisible: () => invoke('window-is-visible'),
+    onVisibility: (cb) => subscribe('window-visibility', cb),
   },
 
   shell: {
@@ -173,7 +210,7 @@ const stenoai = {
     undoDelete: (id) => invoke('undo-delete-meeting', id),
     commitDelete: (id) => invoke('commit-delete-meeting', id),
     listPendingDeletes: () => invoke('list-pending-deletes'),
-    reprocess: (summaryFile, regenTitle, name) => invoke('reprocess-meeting', summaryFile, regenTitle, name),
+    reprocess: (summaryFile, regenTitle, name, summaryDetail) => invoke('reprocess-meeting', summaryFile, regenTitle, name, false, summaryDetail),
     // Re-transcribe (#266): re-run ASR on the source recording then re-summarise
     // (regenTitle false; the retranscribe flag is the trailing arg).
     retranscribe: (summaryFile, name) => invoke('reprocess-meeting', summaryFile, false, name, true),
@@ -181,7 +218,7 @@ const stenoai = {
     vaultSyncStatus: (summaryFile) => invoke('vault-sync-status', summaryFile),
     regenTitle: (summaryFile, name) => invoke('regen-meeting-title', summaryFile, name),
     saveNotes: (name, notes) => invoke('save-meeting-notes', name, notes),
-    generateReport: (summaryFile, templateId) => invoke('generate-report-meeting', summaryFile, templateId),
+    generateReport: (summaryFile, templateId, summaryDetail) => invoke('generate-report-meeting', summaryFile, templateId, summaryDetail),
     setActiveReport: (summaryFile, reportId) => invoke('set-active-report', summaryFile, reportId),
     deleteReport: (summaryFile, reportId) => invoke('delete-report', summaryFile, reportId),
     exportTranscript: (defaultFilename, content) =>
@@ -260,6 +297,13 @@ const stenoai = {
     markCluster: (params) => invoke('mark-speaker-cluster', params),
     setClusterReviewState: (params) => invoke('set-cluster-review-state', params),
     namingStatus: (meetingStem) => invoke('speaker-naming-status', meetingStem),
+  },
+
+  modelChoice: {
+    list: () => invoke('model-choices'),
+    set: (fn, name) => invoke('model-choice-set', fn, name),
+    preview: (name) => invoke('model-choice-preview', name),
+    test: (fn) => invoke('model-choice-test', fn),
   },
 
   models: {
@@ -479,6 +523,7 @@ const stenoai = {
     liveTranscriptReady: (cb) => subscribe('live-transcript-ready', cb),
     liveTranscriptChunk: (cb) => subscribe('live-transcript-chunk', cb),
     liveTranscriptError: (cb) => subscribe('live-transcript-error', cb),
+    checklistLiveState: (cb) => subscribe('veneta-checklist-live-state', cb),
     linuxLoopbackChunk: (cb) => subscribe('linux-loopback-chunk', cb),
     linuxLoopbackEnded: (cb) => subscribe('linux-loopback-ended', cb),
     updateAvailable: (cb) => subscribe('update-available', cb),

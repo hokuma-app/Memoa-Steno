@@ -1,4 +1,7 @@
 import * as React from 'react';
+import { IS_VENETA_MEMOAI } from '@/lib/productBrand';
+import { productText as productT } from '@/i18n/product';
+
 import { Calendar, ChevronLeft, ChevronRight, Plus, RefreshCw, Search, Square, X } from 'lucide-react';
 import { cn, isMac } from '@/lib/utils';
 import { MeetingsShell } from '@/components/MeetingsShell';
@@ -21,6 +24,7 @@ import { useFolders } from '@/hooks/useFolders';
 import { useRecordHotkeySetting } from '@/hooks/useSettings';
 import { ipc, type CalendarEvent, type Meeting, type WatchedFile } from '@/lib/ipc';
 import { unwrap } from '@/lib/result';
+import { ChecklistChoiceCard } from '@/modules/conversation-checklist/ChecklistChoiceCard';
 import { t } from '@/i18n';
 import { pickInProgressEvent } from '@/lib/calendar';
 import { heroHeadline, heroSubtitle } from '@/lib/hero';
@@ -33,6 +37,7 @@ interface HomeProps {
 }
 
 export function Home({ mode }: HomeProps) {
+  const welcomeText = IS_VENETA_MEMOAI ? productT('product.welcome') : 'Welcome to Steno.';
   const meetings = useMeetings();
   const folders = useFolders();
   const calendar = useCalendarEvents();
@@ -555,7 +560,7 @@ export function Home({ mode }: HomeProps) {
                 color: 'var(--fg-1)',
               }}
             >
-              Welcome to Steno.
+              {welcomeText}
             </h1>
             <p
               className="text-[17px] leading-[1.55]"
@@ -567,11 +572,12 @@ export function Home({ mode }: HomeProps) {
               Always get consent when transcribing others.
             </p>
           </div>
+          {!isRecording && <div className="w-full max-w-[560px] text-left"><ChecklistChoiceCard /></div>}
           <div className="flex flex-col items-center gap-3">
             <Button
               variant={isRecording ? 'destructive' : 'default'}
               onClick={onToggleRecording}
-              className="gap-2"
+              className={cn('gap-2', IS_VENETA_MEMOAI && !isRecording && 'veneta-new-note')}
             >
               {isRecording ? <Square className="size-4" /> : <Plus className="size-4" />}
               {isRecording ? 'Stop recording' : 'New note'}
@@ -617,6 +623,8 @@ export function Home({ mode }: HomeProps) {
               </p>
             </div>
           )}
+
+          {mode === 'home' && !isRecording && <ChecklistChoiceCard />}
 
           {homeCalendarNudge && (
             <div className="mb-8 w-fit">{homeCalendarNudge}</div>

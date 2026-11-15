@@ -1,5 +1,20 @@
 import { test, expect } from '../fixtures/electron';
 import { emitLiveSegments, type LiveSegmentInput } from '../fixtures/live-transcript';
+import type { ElectronApplication, Page } from '@playwright/test';
+
+type LaneLauncher = (options: { mockIpc: boolean; fakeAudio: boolean; env: Record<string, string> }) => Promise<{ app: ElectronApplication; page: Page }>;
+async function launchLaneApp(launchApp: LaneLauncher, extraEnv: Record<string, string> = {}) {
+  const result = await launchApp({ mockIpc: true, fakeAudio: true, env: { ...PILL_ENV, ...extraEnv } });
+  // Lane semantics are profile-independent. Pin Default explicitly: a Veneta
+  // package opens its transcript automatically and has no collapsed Show button.
+  await result.page.evaluate(async () => {
+    const response = await window.stenoai.productSettings.set({ profile: 'default' });
+    if (!response.success) throw new Error('Unable to select isolated lane-test profile');
+  });
+  await result.page.reload();
+  await expect(result.page.locator('[data-app-ready]')).toBeVisible();
+  return result;
+}
 
 /**
  * T1 - renderer-only, mock IPC. The live transcript panel's rendering contract,
@@ -38,7 +53,7 @@ async function bubbles(page: import('@playwright/test').Page) {
 }
 
 test('a partial is replaced in place, then retired by its final', async ({ launchApp }) => {
-  const { app, page } = await launchApp({ mockIpc: true, fakeAudio: true, env: PILL_ENV });
+  const { app, page } = await launchLaneApp(launchApp);
   await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
   await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
   const panel = page.getByTestId('live-transcript-panel');
@@ -64,7 +79,7 @@ test('a partial is replaced in place, then retired by its final', async ({ launc
 test('both channels can have an in-progress bubble at once, below the finalised text', async ({
   launchApp,
 }) => {
-  const { app, page } = await launchApp({ mockIpc: true, fakeAudio: true, env: PILL_ENV });
+  const { app, page } = await launchLaneApp(launchApp);
   await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
   await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
   const panel = page.getByTestId('live-transcript-panel');
@@ -97,7 +112,7 @@ test('a late final sorts into place instead of landing at the end', async ({ lau
   // The live path can release a final well after a later one (the per-segment
   // bleed-dedup hold). It has to sort by start time, or the transcript reads
   // out of order.
-  const { app, page } = await launchApp({ mockIpc: true, fakeAudio: true, env: PILL_ENV });
+  const { app, page } = await launchLaneApp(launchApp);
   await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
   await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
   const panel = page.getByTestId('live-transcript-panel');
@@ -130,11 +145,7 @@ test('a note continued twice renders every carried-over line, in order', async (
   // neither warns about duplicate keys nor misreconciles a list that is written
   // once and never reordered. The collision is a latent hazard, established by
   // reading main.js's carryPrior, not by this assertion.
-  const { app, page } = await launchApp({
-    mockIpc: true,
-    fakeAudio: true,
-    env: { ...PILL_ENV, STENOAI_E2E_SEED_PRIOR_SEGMENTS: 'twice' },
-  });
+  const { app, page } = await launchLaneApp(launchApp, { STENOAI_E2E_SEED_PRIOR_SEGMENTS: 'twice' });
 
   await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
   await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
@@ -160,11 +171,7 @@ test('resumed note: the divider sits between the carried-over text and the new t
 }) => {
   // STENOAI_E2E_SEED_PRIOR_SEGMENTS seeds two prior segments through the mock
   // get-live-transcript-state backfill (see pill-dock.t1).
-  const { app, page } = await launchApp({
-    mockIpc: true,
-    fakeAudio: true,
-    env: { ...PILL_ENV, STENOAI_E2E_SEED_PRIOR_SEGMENTS: '1' },
-  });
+  const { app, page } = await launchLaneApp(launchApp, { STENOAI_E2E_SEED_PRIOR_SEGMENTS: '1' });
   await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
   await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
   const panel = page.getByTestId('live-transcript-panel');

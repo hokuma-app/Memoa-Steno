@@ -5,6 +5,8 @@ import './globals.css';
 import './veneta-theme.css';
 import './veneta-layout.css';
 import { App } from './App';
+import { LiveTranscriptProvider } from './hooks/LiveTranscriptProvider';
+import { ProductProfileEffects } from './components/ProductProfileEffects';
 import { isMac } from './lib/utils';
 import { queryClient } from './lib/queryClient';
 import { TooltipProvider } from './components/ui/tooltip';
@@ -59,7 +61,8 @@ if (isNotification) {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider delayDuration={50}>
-            <App />
+            <ProductProfileEffects />
+            <LiveTranscriptProvider><App /></LiveTranscriptProvider>
           </TooltipProvider>
         </QueryClientProvider>
       </ErrorBoundary>

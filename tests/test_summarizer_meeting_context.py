@@ -154,7 +154,7 @@ class BudgetAndChunkingTests(unittest.TestCase):
         prompt = s._create_map_prompt("segment", 1, 3, line)
         self.assertIn("Participants:", prompt)
         self.assertIn("Meeting date: 2026-10-15", prompt)
-        self.assertIn("Name: action (due YYYY-MM-DD)", prompt)
+        self.assertIn("Name: action (due <deadline as spoken>)", prompt)
 
     def test_map_reduce_passes_context_to_map_and_reduce(self):
         s = _s("llama3.2:3b")
@@ -185,8 +185,9 @@ class ActionItemRulesTests(unittest.TestCase):
     def test_markdown_prompt_carries_owner_and_due_rules(self):
         ctx = build_meeting_context(synthetic_event())
         prompt = _s()._create_markdown_prompt(TRANSCRIPT, "en", meeting_context=ctx)
-        self.assertIn("- Name: action (due YYYY-MM-DD)", prompt)
-        self.assertIn("against the meeting date 2026-10-15", prompt)
+        self.assertIn("- Name: action (due <deadline as spoken>)", prompt)
+        self.assertIn("exactly as spoken", prompt)
+        self.assertNotIn("against the meeting date", prompt)
         self.assertIn("Never guess an owner", prompt)
         # Headers the parser depends on are unchanged.
         for header in ("## Summary", "## Key Topics", "## Key Points", "## Action Items"):
@@ -194,7 +195,7 @@ class ActionItemRulesTests(unittest.TestCase):
 
     def test_without_meeting_date_relative_dates_are_not_resolved(self):
         prompt = _s()._create_markdown_prompt(TRANSCRIPT, "en")
-        self.assertIn("stated as a full calendar date", prompt)
+        self.assertIn("Do not calculate", prompt)
         self.assertNotIn("against the meeting date", prompt)
 
     def test_reduce_and_template_prompts_carry_rules(self):

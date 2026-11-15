@@ -75,6 +75,14 @@ NL_TEXT = (
     "gaan gebruiken, omdat dat het deel is waar ik me het meest zorgen over "
     "maak."
 )
+
+# Exact 6-second Dutch Parakeet regression from 0.10.6. Parakeet itself has no
+# language-ID output: this text classifier selects only the note/output language;
+# `detected_language` must remain None as the truthful engine provenance.
+SHORT_NL_PARAKEET_TEXT = (
+    "Dit is een verzonnen testgesprek. We bespreken het budget op vrijdag. "
+    "De afspraak is om maandag een korte proef te starten."
+)
 PT_TEXT = (
     "Então, a questão que precisamos decidir hoje é se devemos lançar o novo "
     "fluxo esta semana ou esperar até a próxima versão. Eu acho que os dados "
@@ -130,6 +138,20 @@ class DetectTranscriptLanguageTests(unittest.TestCase):
         # Markers ([You]/[Others]) and [HH:MM:SS] stamps must not derail the
         # aggregate — this German transcript still reads as German.
         self.assertEqual(detect_transcript_language(DE_DIARISED_TEXT), "de")
+
+    def test_resolves_exact_short_dutch_parakeet_output_without_engine_provenance(self):
+        # The 0.10.6 six-second recording is short but has ten Dutch function
+        # word hits and no competing-language evidence: it is unambiguous.
+        # Text classification selects the output language only; Parakeet's
+        # distinct ASR-provenance field must truthfully remain None.
+        engine_detected_language = None
+        self.assertEqual(
+            resolve_output_language(
+                "auto", engine_detected_language, SHORT_NL_PARAKEET_TEXT
+            ),
+            "nl",
+        )
+        self.assertIsNone(engine_detected_language)
 
     def test_mixed_text_dominated_by_german_is_de(self):
         mixed = (

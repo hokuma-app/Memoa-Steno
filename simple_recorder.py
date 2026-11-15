@@ -241,28 +241,86 @@ def _normalize_action_item(text: str) -> str:
     return tidy or text
 
 
-def _action_items_as_tasks(md_text: str) -> str:
+def _action_items_as_tasks(md_text: str, transcript: Optional[str] = None, meeting_date: Optional[str] = None) -> str:
     """Write top-level ``## Action Items`` bullets as Markdown tasks (``- [ ]``).
 
     Task-list syntax works in Obsidian, GitHub and most Markdown editors, so
     exported notes can be ticked off where they land. Items already written
-    as tasks keep their state; other sections and nested lines are untouched.
-    Owners and due dates are tidied to ``Name: task (due YYYY-MM-DD)``.
+    as tasks keep their state; other sections are untouched. Owners and due
+    dates are tidied to ``Name: task (due YYYY-MM-DD)``.
+
+    Small models split an item over lines (owner and date, then the task on an
+    indented line) or leave the task out: continuation lines are joined to their
+    item (``src.action_items``), nested bullets under a real task stay as
+    written, and an item with only an owner and a date is left out (counted,
+    content-free). With ``transcript`` a due date the conversation cannot have
+    given is removed; a deadline written as spoken ("(due vrijdag)") becomes
+    YYYY-MM-DD against ``meeting_date`` and vague wording moves into the task
+    text (``src.action_items``); an owner absent from the transcript is left out.
     """
+    from src.action_items import (
+        drop_unsupported_owners, parse_action_entries_with_spans, strip_unsupported_due_dates,
+    )
+
     out = []
+    section = []
+
+    def flush():
+        if not section:
+            return
+        entries, dropped, dropped_spans = parse_action_entries_with_spans(section)
+        rows = [_normalize_action_item(e.text) for e in entries]
+        rows, removed = strip_unsupported_due_dates(rows, transcript, meeting_date)
+        if removed:
+            logger.info(f"Action items: removed {removed} unsupported due date(s)")
+        if transcript is not None:
+            rows, owners = drop_unsupported_owners(rows, transcript)
+            if owners:
+                logger.info(f"Action items: left out {owners} owner(s) not found in the transcript")
+        if dropped:
+            logger.info(f"Action items: left out {dropped} item(s) without task text")
+        first = {}
+        consumed = set()
+        for entry, text in zip(entries, rows):
+            first[min(start for start, _ in entry.spans)] = (entry, text)
+            for start, end in entry.spans:
+                consumed.update(range(start, end))
+        for start, end in dropped_spans:
+            consumed.update(range(start, end))
+        for index, line in enumerate(section):
+            if index in first:
+                entry, text = first[index]
+                out.append(f"- [{'x' if entry.checked else ' '}] {_normalize_action_item(text)}")
+                out.extend(entry.nested_raw)
+            elif index not in consumed:
+                out.append(line)
+        section.clear()
+
     in_actions = False
     for line in md_text.split('\n'):
         if line.startswith('## '):
+            flush()
             in_actions = line.strip().startswith('## Action Items')
+            out.append(line)
         elif in_actions:
-            task = _ACTION_TASK_LINE.match(line)
-            match = None if task else _ACTION_ITEM_LINE.match(line)
-            if task:
-                line = f'- [{task.group(1)}] {_normalize_action_item(task.group(2))}'
-            elif match:
-                line = f'- [ ] {_normalize_action_item(match.group(1))}'
-        out.append(line)
+            section.append(line)
+        else:
+            out.append(line)
+    flush()
     return '\n'.join(out)
+
+
+def _action_item_texts(lines) -> list:
+    """Action items of a saved or streamed note as display strings: whole items,
+    continuation lines and owner-only heads handled by ``src.action_items``."""
+    from src.action_items import parse_action_entries
+
+    entries, _ = parse_action_entries(lines)
+    items = []
+    for entry in entries:
+        items.append(entry.text)
+        items.extend(entry.nested)
+    return items
 
 
 def _meeting_context_for_note(summary_path, participants=None):
@@ -611,7 +669,7 @@ Summary output language: {config.get_language_name(output_language)}
         participants = []
         discussion_areas = []
         key_points = []
-        action_items = []
+        action_lines = []
         current_section = None
         current_topic_title = None
         current_topic_lines = []
@@ -641,11 +699,13 @@ Summary output language: {config.get_language_name(output_language)}
                 current_topic_lines.append(stripped)
             elif current_section == 'keypoints' and stripped.startswith('- '):
                 key_points.append(stripped[2:])
-            elif current_section == 'actions' and stripped.startswith('- '):
-                action_items.append(stripped[2:].replace('[ ] ', '').replace('[x] ', ''))
+            elif current_section == 'actions':
+                action_lines.append(line)
 
         if current_topic_title:
             discussion_areas.append({"title": current_topic_title, "analysis": '\n'.join(current_topic_lines).strip()})
+
+        action_items = _action_item_texts(action_lines)
 
         return {
             "summary": ' '.join(summary_parts),
@@ -976,7 +1036,11 @@ Summary output language: {config.get_language_name(output_language)}
             err_msg = str(e).replace('\n', ' ').replace('\r', ' ')
             print(f"STREAM_ERROR:{err_msg}", flush=True)
             raise
-        streamed_md = _action_items_as_tasks(_apply_chinese_variant(''.join(streamed_chunks)) or '')
+        streamed_md = _action_items_as_tasks(
+            _apply_chinese_variant(''.join(streamed_chunks)) or '',
+            transcript=text_for_summary,
+            meeting_date=getattr(meeting_context, 'meeting_date', None),
+        )
 
         print("STREAM_COMPLETE", flush=True)
 
@@ -1687,7 +1751,11 @@ def process_streaming(audio_file, name, notes, live_transcript, append_to):
             print(f"STREAM_ERROR:{err_msg}", flush=True)
             sys.exit(1)
 
-        streamed_md = _action_items_as_tasks(_apply_chinese_variant(''.join(streamed_chunks)) or '')
+        streamed_md = _action_items_as_tasks(
+            _apply_chinese_variant(''.join(streamed_chunks)) or '',
+            transcript=text_for_summary,
+            meeting_date=getattr(meeting_context, 'meeting_date', None),
+        )
 
         print("STREAM_COMPLETE", flush=True)
 
@@ -2835,6 +2903,9 @@ class _LiveVadPipeline:
         # surfaced back to the summariser via detected_language when
         # concrete.
         self.language = "auto" if language in (None, "", "auto") else language
+        # Final segments still feed the checklist; partials only animate the
+        # transcript and repeatedly decode the same speech while it is spoken.
+        self.partial_enabled = os.environ.get("STENOAI_LIVE_FINAL_ONLY") != "1"
         self.partial_interval_samples = int(sr * self.PARTIAL_INTERVAL_S)
         self.partial_window_samples = int(sr * self.PARTIAL_WINDOW_S)
         self.min_utterance_samples = int(sr * self.MIN_UTTERANCE_S)
@@ -2894,7 +2965,7 @@ class _LiveVadPipeline:
             self.preroll = []
             if len(self.speech_samples) >= self.max_utterance_samples:
                 self._finalise()
-            else:
+            elif self.partial_enabled:
                 self._maybe_emit_partial()
         else:
             self.preroll.append(chunk)
@@ -3258,12 +3329,7 @@ def _parse_meeting_markdown(md_path):
             if line.startswith('- '):
                 key_points.append(line[2:])
 
-    action_items = []
-    if 'action items' in sections:
-        for line in sections['action items'].split('\n'):
-            line = line.strip()
-            if line.startswith('- '):
-                action_items.append(line[2:].replace('[ ] ', '').replace('[x] ', ''))
+    action_items = _action_item_texts(sections['action items'].split('\n')) if 'action items' in sections else []
 
     discussion_areas = []
     if 'key topics' in sections:
@@ -3520,7 +3586,8 @@ def list_meetings():
 @click.option('--retranscribe', is_flag=True, default=False,
               help='Re-run transcription on the source recording (requires the audio to '
                    'still exist) with the current settings before re-summarising')
-def reprocess(summary_file, regenerate_title, retranscribe):
+@click.option('--summary-detail', type=click.Choice(['brief', 'balanced', 'detailed']), default=None)
+def reprocess(summary_file, regenerate_title, retranscribe, summary_detail=None):
     """Reprocess a failed summary by re-running Ollama analysis on existing transcript"""
     import json
     from pathlib import Path
@@ -3538,6 +3605,7 @@ def reprocess(summary_file, regenerate_title, retranscribe):
 
     try:
         # Load existing summary file (JSON or MD)
+        source_bytes = summary_path.read_bytes()
         if summary_path.suffix == '.md':
             existing_data = _parse_meeting_markdown(summary_path)
         else:
@@ -3708,6 +3776,9 @@ def reprocess(summary_file, regenerate_title, retranscribe):
             from src.summarizer import OllamaSummarizer
             recorder.summarizer = OllamaSummarizer()
 
+        if summary_detail is not None:
+            recorder.summarizer._summary_detail_override = summary_detail
+
         meeting_context = _meeting_context_for_note(
             summary_path, existing_data.get('participants') or [],
         )
@@ -3745,7 +3816,11 @@ def reprocess(summary_file, regenerate_title, retranscribe):
             print(f"STREAM_ERROR:{err_msg}", flush=True)
             sys.exit(1)
 
-        streamed_md = _action_items_as_tasks(_apply_chinese_variant(''.join(streamed_chunks)) or '')
+        streamed_md = _action_items_as_tasks(
+            _apply_chinese_variant(''.join(streamed_chunks)) or '',
+            transcript=transcript,
+            meeting_date=getattr(meeting_context, 'meeting_date', None),
+        )
 
         # Regenerate the title when explicitly forced OR when the note still has
         # an auto/placeholder name. The latter is the common case now that the
@@ -3771,6 +3846,10 @@ def reprocess(summary_file, regenerate_title, retranscribe):
                 existing_data["session_info"]["name"] = generated_title
                 print(f"TITLE:{session_name}", flush=True)
                 print(f"Auto-generated title: {session_name}")
+
+        if summary_path.read_bytes() != source_bytes:
+            print('STREAM_ERROR:SOURCE_CHANGED', flush=True)
+            sys.exit(1)
 
         # Add reprocess timestamp
         existing_data["session_info"]["reprocessed_at"] = datetime.now().isoformat()
@@ -3851,7 +3930,15 @@ def reprocess(summary_file, regenerate_title, retranscribe):
                 md_lines.append('## User Notes')
                 md_lines.append('')
                 md_lines.append(notes_text)
-            _atomic_write_text(summary_path, '\n'.join(md_lines))
+            updated_text = '\n'.join(md_lines)
+            if not retranscribe:
+                # Normalize whitespace for AI input, never for the saved sources.
+                original_text = summary_path.read_bytes().decode('utf-8')
+                section = re.search(r'(?m)^## (?:Transcript|User Notes)[ \t\r]*$', original_text)
+                generated_section = re.search(r'(?m)^## Transcript[ \t\r]*$', updated_text)
+                if section and generated_section:
+                    updated_text = updated_text[:generated_section.start()] + original_text[section.start():]
+            _atomic_write_text(summary_path, updated_text, newline='')
         else:
             # JSON format: parse streamed markdown into structured fields
             parsed = recorder._parse_streamed_markdown(streamed_md)
@@ -4128,7 +4215,8 @@ def delete_report(summary_file, report_id):
 @cli.command(name='generate-report')
 @click.argument('summary_file', required=True)
 @click.argument('template_id', required=True)
-def generate_report(summary_file, template_id):
+@click.option('--summary-detail', type=click.Choice(['brief', 'balanced', 'detailed']), default=None)
+def generate_report(summary_file, template_id, summary_detail=None):
     """Generate a template-based report and write it to the meeting sidecar."""
     import base64
     from src import report_store, reports as _rpts
@@ -4142,6 +4230,7 @@ def generate_report(summary_file, template_id):
         sys.exit(1)
 
     try:
+        source_bytes = summary_path.read_bytes()
         meeting = report_store.read_meeting(summary_path)
     except Exception as e:
         print(f"ERROR: Failed to load summary file: {e}")
@@ -4184,6 +4273,9 @@ def generate_report(summary_file, template_id):
         from src.summarizer import OllamaSummarizer
         recorder.summarizer = OllamaSummarizer()
 
+    if summary_detail is not None:
+        recorder.summarizer._summary_detail_override = summary_detail
+
     print("Generating report...", flush=True)
     streamed_chunks = []
     summary_heartbeat = _start_summary_heartbeat()
@@ -4211,11 +4303,19 @@ def generate_report(summary_file, template_id):
         print(f"STREAM_ERROR:{err_msg}", flush=True)
         sys.exit(1)
 
-    streamed_md = _action_items_as_tasks(_apply_chinese_variant(''.join(streamed_chunks)) or '')
+    streamed_md = _action_items_as_tasks(
+        _apply_chinese_variant(''.join(streamed_chunks)) or '',
+        transcript=transcript,
+        meeting_date=getattr(_meeting_context_for_note(summary_path), 'meeting_date', None),
+    )
 
     # Do NOT persist an empty report — surface a stream error instead.
     if not streamed_md.strip():
         print("STREAM_ERROR:Model returned an empty report", flush=True)
+        sys.exit(1)
+
+    if summary_path.read_bytes() != source_bytes:
+        print('STREAM_ERROR:SOURCE_CHANGED', flush=True)
         sys.exit(1)
 
     # Write the sidecar BEFORE emitting STREAM_COMPLETE so the renderer's
@@ -9342,6 +9442,106 @@ def set_launch_on_login(enabled):
         print(json.dumps({"success": False, "error": "Failed to save config"}))
 
 
+@cli.command(name='summary-fold')
+@click.option('--progress', 'report_progress', is_flag=True,
+              help='Write content-free {"progress":{"done":n,"total":m}} lines to stderr.')
+@click.option('--local', 'local_only', is_flag=True,
+              help='Deterministic TextFold local levels: no model, no provider, no progress.')
+def summary_fold_cmd(report_progress, local_only):
+    """Explicitly prepare cached views. Summary content is accepted only on stdin."""
+    from contextlib import redirect_stderr, redirect_stdout
+    import io
+    from src.summary_folding import (ERROR, MAX_REQUEST_BYTES, FoldError, local_document, no_model_downloads,
+                                     prepare_folding, strict_json, validate_request)
+    previous_logging = logging.root.manager.disable
+    progress_stream = sys.stderr
+    try:
+        # Existing provider diagnostics may include remote error bodies. This
+        # one-shot protocol emits only a sanitized error, never raw model text.
+        logging.disable(sys.maxsize)
+        raw = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 1)
+        if len(raw) > MAX_REQUEST_BYTES:
+            raise FoldError('too_long')
+        try:
+            request = validate_request(strict_json(raw.decode('utf-8')))
+        except FoldError:
+            raise
+        except Exception:
+            raise FoldError('invalid_request') from None
+        # Readiness helpers can print status lines. They belong to other CLI
+        # protocols, not this JSON-only command. Boundlessly capturing them is
+        # unnecessary: discard incidental stdout instead.
+        class QuietOutput(io.TextIOBase):
+            def write(self, text):
+                return len(text)
+
+        def progress(done, total):
+            # Counters only: no ids, titles or text, so the host may log or show them.
+            if report_progress:
+                progress_stream.write(json.dumps({"progress": {"done": int(done), "total": int(total)}}) + "\n")
+                progress_stream.flush()
+
+        if local_only:
+            print(json.dumps(local_document(request), ensure_ascii=False))
+            return
+        with redirect_stdout(QuietOutput()), redirect_stderr(QuietOutput()), no_model_downloads():
+            if OllamaSummarizer is None:
+                raise FoldError('provider_unavailable')
+            # 0.10.0: detail levels may run on their own local model. The choice is proven
+            # local from Ollama's metadata first (gguf or safetensors, never remote) and a
+            # missing model is reported, never downloaded. Without a choice nothing changes.
+            from src.config import get_config
+            from src.function_models import fold_override, verify_local_model
+            override = fold_override(get_config())
+            if override:
+                try:
+                    verify_local_model(override)
+                except Exception:
+                    raise FoldError('provider_unavailable') from None
+            try:
+                summarizer = OllamaSummarizer(model_name=override) if override else OllamaSummarizer()
+            except Exception:
+                raise FoldError('provider_unavailable') from None
+            try:
+                result = prepare_folding(request, summarizer, progress)
+            finally:
+                summarizer.cleanup()
+        print(json.dumps(result, ensure_ascii=False))
+    except Exception as exc:
+        reason = exc.reason if isinstance(exc, FoldError) else 'failed'
+        print(json.dumps({"error": ERROR, "reason": reason}, ensure_ascii=False))
+        raise SystemExit(1) from None
+    finally:
+        logging.disable(previous_logging)
+
+
+@cli.command(name='get-summary-detail')
+def get_summary_detail_cmd():
+    """Get the depth preference used for future summaries."""
+    from src.config import get_config
+    try:
+        print(json.dumps({"summary_detail": get_config().get_summary_detail()}))
+    except Exception:
+        print(json.dumps({"error": "Samenvattingsinstelling kon niet worden geladen."}))
+        raise SystemExit(1) from None
+
+
+@cli.command(name='set-summary-detail')
+@click.argument('value')
+def set_summary_detail_cmd(value):
+    """Change future generation only, without reopening existing meetings."""
+    from src.config import get_config
+    try:
+        if not isinstance(value, str) or value not in ('brief', 'balanced', 'detailed'):
+            raise ValueError()
+        if not get_config().set_summary_detail(value):
+            raise ValueError()
+        print(json.dumps({"summary_detail": value}))
+    except Exception:
+        print(json.dumps({"error": "Samenvattingsinstelling kon niet worden opgeslagen."}))
+        raise SystemExit(1) from None
+
+
 @cli.command()
 def get_language():
     """Get the current language setting"""
@@ -9876,6 +10076,13 @@ def check_model(model_name):
 @click.argument('model_name')
 def pull_model(model_name):
     """Download an Ollama model (uses HTTP API)."""
+    from src import model_choices
+    # 0.10.0: names are validated (no cloud or malformed references) and the disk is checked
+    # before anything starts; a refusal prints one JSON line, exactly like a failed pull.
+    refusal = model_choices.guard_pull(model_name)
+    if refusal:
+        print(json.dumps(refusal))
+        return
     from src.ollama_manager import start_ollama_server
     start_ollama_server()
     try:
@@ -9950,11 +10157,14 @@ def delete_model(model_name):
     IPC-reachable operation, so it must not delete an arbitrary
     caller-supplied model name.
     """
-    from src.config import get_config, Config
+    from src import model_choices
+    from src.config import get_config
 
-    allowed = set(get_config().list_supported_models()) | set(Config._MLX_EQUIVALENTS.values())
-    if model_name not in allowed:
-        print(json.dumps({"success": False, "error": f"Refusing to delete unsupported model: {model_name}"}))
+    # Supported ids and their NVFP4 siblings, plus any model that is installed locally (an added
+    # one), but never a model a function still runs on, and never a cloud or remote reference.
+    refusal = model_choices.guard_delete(model_name, get_config())
+    if refusal:
+        print(json.dumps(refusal))
         return
     try:
         import ollama
@@ -10124,6 +10334,86 @@ def spike_parakeet_cmd():
     from src._mel import install_librosa_shim
     install_librosa_shim()
     sys.exit(spike_main())
+
+
+@cli.command(name='model-choices')
+def model_choices_cmd():
+    """Per function: the chosen model, what is installed (live) and the catalogue. Read-only."""
+    from src import model_choices
+    from src.config import get_config
+    try:
+        print(json.dumps(model_choices.build_choices(get_config()), ensure_ascii=False))
+    except Exception:
+        print(json.dumps({"success": False, "reason": "failed"}))
+        raise SystemExit(1) from None
+
+
+@cli.command(name='set-function-model')
+@click.argument('function')
+@click.argument('model_name')
+def set_function_model_cmd(function, model_name):
+    """Choose the model of one function (summary, summary_fold, checklist); '' = same as summary."""
+    from src import model_choices
+    from src.config import get_config
+    result = model_choices.choose_model(get_config(), function, model_name)
+    print(json.dumps(result))
+    if not result['success']:
+        raise SystemExit(1)
+
+
+@cli.command(name='model-add-preview')
+@click.argument('model_name')
+def model_add_preview_cmd(model_name):
+    """Validate a typed model name and show its size before any download. Never downloads."""
+    from src import model_choices
+    print(json.dumps(model_choices.preview_addition(model_name)))
+
+
+@cli.command('checklist-evaluate')
+@click.argument('request_path', type=click.Path(path_type=Path))
+def checklist_evaluate(request_path):
+    """Evaluate a private structured checklist request with configured local AI."""
+    from src.veneta_checklist import evaluate_file
+    result = evaluate_file(request_path)
+    click.echo(json.dumps(result, ensure_ascii=False, allow_nan=False))
+    if 'error' in result:
+        raise click.exceptions.Exit(1)
+
+
+@cli.command('test-model-function')
+@click.argument('function')
+def test_model_function_cmd(function):
+    """Run a fixed synthetic conversation through one function ("Test dit model").
+
+    Explicit, local-only and content-free: prints validity, duration and a reason code. It
+    reads the saved configuration without writing, never downloads a model and never starts
+    anything but the app's own local Ollama (serve only).
+    """
+    import os
+    from src.model_catalog import FUNCTIONS
+    from src.model_probe import run_probe
+    from src.veneta_checklist import read_config_snapshot
+    previous_logging = logging.root.manager.disable
+    logging.disable(sys.maxsize)
+    try:
+        if function not in FUNCTIONS:
+            click.echo(json.dumps({"success": False, "function": "", "model": "", "valid": False,
+                                   "ms": 0, "reason": "invalid_request"}))
+            raise click.exceptions.Exit(1)
+        try:
+            config = read_config_snapshot()
+        except Exception:
+            click.echo(json.dumps({"success": True, "function": function, "model": "", "valid": False,
+                                   "ms": 0, "reason": "failed"}))
+            return
+        result = run_probe(function, config)
+        click.echo(json.dumps(dict(result, success=True), ensure_ascii=False))
+        if result["reason"] == "timeout":
+            # The model call that outlived the deadline runs on a daemon thread; do not wait for it.
+            sys.stdout.flush()
+            os._exit(0)
+    finally:
+        logging.disable(previous_logging)
 
 
 if __name__ == '__main__':

@@ -172,6 +172,10 @@ export function useRecording() {
         // "recording this note" gate flips on click, not a poll later. The
         // next queue poll reconciles it (null for a fresh new-note start).
         recordingSummaryFile: appendTo ?? null,
+        // Renderer-only marker: this target is the raw append path, not yet
+        // main's validated realpath. Identity-keyed state (the checklist copy)
+        // waits for the confirmed value so its key never flips mid-start.
+        optimistic: true,
       });
       // No navigation: recording coexists with the app. PrimaryDock keys off
       // the optimistic status flip above and docks the transcription pill on
@@ -290,6 +294,8 @@ export function useRecording() {
      *  INTO — lets a detail view match by identity rather than the collidable
      *  display name. Null for a fresh new-note recording or when idle. */
     recordingSummaryFile: queue.data?.recordingSummaryFile ?? null,
+    /** False only between an optimistic start and main's first queue report. */
+    recordingTargetConfirmed: !queue.data?.optimistic,
     recordingId: queue.data?.recordingId ?? null,
     chatSummaryFile: queue.data?.chatSummaryFile ?? null,
     /** The real note file the live recording/processing session produces.

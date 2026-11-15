@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import postcss from 'postcss';
 import { describe, expect, it } from 'vitest';
+import { productCopy } from './i18n/product';
 
 const path = resolve('renderer/src/veneta-theme.css');
 const css = existsSync(path) ? readFileSync(path, 'utf8') : '';
@@ -17,6 +18,12 @@ const tokens = (selector: string) => {
 };
 
 describe('Veneta MemoAi theme', () => {
+  it('uses the approved welcome name and light new-note hover with black text', () => {
+    expect(productCopy).toMatchObject({ 'product.welcome': 'Welkom bij Veneta MemoAi.' });
+    expect(tokens(`${scope} .veneta-new-note:hover`)).toMatchObject({
+      background: '#FFF8CF !important', color: '#000000 !important',
+    });
+  });
   it('scopes every style rule and supplies light/dark semantic and Shadcn tokens', () => {
     expect(css.length).toBeGreaterThan(0);
     root.walkRules((rule) => { expect(rule.selector).toContain(scope); });

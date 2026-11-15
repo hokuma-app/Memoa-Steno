@@ -69,7 +69,7 @@ test('Copy notes copies the open report, and the Standard note when none is open
   // Open the generated report from the dropdown, then copy → the report's md.
   await page.getByTestId('note-view-menu-trigger').click();
   await menu.getByRole('button', { name: /^Status Report/ }).click();
-  await expect(page.getByText('Pipeline healthy')).toBeVisible();
+  await expect(page.getByTestId('meeting-detail')).toContainText('Pipeline healthy');
   await page.getByRole('button', { name: 'Copy notes' }).click();
   writes = await clipboardWrites(page);
   expect(writes).toHaveLength(2);

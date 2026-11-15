@@ -89,10 +89,31 @@ const SEED_MEETING = {
   // generate-notes-bar T1's "hides for a normal note" case must take the
   // has-summary render path, not the "no summary available" fallback
   // (#313 review).
-  summary: 'The team agreed to ship on Friday; Bob owns the release notes.',
-  key_points: [],
-  action_items: [],
-  discussion_areas: [],
+  summary: process.env.STENOAI_E2E_LONG_SUMMARY === '1'
+    ? 'The team agreed to ship on Friday; Bob owns the release notes. '.repeat(120)
+    : 'The team agreed to ship on Friday; Bob owns the release notes.',
+  key_points: process.env.STENOAI_E2E_FOLD_RICH === '1' ? [
+    'Vrijdag blijft de leverdatum, mits de regressietest groen is.',
+    'Bob schrijft de releasenotities en Alice controleert ze.',
+    'De klant krijgt maandag een korte demo.',
+  ] : [],
+  // 0.10.2: a saved note whose action items the model wrote over several lines (owner and date, then the task on an
+  // indented line). The lines go through the same function main.js uses to read a saved note (app/action-items.js).
+  action_items: process.env.STENOAI_E2E_SEED_ACTION_LINES === '1' ? require('./action-items').actionItemTexts([
+    '- [ ] **Speaker 2** (due 2026-11-06)', '  Stuur de offerte naar de klant',
+    '- [ ] Speaker 2 (due 2026-11-06)', '  - Plan de demo in',
+    '- [ ] **Team members** (due 2026-11-06)', '  Controleer de planning', '  en meld afwijkingen',
+    '- [ ] Management (due 2026-11-06)', '  Besluit over het budget',
+    '- [ ] Team members (due 2026-11-06)',
+    '- [ ] Anna: deel de slides',
+  ]) : [],
+  // Synthetic Dutch topics for the summary-folding T1 (opt-in, model-free).
+  discussion_areas: process.env.STENOAI_E2E_FOLD_RICH === '1' ? [
+    { title: 'Leverplanning', analysis: 'Het team houdt vrijdag aan als leverdatum. De regressietest moet donderdag groen zijn. Bij een rode test schuift de levering een week op.\n- Alice bewaakt de testplanning.\n- Bob meldt risico\'s direct in het teamkanaal.' },
+    { title: 'Releasenotities', analysis: 'Bob schrijft de releasenotities in gewone taal. Alice leest ze woensdag na. De notities noemen ook de bekende beperkingen.' },
+    { title: 'Klantdemo', analysis: 'De klant krijgt maandag een demo van twintig minuten. Het team toont alleen functies die al getest zijn. Vragen over prijzen gaan naar sales.' },
+    { title: 'Ondersteuning na livegang', analysis: 'De eerste week na livegang is er dagelijks een korte check. Storingen gaan via het bestaande supportproces. Na twee weken evalueert het team de aanpak.' },
+  ] : [],
 };
 
 // A transcript-only note (auto-summarise off, #276 → notes_generated:false):
@@ -182,6 +203,16 @@ const PROCESSING_MEETING = {
   participants: [],
 };
 
+// A finished conversation note for the conversation-checklist T1 (STENOAI_E2E_SEED_CHECKLIST_NOTE=1). Its summary
+// file is an absolute path in the isolated user-data dir, because the host keys the checklist result on the note's
+// file identity; the recording stop of the spec binds its checklist to exactly this file.
+const checklistNoteFile = () => require('path').join(process.env.STENOAI_USER_DATA_DIR || '', 'notes', 'klantgesprek_summary.md');
+const checklistNote = () => ({
+  session_info: { name: 'Klantgesprek De Vries', summary_file: checklistNoteFile(), processed_at: '2026-10-29T14:02:00Z', duration_seconds: 840, notes_generated: true },
+  transcript: '[00:00] [You] Wij komen gratis meten.\n[00:04] [Others] Dat is akkoord voor ons.',
+  is_diarised: false, summary: 'Synthetisch klantgesprek over een meetafspraak.', key_points: [], action_items: [], discussion_areas: [], participants: [],
+});
+
 // A generated template report attached to SEED_MEETING when
 // STENOAI_E2E_SEED_REPORT=1 (copy-notes-report T1). Gated separately so the
 // transcript-export T1 keeps seeing the report-less meeting it asserts on.
@@ -242,6 +273,15 @@ const SPEAKER_SEED_MEETING = {
   key_points: [],
   action_items: [],
   discussion_areas: [],
+  // 0.10.2 speaker names in the note (STENOAI_E2E_SEED_SPEAKER_NAMES=1, with the speaker suggestions seed): a saved
+  // note that still says "Speaker 2" (and "Speaker 20", which must never be touched). The host would add
+  // `speaker_label_names` once a name is linked; the mock derives it from the confirmations below.
+  ...(process.env.STENOAI_E2E_SEED_SPEAKER_NAMES === '1' ? {
+    summary: 'Speaker 2 wil de demo plannen voor de klant. Speaker 20 vraagt om de offerte. Daarna sluit het overleg af.',
+    key_points: ['Speaker 2 beheert de planning van de demo.', 'Speaker 20 stuurt de offerte.'],
+    action_items: ['Speaker 2: plan de demo in', 'Speaker 20: stuur de offerte (due 2026-11-06)'],
+    discussion_areas: [{ title: 'Demo van Speaker 2', analysis: 'Speaker 2 plant de demo in. De klant krijgt een uitnodiging.' }],
+  } : {}),
 };
 
 // The sidecar can retain several clusters even where the transcript correctly
@@ -314,7 +354,7 @@ const AUDIO_SEED_MEETINGS = [
   },
 ];
 
-function install({ ipcMain }) {
+function install({ ipcMain, bindChecklistNote }) {
   // Renderer tests can save and reopen chat turns without a backend or disk.
   let chatSessions = { sessions: [] };
   let privacyNoticeSeen = true;
@@ -323,7 +363,7 @@ function install({ ipcMain }) {
   // handlers persist to disk. Mutated by the org-login / org-logout / set-ai
   // mocks so a test can assert the UI reacts to its own actions.
   const state = {
-    provider: 'local', // 'local' | 'remote' | 'cloud' | 'adapter'
+    provider: process.env.STENOAI_E2E_AI_PROVIDER || 'local', // 'local' | 'remote' | 'cloud' | 'adapter'
     orgSession: null, // { adapterUrl, email, name, orgId, exp } when signed in
     everSignedIn: false,
     model: 'gemma4:e2b-it-qat', // local/remote Ollama model (config.model)
@@ -492,6 +532,15 @@ function install({ ipcMain }) {
       : {},
   };
 
+  // The label -> name pairs the host derives from the speaker sidecar: here, "Speaker 2" is cluster SPEAKER_2 of the
+  // seeded suggestions, named once somebody is confirmed for it.
+  const linkedSpeakerNames = () => {
+    for (const channelSuggestions of Object.values(speakerState.suggestions)) {
+      const cluster = channelSuggestions.SPEAKER_2;
+      if (cluster && cluster.confirmed_by_user) return { 'Speaker 2': cluster.confirmed_by_user };
+    }
+    return {};
+  };
   let speakerDiarizationRunId = 'e2e-speaker-run-1';
   const speakerSuggestionsForResponse = () => {
     if (process.env.STENOAI_E2E_SEED_SPEAKER_SINGLE_CLUSTER !== '1') {
@@ -548,10 +597,18 @@ function install({ ipcMain }) {
       chatSessions = data;
       return { success: true };
     },
-    'reprocess-meeting': async () => {
+    'generate-report-meeting': async (_event, ...args) => {
+      if (process.env.STENOAI_E2E_REPROCESS_PENDING !== '1') return { success: true };
+      const state = global.__reportRegenerationTest || (global.__reportRegenerationTest = { calls: 0 });
+      state.calls++;
+      state.args = args;
+      return new Promise(resolve => { state.finish = resolve; });
+    },
+    'reprocess-meeting': async (_event, ...args) => {
       if (process.env.STENOAI_E2E_REPROCESS_PENDING !== '1') return { success: true };
       const state = global.__reprocessTest || (global.__reprocessTest = { calls: 0 });
       state.calls++;
+      state.args = args;
       return new Promise(resolve => { state.finish = resolve; });
     },
     // The permissive default ({success:true}) would leave sampleRate/channels
@@ -566,9 +623,17 @@ function install({ ipcMain }) {
       rec.appendTo = appendTo && String(appendTo).trim() ? String(appendTo).trim() : null;
       rec.startedAt = Date.now();
       rec.recordingId = String(rec.startedAt);
+      // The real handler resets the live buffer and starts the host checklist planner right here.
+      global.__venetaLive?.start({ sessionName: rec.sessionName, appendTarget: rec.appendTo, startedAtMs: rec.startedAt });
       return { success: true, sessionName: rec.sessionName };
     },
     'stop-recording-ui': async () => {
+      // The real handler binds the conversation checklist to the note file it knows; the spec names that file.
+      if (process.env.STENOAI_E2E_SEED_CHECKLIST_NOTE === '1' && bindChecklistNote) {
+        bindChecklistNote({ noteFile: checklistNoteFile(), recordingId: rec.recordingId, appended: false });
+      }
+      // ... and then starts the last check over the unassessed text, in the background.
+      void global.__venetaLive?.stop();
       rec.active = false;
       rec.paused = false;
       rec.appendTo = null;
@@ -579,6 +644,9 @@ function install({ ipcMain }) {
       // path so useRecording.stopRecording navigates to the note (not the dock).
       if (process.env.STENOAI_E2E_SEED_PROCESSING_NOTE === '1') {
         return { success: true, summaryFile: PROCESSING_NOTE_FILE };
+      }
+      if (process.env.STENOAI_E2E_SEED_CHECKLIST_NOTE === '1') {
+        return { success: true, summaryFile: checklistNoteFile() };
       }
       return { success: true };
     },
@@ -786,6 +854,9 @@ function install({ ipcMain }) {
     // lives in MOCKS, which shadows DEFAULTS, so it is the single source for the
     // channel.
     'list-meetings': async () => {
+      if (process.env.STENOAI_E2E_SEED_CHECKLIST_NOTE === '1') {
+        return { success: true, meetings: [checklistNote()] };
+      }
       if (process.env.STENOAI_E2E_MEETING_TRANSFER === '1') {
         return { success: true, meetings: [TRANSFER_MEETING] };
       }
@@ -831,6 +902,9 @@ function install({ ipcMain }) {
     // by filtering list-meetings — answer it with the same seeded meeting so the
     // transcript-export detail route resolves and renders the transcript actions.
     'get-meeting': async (_event, summaryFile) => {
+      if (process.env.STENOAI_E2E_SEED_CHECKLIST_NOTE === '1') {
+        return { success: true, meeting: applyOverlay(checklistNote()) };
+      }
       if (
         process.env.STENOAI_E2E_MEETING_TRANSFER === '1' &&
         summaryFile === TRANSFER_MEETING.session_info.summary_file
@@ -847,7 +921,13 @@ function install({ ipcMain }) {
         return { success: true, meeting: applyOverlay(PROCESSING_MEETING) };
       }
       if (seedSpeakers) {
-        return { success: true, meeting: seededSpeakerMeeting() };
+        const noted = seededSpeakerMeeting();
+        return {
+          success: true,
+          meeting: process.env.STENOAI_E2E_SEED_SPEAKER_NAMES === '1'
+            ? { ...noted, speaker_label_names: linkedSpeakerNames() }
+            : noted,
+        };
       }
       if (process.env.STENOAI_E2E_SEED_MEETING === '1') {
         // seededMeeting() carries main's optional template-report; applyOverlay
@@ -1745,10 +1825,92 @@ function install({ ipcMain }) {
     return originalOn(channel, handler);
   };
 
+  let summaryDetailFixture = 'detailed';
+  let foldCancelled = false;
+  const foldMeeting = (summaryFile, reportId) => (reportId === SEED_REPORT.id
+    ? { summary: SEED_REPORT.content.replace(/<think>[\s\S]*?<\/think>\s*/g, '') }
+    : process.env.STENOAI_E2E_SEED_STALE_NOTE === '1' && summaryFile === STALE_MEETING.session_info.summary_file
+      ? STALE_MEETING
+      : process.env.STENOAI_E2E_SEED_SPEAKER_NAMES === '1' ? SPEAKER_SEED_MEETING : SEED_MEETING);
+  const foldingFixtureFile = reportId => require('path').join(process.env.STENOAI_USER_DATA_DIR, 'summary-fold-fixture' + (reportId ? '-' + require('crypto').createHash('sha256').update(reportId).digest('hex') : '') + '.json');
+  const foldingMocks = {
+    'get-summary-detail': async () => ({ success: true, summary_detail: summaryDetailFixture }),
+    'set-summary-detail': async (_event, value) => {
+      if (!['brief', 'balanced', 'detailed'].includes(value)) return { success: false };
+      summaryDetailFixture = value;
+      return { success: true, summary_detail: value };
+    },
+    'summary-fold-load': async (_event, _summaryFile, reportId) => ({ success: true, document: fs.existsSync(foldingFixtureFile(reportId)) ? JSON.parse(fs.readFileSync(foldingFixtureFile(reportId), 'utf8')) : null }),
+    // 0.9.2: model-free documents in the host's schema 2 (e2e-fold-fixture.js; validated against the real host validator in its unit test).
+    'summary-fold-local': async (_event, summaryFile, reportId) => {
+      const { buildDocument, requestOf } = require('./e2e-fold-fixture');
+      const { sourceSections } = require('./summary-folding-ipc');
+      return { success: true, document: buildDocument(requestOf(sourceSections(foldMeeting(summaryFile, reportId))), 'local') };
+    },
+    'summary-fold-cancel': async () => { foldCancelled = true; return { success: true }; },
+    'summary-fold-generate': async (event, summaryFile, reportId) => {
+      // Explicitly model-free UI fixture. Production source validation is tested against the real handler separately.
+      foldCancelled = false;
+      const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+      const delay = Number(process.env.STENOAI_E2E_FOLD_STEP_MS || 0);
+      for (const done of [1, 2]) {
+        event?.sender?.send('summary-fold-progress', { done, total: 3 });
+        if (delay) await pause(delay);
+      }
+      if (foldCancelled) return { success: false, error: 'x', reason: 'failed' };
+      if (process.env.STENOAI_E2E_FOLD_FAIL_REASON) return { success: false, error: 'x', reason: process.env.STENOAI_E2E_FOLD_FAIL_REASON };
+      const { buildDocument, requestOf } = require('./e2e-fold-fixture');
+      const { sourceSections } = require('./summary-folding-ipc');
+      const document = buildDocument(requestOf(sourceSections(foldMeeting(summaryFile, reportId))), 'ai');
+      fs.writeFileSync(foldingFixtureFile(reportId), JSON.stringify(document), { mode: 0o600 });
+      event?.sender?.send('summary-fold-progress', { done: 3, total: 3 });
+      return { success: true, document };
+    },
+  };
+  // 0.10.0 model choice: the real IPC module runs against a stub state file (e2e-model-choice-mock.js);
+  // downloading and deleting go through the existing channels, stubbed here without Ollama.
+  const modelStub = require('./e2e-model-choice-mock');
+  const cancelledPulls = new Set();
+  const modelChoiceMocks = {
+    'pull-model': async (event, name) => {
+      const first = modelStub.startPull(name);
+      if (!first.success) return { success: false, error: first.reason, reason: first.reason };
+      const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const delay = Number(process.env.STENOAI_E2E_PULL_MS || 0);
+      for (const pct of [25, 50, 75]) {
+        if (cancelledPulls.delete(name)) {
+          event?.sender?.send('model-pull-complete', { model: name, success: false, error: 'Cancelled', cancelled: true });
+          return { success: false, error: 'Cancelled', cancelled: true };
+        }
+        event?.sender?.send('model-pull-progress', { model: name, progress: `pulling model ${pct}% (${pct * 10}/1000) [Part 1]` });
+        if (delay) await pause(delay);
+      }
+      modelStub.finishPull(name);
+      event?.sender?.send('model-pull-complete', { model: name, success: true });
+      return { success: true, model: name };
+    },
+    'cancel-pull': async (_event, name) => { cancelledPulls.add(name); return { success: true, error: null }; },
+    'delete-model': async (_event, name) => modelStub.removeModel(name),
+  };
   const originalHandle = ipcMain.handle.bind(ipcMain);
   ipcMain.handle = (channel, realFn) => {
     let fn;
-    if (channel === 'open-external' && process.env.STENOAI_E2E_OPEN_EXTERNAL === '1') {
+    if (modelChoiceMocks[channel]) {
+      fn = modelChoiceMocks[channel];
+    } else if (channel === 'model-choices' || channel.startsWith('model-choice-')) {
+      fn = realFn; // the real validating module, backed by the stub state
+    } else if (foldingMocks[channel]) {
+      fn = foldingMocks[channel];
+    } else if (channel === 'get-product-settings' || channel === 'set-product-settings'
+        || channel.startsWith('veneta-checklist-')) {
+      // These handlers are local JSON only; test their actual owned-profile persistence. Evaluation goes through the
+      // real guarded route and the real host planner; only the model boundary (checklistModel below) is replaced.
+      fn = realFn;
+    } else if (channel === 'window-is-visible') {
+      // Visibility is native window state, not a backend dependency. The
+      // headless announcement regression must exercise the actual host gate.
+      fn = realFn;
+    } else if (channel === 'open-external' && process.env.STENOAI_E2E_OPEN_EXTERNAL === '1') {
       // Interactive previews can open docs in the user's browser. Tests that
       // opt in replace shell.openExternal with a spy before clicking a link.
       // Retain the production URL validation; all other T1 runs stay inert.
@@ -1774,4 +1936,39 @@ function install({ ipcMain }) {
 
 }
 
-module.exports = { install };
+// Model boundary only: UI fixtures never run Python or call a real provider. The real guards, the host planner, the
+// validation and the session files stay in the loop. STENOAI_E2E_CHECKLIST_FAIL=<reason> proves the visible failure
+// status without a model; STENOAI_E2E_CHECKLIST_DELAY_MS slows the answer to prove single-flight and the busy status.
+async function checklistModel(request) {
+  global.__checklistModelCalls = (global.__checklistModelCalls || 0) + 1;
+  if (process.env.STENOAI_E2E_CHECKLIST_FAIL) throw Object.assign(new Error('mock failure'), { reason: process.env.STENOAI_E2E_CHECKLIST_FAIL });
+  const delay = Number(process.env.STENOAI_E2E_CHECKLIST_DELAY_MS || 0);
+  if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+  // STENOAI_E2E_CHECKLIST_FLIP=1: a small model that is not stable between runs. The first check finds the points,
+  // every later one answers "not mentioned" for all of them (0.10.1: the host must keep what was found).
+  if (process.env.STENOAI_E2E_CHECKLIST_FLIP === '1' && global.__checklistModelCalls > 1) {
+    return { revision: request.revision, assessments: request.criteria.map((criterion) => ({ criterionId: criterion.id, status: 'unmentioned',
+      evidence: [], explanation: 'Modelvrije interfaceproef; geen echte beoordeling.', kind: 'none', customerConfirmed: false, customerEvidence: [] })) };
+  }
+  const normalized = (text) => String(text).normalize('NFKC').toLocaleLowerCase('nl-NL');
+  const sellerFor = (pattern) => request.segments.find((segment) => segment.speaker === 'seller' && pattern.test(normalized(segment.text)));
+  const customer = request.segments.find((segment) => segment.speaker === 'other' && /akkoord|prima|bevestig/.test(normalized(segment.text)));
+  return { revision: request.revision,
+    assessments: request.criteria.map((criterion) => {
+      // Synthetic semantic fixture: criterion wording AND a matching seller utterance decide the result.
+      // It deliberately has no list-index branch, so reordering cannot manufacture a tick or a citation.
+      const label = normalized(criterion.label);
+      const measure = /inmet|meetafspraak|meten/.test(label) && sellerFor(/gratis meten|inmeten/);
+      const warranty = /garantie/.test(label) && sellerFor(/garantie/);
+      const followup = /vervolg|afspraak/.test(label) && sellerFor(/vervolgafspraak|afspraak maken|afspraak plannen/);
+      const match = measure || warranty || followup;
+      const explained = Boolean(measure || followup);
+      const base = { criterionId: criterion.id, explanation: 'Synthetische inhoudsproef; geen echte modelbeoordeling.' };
+      if (match && explained) return { ...base, status: 'covered', evidence: [{ segmentId: match.id, quote: match.text }], kind: 'explained',
+        customerConfirmed: Boolean(customer), customerEvidence: customer ? [{ segmentId: customer.id, quote: customer.text }] : [] };
+      if (match) return { ...base, status: 'partial', evidence: [{ segmentId: match.id, quote: match.text }], kind: 'mentioned', customerConfirmed: false, customerEvidence: [] };
+      return { ...base, status: 'unmentioned', evidence: [], kind: 'none', customerConfirmed: false, customerEvidence: [] };
+    }) };
+}
+
+module.exports = { install, checklistModel };

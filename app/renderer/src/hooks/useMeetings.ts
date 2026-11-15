@@ -283,8 +283,8 @@ export function useCommitDeleteMeeting() {
 export function useReprocessMeeting() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { summaryFile: string; regenTitle: boolean; name: string }) =>
-      unwrap(await ipc().meetings.reprocess(args.summaryFile, args.regenTitle, args.name)),
+    mutationFn: async (args: { summaryFile: string; regenTitle: boolean; name: string; summaryDetail?: import('@/lib/summaryFoldingContracts').SummaryDetail }) =>
+      unwrap(await ipc().meetings.reprocess(args.summaryFile, args.regenTitle, args.name, args.summaryDetail)),
     onSuccess: () => qc.invalidateQueries({ queryKey: meetingsKeys.all }),
   });
 }
@@ -315,8 +315,8 @@ export function useRecordingAvailable(summaryFile: string | null | undefined) {
 export function useGenerateReport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { summaryFile: string; templateId: string }) =>
-      unwrap(await ipc().meetings.generateReport(args.summaryFile, args.templateId)),
+    mutationFn: async (args: { summaryFile: string; templateId: string; summaryDetail?: import('@/lib/summaryFoldingContracts').SummaryDetail }) =>
+      unwrap(await ipc().meetings.generateReport(args.summaryFile, args.templateId, args.summaryDetail)),
     onSuccess: (_data, args) =>
       qc.invalidateQueries({ queryKey: meetingsKeys.detail(args.summaryFile) }),
   });

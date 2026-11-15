@@ -1,0 +1,157 @@
+[
+  {
+    "name": "bold owner and due on the head line, task on the next line",
+    "lines": [
+      "- **Speaker 2** (due 2026-10-30)",
+      "  Stuur de offerte naar de klant"
+    ],
+    "items": [
+      "Speaker 2: Stuur de offerte naar de klant (due 2026-10-30)"
+    ]
+  },
+  {
+    "name": "plain speaker label with due, task as nested bullet",
+    "lines": [
+      "- Speaker 2 (due 2026-10-30)",
+      "  - Plan de demo in"
+    ],
+    "items": [
+      "Speaker 2: Plan de demo in (due 2026-10-30)"
+    ]
+  },
+  {
+    "name": "bold owner with colon and task on the same line",
+    "lines": [
+      "- **Speaker 2:** Bel de leverancier"
+    ],
+    "items": [
+      "**Speaker 2:** Bel de leverancier"
+    ]
+  },
+  {
+    "name": "numbered item with owner and task",
+    "lines": [
+      "1. Speaker 2: Bel de leverancier"
+    ],
+    "items": [
+      "Speaker 2: Bel de leverancier"
+    ]
+  },
+  {
+    "name": "group owner as bold line, two continuation lines",
+    "lines": [
+      "- **Team members** (due 2026-10-30)",
+      "  Controleer de planning",
+      "  en meld afwijkingen"
+    ],
+    "items": [
+      "Team members: Controleer de planning en meld afwijkingen (due 2026-10-30)"
+    ]
+  },
+  {
+    "name": "owner only with colon, task on the next line",
+    "lines": [
+      "- Management:",
+      "  Besluit over het budget"
+    ],
+    "items": [
+      "Management: Besluit over het budget"
+    ]
+  },
+  {
+    "name": "checkbox state is dropped by the parser view",
+    "lines": [
+      "- [ ] Management (due 2026-11-02)",
+      "  - Besluit over het budget"
+    ],
+    "items": [
+      "Management: Besluit over het budget (due 2026-11-02)"
+    ]
+  },
+  {
+    "name": "owner only without any task is left out",
+    "lines": [
+      "- Speaker 2 (due 2026-10-30)",
+      "- Management (due 2026-10-30)"
+    ],
+    "items": [],
+    "dropped": 2
+  },
+  {
+    "name": "owner only line merges with the next sibling that has no owner of its own",
+    "lines": [
+      "- Speaker 2 (due 2026-10-30)",
+      "- Verstuur de notulen"
+    ],
+    "items": [
+      "Speaker 2: Verstuur de notulen (due 2026-10-30)"
+    ]
+  },
+  {
+    "name": "task with wrapped continuation text keeps all words",
+    "lines": [
+      "- Anna: stuur de begroting",
+      "  voor het volgende overleg (due 2026-11-06)"
+    ],
+    "items": [
+      "Anna: stuur de begroting voor het volgende overleg (due 2026-11-06)"
+    ]
+  },
+  {
+    "name": "task head keeps nested bullets as separate items, like before",
+    "lines": [
+      "- [ ] Already a task",
+      "  - nested detail stays"
+    ],
+    "items": [
+      "Already a task",
+      "nested detail stays"
+    ]
+  },
+  {
+    "name": "plain items are untouched",
+    "lines": [
+      "- Send the proposal",
+      "* Book a room",
+      "1. Share slides",
+      "- [x] Already done"
+    ],
+    "items": [
+      "Send the proposal",
+      "Book a room",
+      "Share slides",
+      "Already done"
+    ]
+  },
+  {
+    "name": "spoken deadline on the owner head is carried to the whole item",
+    "lines": [
+      "- **Piet** (due vrijdag)",
+      "  Nakijken van de demo-omgeving"
+    ],
+    "items": [
+      "Piet: Nakijken van de demo-omgeving (due vrijdag)"
+    ]
+  },
+  {
+    "name": "spoken deadline with colon and several words",
+    "lines": [
+      "- Anna: stuur de offerte (due: volgende week dinsdag)"
+    ],
+    "items": [
+      "Anna: stuur de offerte (due: volgende week dinsdag)"
+    ]
+  },
+  {
+    "name": "due-to wording is not a deadline marker; a placeholder on a split item vanishes",
+    "lines": [
+      "- **Anna** (due unknown)",
+      "  Stuur de offerte",
+      "- Jan: wacht (due to the delay) af"
+    ],
+    "items": [
+      "Anna: Stuur de offerte",
+      "Jan: wacht (due to the delay) af"
+    ]
+  }
+]

@@ -1,4 +1,4 @@
-import { IS_VENETA_MEMOAI } from '@/lib/productBrand';
+import { useVenetaProfile } from '@/hooks/useProductSettings';
 import { t } from '@/i18n';
 import * as React from 'react';
 import { Check, ChevronDown, Copy, Languages, Play, Search as SearchIcon, Square } from 'lucide-react';
@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { useLiveTranscript } from '@/hooks/useLiveTranscript';
+import { useLiveTranscript } from '@/hooks/LiveTranscriptProvider';
 import { useRecording } from '@/hooks/useRecording';
 import { useLanguageSetting, useSetLanguage } from '@/hooks/useSettings';
 import { PARAKEET_LANGUAGES } from '@/lib/transcription-languages';
@@ -42,6 +42,8 @@ function fmtTimestamp(seconds: number): string {
  * Closing returns to the standard LiveDock pill.
  */
 export function LiveTranscriptBar() {
+  const IS_VENETA_MEMOAI = useVenetaProfile();
+
   const recording = useRecording();
   const sessionName = recording.sessionName;
   const paused = recording.status === 'paused';
@@ -49,7 +51,7 @@ export function LiveTranscriptBar() {
   const stopped = !paused && !isRecording;
 
   const { status, segments, finals, partials, priorSegments, error, slow } =
-    useLiveTranscript(sessionName);
+    useLiveTranscript();
 
   // On a resume/continue, prior finalised segments render before the live
   // tail so the bar shows earlier speech instead of starting blank. Merge for
@@ -59,6 +61,7 @@ export function LiveTranscriptBar() {
     () => (priorSegments.length ? [...priorSegments, ...segments] : segments),
     [priorSegments, segments]
   );
+
 
   const open = useLiveTranscriptOpen((s) => s.open);
   const setOpen = useLiveTranscriptOpen((s) => s.setOpen);
@@ -84,6 +87,7 @@ export function LiveTranscriptBar() {
   const filtering = query.trim().length > 0;
   React.useEffect(() => {
     if (filtering) return;
+
     if (!open) return;
     let second = 0;
     const first = requestAnimationFrame(() => {
@@ -161,6 +165,7 @@ export function LiveTranscriptBar() {
           {IS_VENETA_MEMOAI
             ? <h2 className="mv-transcript-label">{t('recording.transcriptHeading')}</h2>
             : <span className="mv-transcript-label">Transcript</span>}
+
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -208,7 +213,7 @@ export function LiveTranscriptBar() {
           className="veneta-live-transcript-body scrollbar-clean overflow-auto px-3 pb-2"
           style={{ height: 200 }}
         >
-          <LiveTranscriptBodyState
+          {<LiveTranscriptBodyState
             status={status}
             error={error}
             filtered={filtered}
@@ -217,7 +222,7 @@ export function LiveTranscriptBar() {
             finals={finals}
             partials={partials}
             slow={slow}
-          />
+          />}
         </div>
 
         {/* Footer — recording status + controls + language selector. The
@@ -425,6 +430,7 @@ const SegmentRows = React.memo(function SegmentRows({
         return (
           <li
             key={key}
+            data-live-start={seg.start}
             className={cn(
               'live-row flex flex-col gap-0.5 px-1 py-0.5',
               isYou ? 'items-end' : 'items-start'

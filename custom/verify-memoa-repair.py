@@ -25,6 +25,9 @@ patterns = [
     'test_obsidian_sync*.py', 'test_meeting_context.py', 'test_openai_asr_jobs.py',
     'test_memoa_model_isolation.py', 'test_whisper_models.py',
     'test_parakeet*.py', 'test_ollama*.py', 'test_live*.py',
+    'test_veneta_checklist*.py', 'test_summary_folding.py', 'test_summary_folding_local_model.py', 'test_textfold_ladder.py', 'test_summary_folding_local_levels.py', 'test_summary_detail.py', 'test_summary_regeneration.py',
+    'test_action_items_*.py',
+    'test_model_catalog.py', 'test_function_models.py', 'test_model_probe.py', 'test_model_choice_cli.py', 'test_model_output_repair.py',
 ]
 loader = unittest.TestLoader()
 suite = unittest.TestSuite()

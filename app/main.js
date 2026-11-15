@@ -69,9 +69,16 @@ const {
 const OPENAI_ASR_CONFIG_SNAPSHOT_UNREADABLE = Symbol('openai-asr-config-snapshot-unreadable');
 const { registerOpenAiAsrIpc } = require('./openai-asr-ipc');
 const { createDebugLog } = require('./debug-log');
+const { actionItemTexts } = require('./action-items');
+const { readSpeakerLabelNames } = require('./speaker-label-names');
 const { createTeardownRegistry } = require('./teardown');
 const { registerFoldersIpc } = require('./folders-ipc');
 const { registerSettingsIpc } = require('./settings-ipc');
+const { registerVenetaProductIpc } = require('./veneta-product-ipc');
+const { createChecklistRunner } = require('./veneta-checklist-runner');
+const { registerSummaryFoldingIpc } = require('./summary-folding-ipc');
+const { createSummaryFoldRunner } = require('./summary-folding-runner');
+const { registerModelChoiceIpc } = require('./model-choice-ipc');
 const { registerMeetingTransferIpc, copyRegularFile } = require('./meeting-transfer-ipc');
 const { STORE_DOCUMENT_LIMIT } = require('./meeting-transfer-store');
 const { registerPersonSampleIpc } = require('./person-sample-ipc');
@@ -265,7 +272,7 @@ function applyRecordHotkey(enabled) {
   return globalShortcut.isRegistered(RECORD_HOTKEY_ACCEL);
 }
 if (IS_E2E_MOCK_IPC) {
-  require('./e2e-mock-ipc').install({ ipcMain, BrowserWindow });
+  require('./e2e-mock-ipc').install({ ipcMain, BrowserWindow, bindChecklistNote: (request) => venetaProduct.bindSessionToNote(request) });
 }
 
 // Give development runs a distinct dock, About menu, and Cmd+Tab name.
@@ -1781,6 +1788,13 @@ function createWindow(options = {}) {
 
   mainWindow = new BrowserWindow(windowOpts);
   hardenWindow(mainWindow, { allowExternalLinks: true });
+  // Browser documents can report focus even while this native window is hidden
+  // (notably in headless Chromium). Announcements need the host's visibility.
+  for (const name of ['show', 'hide']) {
+    mainWindow.on(name, () => {
+      if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-visibility', mainWindow.isVisible());
+    });
+  }
   // Encrypted keys load once the window is visible, so a locked Keychain can
   // only ever delay them, never the window (keychain-gate.js).
   mainWindow.on('show', () => {
@@ -2603,6 +2617,7 @@ if (!gotSingleInstanceLock) {
 }
 
 // Focus window handler (used by notification click to bring app to foreground)
+ipcMain.handle('window-is-visible', (event) => BrowserWindow.fromWebContents(event.sender)?.isVisible() === true);
 ipcMain.on('focus-window', () => {
     exposeMainWindow();
 });
@@ -2963,13 +2978,8 @@ function parseMeetingMarkdown(content, mdPath) {
     }
   }
 
-  const actionItems = [];
-  if (sections['action items']) {
-    for (let line of sections['action items'].split('\n')) {
-      line = line.trim();
-      if (line.startsWith('- ')) actionItems.push(line.slice(2).replace('[ ] ', '').replace('[x] ', ''));
-    }
-  }
+  // Whole items: an owner and date with the task on the next line are one item (mirrors src/action_items.py).
+  const actionItems = sections['action items'] ? actionItemTexts(sections['action items'].split('\n')) : [];
 
   const discussionAreas = [];
   if (sections['key topics']) {
@@ -3153,8 +3163,9 @@ ipcMain.handle('get-meeting', async (_event, summaryFile) => {
         ? '_summary.json'
         : null;
     let hasSpeakerSidecar = false;
+    let meetingStem = null;
     if (summarySuffix) {
-      const meetingStem = summaryBase.slice(0, -summarySuffix.length);
+      meetingStem = summaryBase.slice(0, -summarySuffix.length);
       const speakerSidecarPath = path.join(path.dirname(realResolved), `${meetingStem}_speakers.json`);
       try {
         hasSpeakerSidecar = (await fs.promises.lstat(speakerSidecarPath)).isFile();
@@ -3169,11 +3180,14 @@ ipcMain.handle('get-meeting', async (_event, summaryFile) => {
       // TranscriptPanel), so we return everything parseMeetingMarkdown yields.
       const mdMeeting = parseMeetingMarkdown(content, realResolved);
       const mdSidecar = await readReportsSidecar(realResolved, allowedOutputDirs);
-      return { success: true, meeting: { ...mdMeeting, has_speaker_sidecar: hasSpeakerSidecar, reports: mdSidecar.reports, active_report: mdSidecar.active_report } };
+      const mdNames = hasSpeakerSidecar ? await readSpeakerLabelNames(path.dirname(realResolved), meetingStem, mdMeeting.diarised_text || mdMeeting.transcript) : {};
+      return { success: true, meeting: { ...mdMeeting, has_speaker_sidecar: hasSpeakerSidecar, speaker_label_names: mdNames, reports: mdSidecar.reports, active_report: mdSidecar.active_report } };
     }
     const jsonMeeting = JSON.parse(content);
     const jsonSidecar = await readReportsSidecar(realResolved, allowedOutputDirs);
-    return { success: true, meeting: { ...jsonMeeting, has_speaker_sidecar: hasSpeakerSidecar, reports: jsonSidecar.reports, active_report: jsonSidecar.active_report } };
+    // Which speaker label is now a name (display and copy only; the saved note keeps its own words).
+    const jsonNames = hasSpeakerSidecar ? await readSpeakerLabelNames(path.dirname(realResolved), meetingStem, jsonMeeting.diarised_text || jsonMeeting.transcript) : {};
+    return { success: true, meeting: { ...jsonMeeting, has_speaker_sidecar: hasSpeakerSidecar, speaker_label_names: jsonNames, reports: jsonSidecar.reports, active_report: jsonSidecar.active_report } };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -3188,13 +3202,16 @@ ipcMain.handle('clear-state', async () => {
   }
 });
 
-ipcMain.handle('reprocess-meeting', async (event, summaryFile, regenerateTitle, sessionName, retranscribe) => {
+ipcMain.handle('reprocess-meeting', async (event, summaryFile, regenerateTitle, sessionName, retranscribe, summaryDetail) => {
   let errorCode = 'generation_failed';
   const rememberError = (error) => {
     const classified = classifyReprocessError(error);
     if (classified !== 'generation_failed') errorCode = classified;
   };
   try {
+    if (summaryDetail !== undefined && !['brief', 'balanced', 'detailed'].includes(summaryDetail)) {
+      return { success: false, error: 'Ongeldige samenvattingslengte', error_code: errorCode };
+    }
     // Security: symlink-safe containment-check the renderer-supplied summary path
     // before it reaches the backend CLI, and pass the canonical realPath (not the
     // original string) downstream. Event/map keys stay keyed on the original
@@ -3207,6 +3224,7 @@ ipcMain.handle('reprocess-meeting', async (event, summaryFile, regenerateTitle, 
     const { realPath } = validated;
 
     const args = ['reprocess', realPath];
+    if (summaryDetail !== undefined) args.push('--summary-detail', summaryDetail);
     if (regenerateTitle) args.push('--regenerate-title');
     // Re-transcribe (#266): re-run ASR on the source recording with the current
     // settings before re-summarising. The backend emits HEARTBEAT:transcribe:*
@@ -3444,7 +3462,11 @@ ipcMain.handle('recording-available', async (event, summaryFile) => {
   }
 });
 
-ipcMain.handle('generate-report-meeting', async (event, summaryFile, templateId) => {
+ipcMain.handle('generate-report-meeting', async (event, summaryFile, templateId, summaryDetail) => {
+  if ((summaryDetail !== undefined && !['brief', 'balanced', 'detailed'].includes(summaryDetail)) ||
+      typeof templateId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(templateId)) {
+    return { success: false, error: 'Ongeldige samenvattingskeuze' };
+  }
   // Security: symlink-safe containment-check the renderer-supplied summary path
   // before ANY use of it — including the sessionName read below, which opens the
   // file directly — and use the canonical realPath downstream. Event/map keys
@@ -3466,6 +3488,7 @@ ipcMain.handle('generate-report-meeting', async (event, summaryFile, templateId)
 
   try {
     const args = ['generate-report', realPath, templateId];
+    if (summaryDetail !== undefined) args.push('--summary-detail', summaryDetail);
 
     sendDebugLog(`📄 Generating report for: ${summaryFile} (template: ${templateId})`);
     sendDebugLog(`$ stenoai ${args.join(' ')}`);
@@ -3480,6 +3503,8 @@ ipcMain.handle('generate-report-meeting', async (event, summaryFile, templateId)
         cwd: getBackendCwd(),
         env: reportEnv
       });
+      const reportJob = activeReprocessJobs.get(summaryFile);
+      if (reportJob) reportJob.proc = proc;
 
       let stderrBuf = '';
 
@@ -5167,6 +5192,9 @@ function spawnLiveTranscribe(sessionName) {
   }
   const aiEnv = { ...getAiEnv(), ...getTranscriptionEnv() };
   const env = getBackendEnv(aiEnv);
+  if (require('./package.json').venetaMemoAi === true && process.env.STENOAI_VENETA_ENERGY_SAVER !== '0') {
+    env.STENOAI_LIVE_FINAL_ONLY = '1';
+  }
   parakeetLoadStartedAt = Date.now();
   liveTranscribeProcess = spawn(getBackendPath(), ['transcribe-stream'], {
     cwd: getBackendCwd(),
@@ -5296,6 +5324,50 @@ function spawnLiveTranscribe(sessionName) {
   });
 }
 
+// Buffers one live segment into liveTranscriptState (finals chronologically first, at most one trailing partial per
+// speaker) and, for a final, tells the host checklist planner. Shared by the sidecar line handler and, under the
+// owned mock-IPC fixture only, the synthetic source, so both exercise the same buffer and planner.
+function bufferLiveSegment(segment) {
+  // Invariant maintained on liveTranscriptState.segments: chronologically
+  // sorted finals first, followed by at most one in-progress partial per
+  // speaker trailing at the end. With two independent channels now
+  // emitting interleaved streams, "replace whatever the last array entry
+  // is" (the old single-stream logic) would clobber one channel's
+  // in-progress partial with the other's, and a final released late by
+  // the bleed-dedup hold could land out of chronological order relative
+  // to a still-ongoing utterance on the other channel. Splitting finals
+  // from trailing partials and inserting each in its own lane fixes both.
+  const speakerKey = segment.speaker === 'Others' ? 'Others' : 'You';
+  let splitIdx = liveTranscriptState.segments.length;
+  while (splitIdx > 0 && !liveTranscriptState.segments[splitIdx - 1].isFinal) splitIdx--;
+  const finals = liveTranscriptState.segments.slice(0, splitIdx);
+  const partials = liveTranscriptState.segments.slice(splitIdx);
+  if (segment.isFinal) {
+    let insertAt = finals.length;
+    while (insertAt > 0 && finals[insertAt - 1].start > segment.start) insertAt--;
+    finals.splice(insertAt, 0, segment);
+    // Only drop a same-speaker partial if it could plausibly BE the
+    // utterance this final supersedes (started before this final's
+    // utterance ended). A bleed-delayed final can arrive well after
+    // the SAME speaker has already started a newer, unrelated
+    // utterance — dropping every same-speaker partial indiscriminately
+    // would clobber that unrelated one until its next partial tick.
+    const remainingPartials = partials.filter(
+      (s) => (s.speaker === 'Others' ? 'Others' : 'You') !== speakerKey
+        || s.start > segment.end,
+    );
+    liveTranscriptState.segments = [...finals, ...remainingPartials];
+  } else {
+    const otherPartials = partials.filter(
+      (s) => (s.speaker === 'Others' ? 'Others' : 'You') !== speakerKey,
+    );
+    liveTranscriptState.segments = [...finals, ...otherPartials, segment];
+  }
+  if (segment.isFinal) {
+    try { venetaProduct.live.notify(); } catch (_) { /* The checklist never disturbs the transcript. */ }
+  }
+}
+
 // Shared LIVE_* line handler used by the transcribe-stream stdout parser.
 // Keeps the per-line semantics (buffer mutation + IPC emit) in one place
 // so the legacy `record --live` path and this sidecar path stay in lock
@@ -5326,41 +5398,7 @@ function handleLiveTranscribeLine(line) {
         // fact, not a client-side RMS guess.
         speaker: seg.speaker,
       };
-      // Invariant maintained on liveTranscriptState.segments: chronologically
-      // sorted finals first, followed by at most one in-progress partial per
-      // speaker trailing at the end. With two independent channels now
-      // emitting interleaved streams, "replace whatever the last array entry
-      // is" (the old single-stream logic) would clobber one channel's
-      // in-progress partial with the other's, and a final released late by
-      // the bleed-dedup hold could land out of chronological order relative
-      // to a still-ongoing utterance on the other channel. Splitting finals
-      // from trailing partials and inserting each in its own lane fixes both.
-      const speakerKey = segment.speaker === 'Others' ? 'Others' : 'You';
-      let splitIdx = liveTranscriptState.segments.length;
-      while (splitIdx > 0 && !liveTranscriptState.segments[splitIdx - 1].isFinal) splitIdx--;
-      const finals = liveTranscriptState.segments.slice(0, splitIdx);
-      const partials = liveTranscriptState.segments.slice(splitIdx);
-      if (segment.isFinal) {
-        let insertAt = finals.length;
-        while (insertAt > 0 && finals[insertAt - 1].start > segment.start) insertAt--;
-        finals.splice(insertAt, 0, segment);
-        // Only drop a same-speaker partial if it could plausibly BE the
-        // utterance this final supersedes (started before this final's
-        // utterance ended). A bleed-delayed final can arrive well after
-        // the SAME speaker has already started a newer, unrelated
-        // utterance — dropping every same-speaker partial indiscriminately
-        // would clobber that unrelated one until its next partial tick.
-        const remainingPartials = partials.filter(
-          (s) => (s.speaker === 'Others' ? 'Others' : 'You') !== speakerKey
-            || s.start > segment.end,
-        );
-        liveTranscriptState.segments = [...finals, ...remainingPartials];
-      } else {
-        const otherPartials = partials.filter(
-          (s) => (s.speaker === 'Others' ? 'Others' : 'You') !== speakerKey,
-        );
-        liveTranscriptState.segments = [...finals, ...otherPartials, segment];
-      }
+      bufferLiveSegment(segment);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('live-transcript-chunk', { sessionName, segment });
       }
@@ -6653,6 +6691,11 @@ ipcMain.handle('start-recording-ui', async (_, sessionName, trigger, appendTo) =
       ready: false,
       error: null,
     };
+    // The conversation checklist plans its automatic check here in the host, per recording, so it does not depend on
+    // any renderer component staying mounted. Off module: nothing is read, attached or scheduled.
+    try {
+      venetaProduct.live.begin({ appendTarget: currentRecordingAppendTarget, startedAtMs: recordingRuntimeState.startedAtMs });
+    } catch (_) { /* The checklist never blocks starting a recording. */ }
     // Spawn the Parakeet+Silero transcribe-stream sidecar for live partials.
     // Whisper recordings skip it — the renderer gates its live-tap IPC on the
     // same engine, so no chunks are produced when the sidecar isn't running.
@@ -6698,6 +6741,8 @@ ipcMain.handle('start-recording-ui', async (_, sessionName, trigger, appendTo) =
     };
   } catch (error) {
     console.error('Start recording UI error:', error.message);
+    // A recording that never started must not leave a planner session (or its timers) behind.
+    try { venetaProduct.live.cancel({ keepFinishing: true }); } catch (_) { /* Best effort. */ }
     systemAudioRecordingActive = false;
     currentRecordingSessionName = null;
     currentRecordingAppendTarget = null;
@@ -6872,6 +6917,16 @@ ipcMain.handle('stop-recording-ui', async () => {
       instantSummaryFile = null;
     }
 
+    // The conversation checklist belongs to the note this recording produces. The host knows that file here
+    // (the continued note, or the deterministic summary file of this recording); never guessed elsewhere.
+    try {
+      venetaProduct.bindSessionToNote({
+        noteFile: currentRecordingAppendTarget || activeSysAudioSummaryFile,
+        recordingId: String(recordingRuntimeState.startedAtMs),
+        appended: Boolean(currentRecordingAppendTarget),
+      });
+    } catch (_) { /* The checklist link is best-effort and never blocks stopping. */ }
+
     // Capture is renderer-driven; the renderer's stopCapture flow finalises the
     // WebM and reports systemAudioRecordingActive=false. Clear it here too in
     // case a race (renderer torn down / recorder errored before reporting) left
@@ -6887,7 +6942,10 @@ ipcMain.handle('stop-recording-ui', async () => {
     }
     systemAudioRecordingActive = false;
     applyRecordingBackgroundThrottling();
-    stopLiveTranscribe();
+    const drained = stopLiveTranscribe();
+    // One last check over whatever was not assessed yet, in the background; its result lands in the same session
+    // file. It waits for the real sidecar drain (bounded by the kill watchdog), so the last utterance counts.
+    try { void venetaProduct.live.finish({ drained, drainTimeoutMs: SIDECAR_KILL_WATCHDOG_MS + 500 }); } catch (_) { /* Never blocks stopping. */ }
     currentRecordingSessionName = null;
     // Captured before resetRecordingRuntimeState() clears startedAtMs.
     const recordingDurationBucket = durationBucket(getRecordingElapsedSeconds());
@@ -6897,6 +6955,7 @@ ipcMain.handle('stop-recording-ui', async () => {
     return { success: true, message: 'Recording stopped', summaryFile: instantSummaryFile };
   } catch (error) {
     console.error('Stop recording UI error:', error.message);
+    try { venetaProduct.live.cancel(); } catch (_) { /* Best effort. */ }
     systemAudioRecordingActive = false;
     currentRecordingSessionName = null;
     resetRecordingRuntimeState();
@@ -9021,6 +9080,70 @@ ipcMain.handle('pull-parakeet-model', async (event, modelId) => {
 // handlers coupled to another domain (telemetry, models, mic-monitor, calendar,
 // tray) deliberately stay in main.js until that domain's own extraction.
 registerSettingsIpc({ ipcMain, runPythonScript, sendDebugLog });
+const checklistRunner = createChecklistRunner({
+  getUserDataDir, getBackendPath, getBackendCwd, spawn, killProcessTree,
+});
+const venetaProduct = registerVenetaProductIpc({
+  ipcMain, getUserDataDir,
+  // Shipped read-only Veneta standards. Only an e2e run may point at a synthetic definition folder.
+  ...(IS_E2E && IS_E2E_MOCK_IPC && process.env.STENOAI_E2E_STANDARD_CHECKLISTS_DIR
+    ? { standardChecklistsDir: process.env.STENOAI_E2E_STANDARD_CHECKLISTS_DIR } : {}),
+  defaultProfile: require('./package.json').venetaMemoAi === true
+    || (IS_E2E && IS_E2E_MOCK_IPC && process.env.STENOAI_E2E_PRODUCT_PROFILE === 'veneta') ? 'veneta' : 'default',
+  liveTimers: { energySaver: require('./package.json').venetaMemoAi === true
+    && process.env.STENOAI_VENETA_ENERGY_SAVER !== '0' },
+  isBusy: () => currentRecordingProcess !== null || systemAudioRecordingActive || recordingRuntimeState.isPaused
+    || isProcessing || processingQueue.length > 0 || activeReprocessJobs.size > 0,
+  // The last check at stop yields to a summary or reprocess that holds the one local model.
+  isOllamaBusy: () => isProcessing || processingQueue.length > 0 || activeReprocessJobs.size > 0,
+  // Owned mock-IPC runs replace only the model boundary; the real guards, planner and files stay in the loop.
+  evaluateChecklist: IS_E2E && IS_E2E_MOCK_IPC ? require('./e2e-mock-ipc').checklistModel : checklistRunner,
+  getLiveFinals: () => [
+    ...(liveTranscriptState.priorSegments || []),
+    ...(liveTranscriptState.segments || []).filter((segment) => segment && segment.isFinal && segment.text),
+  ],
+  emitLiveState: (state) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('veneta-checklist-live-state', state);
+  },
+  // Counters and reason codes only: never transcript text, criteria or quotes.
+  logLive: (event, fields) => sendDebugLog(`[checklist] ${event}${Object.entries(fields || {}).map(([key, value]) => ` ${key}=${value}`).join('')}`),
+});
+app.on('will-quit', () => { checklistRunner.cancelAll(); venetaProduct.live.cancel(); });
+if (IS_E2E && IS_E2E_MOCK_IPC) {
+  // Synthetic live source of the owned fixture: the same buffer and planner as the sidecar path, without a sidecar.
+  global.__venetaLive = {
+    ingest: (segments) => { for (const segment of segments) bufferLiveSegment(segment); },
+    start: ({ sessionName, appendTarget, startedAtMs }) => {
+      liveTranscriptState = { sessionName, summaryFile: appendTarget || null, segments: [], priorSegments: [], ready: true, error: null };
+      return venetaProduct.live.begin({ appendTarget: appendTarget || null, startedAtMs });
+    },
+    stop: () => venetaProduct.live.finish(),
+  };
+}
+const summaryFoldRunner = createSummaryFoldRunner({
+  getBackendPath, getBackendCwd, getEnv: () => getBackendEnv(getAiEnv()), spawn, killProcessTree,
+});
+registerSummaryFoldingIpc({
+  ipcMain, getUserDataDir, readMeeting: async file => {
+    const validated = await validateMeetingFilePath(file);
+    if (validated.error) throw new Error('Onveilig gesprekspad.');
+    const snapshot = await readMeetingForTransfer(validated.realPath);
+    const sidecar = await readReportsSidecar(validated.realPath, validated.allowedOutputDirs);
+    return { ...snapshot, meeting: { ...snapshot.meeting, reports: sidecar.reports } };
+  }, evaluate: summaryFoldRunner, evaluateLocal: request => summaryFoldRunner(request, { local: true }),
+  cancelRun: () => summaryFoldRunner.cancelAll(), runPythonScript,
+  isBusy: () => currentRecordingProcess !== null || systemAudioRecordingActive || recordingRuntimeState.isPaused
+    || isProcessing || processingQueue.length > 0 || activeReprocessJobs.size > 0,
+});
+app.on('will-quit', () => summaryFoldRunner.cancelAll());
+registerModelChoiceIpc({
+  ipcMain, sendDebugLog,
+  // Under mock IPC the CLI is replaced by a stub state file; the IPC validation stays real.
+  runPythonScript: IS_E2E && IS_E2E_MOCK_IPC ? require('./e2e-model-choice-mock').runPythonScript : runPythonScript,
+  totalRamGb: () => (process.platform === 'darwin' ? os.totalmem() / (1024 ** 3) : undefined),
+  isBusy: () => currentRecordingProcess !== null || systemAudioRecordingActive || recordingRuntimeState.isPaused
+    || isProcessing || processingQueue.length > 0 || activeReprocessJobs.size > 0,
+});
 registerPersonSampleIpc({ ipcMain, runPythonScript });
 registerSpeakerIpc({
   ipcMain, runPythonScript, parsePythonFailureJson, sendDebugLog,

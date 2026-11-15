@@ -3,6 +3,7 @@ import type { Meeting } from '@/lib/ipc';
 import { navigate } from '@/lib/router';
 import { useMeetingsList } from '@/lib/meetingsListContext';
 import { stripReasoning } from '@/lib/markdown';
+import { ChecklistScoreBadge } from '@/modules/conversation-checklist/ChecklistScoreBadge';
 
 interface PreviousRowProps {
   meeting: Meeting;
@@ -79,6 +80,7 @@ export function PreviousRow({ meeting, folderName }: PreviousRowProps) {
             </div>
             {isLive && <LiveBadge />}
             {isProcessing && <ProcessingBadge />}
+            {!isSynthetic && <ChecklistScoreBadge summaryFile={info.summary_file} />}
           </div>
           
           {(folderName || participants > 0 || showPreview) && (

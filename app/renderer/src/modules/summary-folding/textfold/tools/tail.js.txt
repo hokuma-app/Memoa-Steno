@@ -1,0 +1,103 @@
+
+  // Veneta MemoAi: the stage covers the reader's column and the scroller only, not the rest of the application.
+  function clipStage() {
+    const s = ISDOC ? { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight } : SCR.getBoundingClientRect(), d = docEl.getBoundingClientRect();
+    const l = Math.max(s.left, d.left - 8), r = Math.min(s.right, d.right + 8);
+    zhost.style.clipPath = `inset(${Math.max(0, s.top)}px ${Math.max(0, window.innerWidth - r)}px ${Math.max(0, window.innerHeight - s.bottom)}px ${Math.max(0, l)}px)`;
+  }
+  // ── start (Veneta MemoAi: TextFold's own start-up, without its chrome) ──
+  let relayoutTimer = null;
+  listen(window, 'resize', () => { snapNow(); capEpoch++; geom = null; placeThumb(); warmSoon(); });
+  const editing = (node) => {
+    if (!(node instanceof Element)) return false;
+    if (node.closest('input, textarea, select, [role="textbox"], [role="dialog"], [role="combobox"], dialog')) return true;
+    const editable = node.closest('[contenteditable]');
+    return !!editable && editable.getAttribute('contenteditable') !== 'false';
+  };
+  listen(window, 'keydown', (e) => {
+    if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (editing(e.target) || editing(document.activeElement)) return;
+    if (e.key === '-' || e.key === '_') setLevel(level - 1);
+    else if (e.key === '=' || e.key === '+') setLevel(level + 1);
+    else if (/^[1-5]$/.test(e.key)) setLevel(BAR[+e.key - 1]);
+    else if (e.key === 'Escape' && localLevel.size) setLevel(level);
+    else return;
+    e.preventDefault();
+  });
+  docEl.addEventListener('click', (e) => {
+    if (e.target.closest('a, details, summary')) return;
+    if (level === 4 && !localLevel.size) return;
+    if (String(getSelection()).length) return;
+    const el = e.target.closest('.u');
+    if (!el || !el.dataset.u) return;
+    if (level === 0 && !localLevel.size) {
+      const r = el.getBoundingClientRect();
+      setLevel(2, { el, y: r.top, frac: 0 });
+    } else toggleUnit(el.dataset.u);
+  });
+  build();
+  IDS = [...order.keys()];
+  {   // the Topic cards' rows (reader.css): a section with sections under it heads theirs, and one after a deeper one starts its own
+    const lv = (c) => c.level || 2, top = Math.min(...D.chunks.map(lv));
+    D.chunks.forEach((c, i) => {
+      const sc = headEls.find((x) => x[0] === c), next = D.chunks[i + 1], prev = D.chunks[i - 1];
+      if (!sc) return;
+      const sec = sc[1].parentNode;
+      if (next && lv(next) > lv(c) && (c.num || c.title)) sec.classList.add('parent', ...(lv(c) === top ? ['top'] : []));
+      if (prev && lv(prev) > lv(c)) sec.classList.add('newrow');
+    });
+  }
+  {   // a heading's place in reading order: the first unit after it
+    let pend = [];
+    for (const el of docEl.querySelectorAll('.hd, .u')) {
+      if (el.classList.contains('hd')) pend.push(el);
+      else { for (const hd of pend) HEAD_IDX.set(hd, order.get(el.dataset.u)); pend = []; }
+    }
+    for (const hd of pend) HEAD_IDX.set(hd, IDS.length - 1);
+  }
+  docEl.dataset.level = level;
+  rootEl.dataset.level = level;
+  pos = goal = level;
+  renderHeads();
+  opts.labels.forEach((name, L) => { const b = bar.querySelector(`button[data-l="${L}"]`); if (b) b.textContent = name; });
+  renderAll();
+  updateBar();
+  if (document.fonts) {
+    document.fonts.ready.then(() => { capEpoch++; geom = null; placeThumb(); warmSoon(30); });
+    listen(document.fonts, 'loadingdone', () => { capEpoch++; warmSoon(); });
+  }
+  hydrateSoon();
+  warmSoon(600);
+  // The same units with other ladders (the AI levels arriving over the local ones): the page morphs to them.
+  function setData(next) {
+    const same = next.chunks.length === D.chunks.length && Object.keys(next.units).length === Object.keys(U).length
+      && Object.keys(U).every((uid) => next.units[uid] && next.units[uid].toks.length === U[uid].toks.length);
+    if (!same) return false;
+    const apply = () => {
+      for (const uid of Object.keys(U)) U[uid].lad = next.units[uid].lad;
+      D.chunks.forEach((c, i) => { c.lad = next.chunks[i].lad; });
+      renderHeads();
+      capEpoch++;
+      for (let L = 0; L < 5; L++) drop(L);
+    };
+    if (busy || tr || stage) { queued = () => setData(next); return true; }
+    if (level === 4 && !localLevel.size) { apply(); warmSoon(); return true; }
+    const hot = unitsNear(W.innerHeight * 1.5, W.innerHeight * 1.5);
+    const band = level === 0 ? null : bandAround(defaultAnchor(), K_BAND[level] || 60, hot);
+    morph(() => { apply(); renderAll(hot, band); }, defaultAnchor());
+    return true;
+  }
+  function destroy() {
+    for (const f of off) f();
+    clearTimeout(warmTimer); clearTimeout(snapTimer); clearTimeout(hydrateTimer); clearTimeout(relayoutTimer);
+    cancelAnimationFrame(rafId);
+    for (const a of document.getAnimations()) { try { if (zroot.contains(a.effect && a.effect.target) || ghostEl.contains(a.effect && a.effect.target) || docEl.contains(a.effect && a.effect.target)) a.cancel(); } catch (_) { /* gone */ } }
+    zhost.remove();
+    rootEl.classList.remove('morphing');
+  }
+  const api = { setLevel, zoomBy, setData, destroy, get level() { return level; }, get pos() { return pos; }, get staged() { return !!stage; },
+    get busy() { return busy; }, get keyframes() { return caps.map((c) => (c ? c.P.size : 0)); },
+    scrubTo(p) { clearTimeout(snapTimer); holding = true; aimLevel = null; goal = Math.max(0, Math.min(4, p)); kick(); }, letGo() { release(); } };
+  window.__reader = api;
+  return api;
+}

@@ -43,9 +43,10 @@ const watchdogDeclaration = file.statements.find(statement =>
   ts.isFunctionDeclaration(statement) && statement.name?.text === 'makeInactivityWatchdog');
 assert.ok(watchdogDeclaration, 'real inactivity watchdog must exist');
 
-async function start(validationError) {
+async function start(validationError, summaryDetail) {
   let handler;
   const events = [];
+  let spawnedArgs = null;
   const jobs = new Map();
   const proc = new EventEmitter();
   proc.stdout = new EventEmitter();
@@ -66,7 +67,7 @@ async function start(validationError) {
     processingLog: { logLine() {} },
     appleCalendar: { ensureMeetingCalendar: async () => null },
     keychainGate: { whenOpen: async () => {}, isOpen: () => true },
-    spawn: () => proc, getBackendPath: () => '/synthetic/backend', getBackendCwd: () => '/synthetic',
+    spawn: (_backend, args) => { spawnedArgs = args; return proc; }, getBackendPath: () => '/synthetic/backend', getBackendCwd: () => '/synthetic',
     TRANSCRIBE_INACTIVITY_MS: 1000,
     activeInactivityWatchdogs: new Set(), systemSuspendedForWatchdogs: false,
     setTimeout: callback => { const id = ++nextTimer; timers.set(id, callback); return id; },
@@ -76,16 +77,28 @@ async function start(validationError) {
     obsidianSync: { syncNoteBySummaryPath: () => { syncs++; } },
     runPythonScript: async () => '[]',
   });
-  const promise = handler({}, '/synthetic/meeting.md', false, 'Synthetic meeting');
+  const promise = handler({}, '/synthetic/meeting.md', false, 'Synthetic meeting', false, summaryDetail);
   // validateMeetingFilePath is async; let it register the process listeners.
   await new Promise(resolve => setImmediate(resolve));
-  return { proc, events, jobs, promise, syncs: () => syncs, expireWatchdog: () => {
+  return { proc, events, jobs, promise, spawnedArgs: () => spawnedArgs, syncs: () => syncs, expireWatchdog: () => {
     assert.equal(timers.size, 1);
     const callback = timers.values().next().value;
     timers.clear();
     callback();
   } };
 }
+
+test('per-run detail reaches canonical reprocess without retranscription or preference writes', async () => {
+  const state = await start(undefined, 'brief');
+  assert.deepEqual(Array.from(state.spawnedArgs()), ['reprocess', '/synthetic/meeting.md', '--summary-detail', 'brief']);
+  state.proc.emit('close', 0);
+  assert.equal((await state.promise).success, true);
+});
+test('invalid per-run detail never starts a backend process', async () => {
+  const state = await start(undefined, 'invalid');
+  assert.equal(state.spawnedArgs(), null);
+  assert.equal((await state.promise).success, false);
+});
 
 test('split stream failure survives generic exit and no raw diagnostics reach the renderer', async () => {
   const { proc, events, jobs, promise, syncs } = await start();

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
-import { IS_VENETA_MEMOAI } from '@/lib/productBrand';
+import { useVenetaProfile } from '@/hooks/useProductSettings';
 import { useRoute } from '@/lib/router';
 import { cn } from '@/lib/utils';
 import { AskBar, TranscriptToggle } from '@/components/AskBar';
@@ -12,6 +12,7 @@ import { useLiveTranscriptAvailable, useTranscriptionEngine } from '@/hooks/useM
 
 /** Per-session presentation default. Wait for the actual engine, not the live-toggle hydration fallback. */
 export function useSessionTranscriptDefault(recording: { sessionName: string | null | undefined; status: string }) {
+  const IS_VENETA_MEMOAI = useVenetaProfile();
   const engine = useTranscriptionEngine();
   const setOpen = useLiveTranscriptOpen((s) => s.setOpen);
   const lastSession = React.useRef<string | null>(null);
@@ -23,14 +24,16 @@ export function useSessionTranscriptDefault(recording: { sessionName: string | n
       setOpen(false);
       return;
     }
+    // The sales checklist still receives final segments, but the energy-saving
+    // Veneta recording starts with the optional transcript panel collapsed.
     lastSession.current = session;
-    setOpen(IS_VENETA_MEMOAI && !!session && engine.data === 'parakeet' &&
-      (recording.status === 'recording' || recording.status === 'paused'));
-  }, [recording.sessionName, recording.status, engine.data, setOpen]);
+    setOpen(false);
+  }, [recording.sessionName, recording.status, engine.data, setOpen, IS_VENETA_MEMOAI]);
 }
 
 /** Recording controls and chat share the dock without sharing a lifetime. */
 export function PrimaryDock({ showAskBar }: { showAskBar: boolean }) {
+  const IS_VENETA_MEMOAI = useVenetaProfile();
   const recording = useRecording();
   const open = useLiveTranscriptOpen((s) => s.open);
   // Whisper has no live transcript. Belt-and-braces vs the LiveDock toggle

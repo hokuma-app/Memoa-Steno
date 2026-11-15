@@ -1,0 +1,93 @@
+/* Veneta MemoAi: host mapping for the TextFold reader styles (reader.css, derived from textfold/web/reader.css at
+   commit 5062eacc0b1e2a2528e0906414f5073033051a30, Apache-2.0). TextFold's custom properties are prefixed --tf-; here
+   they take the application's own light and dark tokens. */
+.tf-root {
+  --tf-surface: var(--surface);
+  --tf-card: var(--surface-raised, var(--surface));
+  --tf-ink: var(--fg-1);
+  --tf-ink-2: color-mix(in srgb, var(--fg-1) 82%, var(--surface));
+  --tf-muted: var(--fg-2);
+  --tf-faint: var(--fg-muted);
+  --tf-line: var(--border-strong);
+  --tf-line-2: var(--border-subtle);
+  --tf-accent: var(--fg-1);
+  /* TextFold's own stacks (reader.css :root): its fonts are used when installed, else the system's */
+  --tf-serif: 'Source Serif 4', 'Source Serif Pro', Georgia, 'Songti SC', serif;
+  --tf-sans: 'Inter', 'Inter Variable', -apple-system, 'PingFang SC', 'Segoe UI', sans-serif;
+  --tf-text: var(--tf-serif);
+  --tf-fs: 1;
+  --tf-col: 100%;
+  --tf-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --tf-r-context: #a39c93;
+  --tf-r-gap: #d9822b;
+  --tf-r-claim: #6b5ce7;
+  --tf-r-method: #3b82c4;
+  --tf-r-setup: #7c8ba1;
+  --tf-r-result: #2e9e6a;
+  --tf-r-analysis: #0f8b8d;
+  --tf-r-limitation: #c2453d;
+  color: var(--tf-ink);
+  font-family: var(--tf-sans);
+  position: relative;
+  line-height: normal;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+/* the application's element defaults (headings, paragraphs) must not reach into the reader's type */
+.tf-root h1,
+.tf-root h2,
+.tf-root h3,
+.tf-root p,
+.tf-root ul,
+.tf-root li {
+  line-height: inherit;
+}
+/* reader.css: * { box-sizing }, [hidden], html { overflow-anchor } */
+.tf-root,
+.tf-root *,
+.tf-root *::before,
+.tf-root *::after {
+  box-sizing: border-box;
+  overflow-anchor: none;
+}
+.tf-root [hidden] {
+  display: none !important;
+}
+/* The column is the host's, not the page's; the pill is the host's dock, so no space is reserved under the text. */
+.tf-root .doc {
+  max-width: var(--tf-col);
+  padding: 8px 0 8px;
+  margin: 0;
+}
+.tf-root .doc[data-level='0'] {
+  max-width: 100%;
+}
+.tf-root .tf-ghosts {
+  pointer-events: none;
+}
+.tf-root .tf-provisional {
+  color: var(--tf-muted);
+  font: 12px/1.4 var(--tf-sans);
+  margin: 0 0 8px;
+}
+.tf-root .zoombar {
+  background: color-mix(in srgb, var(--tf-line-2) 75%, var(--tf-surface));
+}
+.tf-root .zoombar button {
+  min-height: 32px;
+}
+.tf-root .zoombar button.on {
+  color: var(--tf-ink);
+}
+.tf-root .zoombar button:focus-visible {
+  outline: 2px solid var(--tf-ink);
+  outline-offset: -2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tf-root .zthumb,
+  .tf-root .zoombar button,
+  .tf-root .chunk,
+  .tf-root .u {
+    transition: none !important;
+  }
+}

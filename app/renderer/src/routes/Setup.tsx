@@ -45,6 +45,7 @@ import {
   useSetCloudApiUrl,
 } from '@/hooks/useAi';
 import { ipc, type CloudProvider } from '@/lib/ipc';
+import { APP_NAME } from '@/lib/productBrand';
 import { cn, isMac } from '@/lib/utils';
 
 type StepStatus = 'waiting' | 'running' | 'done' | 'failed';
@@ -561,7 +562,7 @@ export function Setup() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[560px] px-8 py-16">
         <div className="mb-8 text-center">
-          <Display className="mb-3">Welcome to Steno</Display>
+          <Display className="mb-3">{t('setup.welcome', { product: APP_NAME })}</Display>
           <Lead>We'll help you set up everything needed for meeting intelligence.</Lead>
         </div>
 
@@ -607,7 +608,7 @@ export function Setup() {
             data-setup-summary-chooser
           >
             <div className="mb-3 text-sm font-medium text-foreground">
-              How should Steno summarize meetings?
+              {t('setup.summarizeWith', { product: APP_NAME })}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -820,8 +821,7 @@ export function Setup() {
               Launch on login
             </div>
             <Muted className="mt-0.5">
-              Start Steno automatically when you log in (hidden in the menu
-              bar). You can change this any time in Settings.
+              {t('setup.launchOnLoginDescription', { product: APP_NAME })}
             </Muted>
           </div>
           <Switch
@@ -869,7 +869,7 @@ export function Setup() {
           </button>
           {debugOpen && (
             <pre className="mt-3 h-64 overflow-auto rounded border border-border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed text-foreground">
-              {logs.length === 0 ? 'Steno Setup\nCommands and output will appear here...\n' : logs.join('\n')}
+              {logs.length === 0 ? t('setup.debugEmpty', { product: APP_NAME }) : logs.join('\n')}
             </pre>
           )}
         </div>

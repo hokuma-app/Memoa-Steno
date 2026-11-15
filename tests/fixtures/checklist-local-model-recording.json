@@ -1,0 +1,70 @@
+{
+ "description": "Volledig synthetische, fictieve gesprekken en NAGEBOOTSTE modelantwoorden in de vormen die gemma4:e2b-nvfp4 in 0.9.1 bij de samenvattingsvouw liet zien (codeblok, denkblok, te veel/ontbrekende items, afgekapte JSON). Het zijn geen opgenomen antwoorden van het model op de checklist; geen gebruikersdata.",
+ "model": "gemma4:e2b-nvfp4 (nagebootst gedrag)",
+ "request": {
+  "sessionId": "synthetisch-gesprek",
+  "revision": "r1",
+  "mappingConfirmed": true,
+  "criteria": [
+   {
+    "id": "c1",
+    "label": "De prijs is toegelicht",
+    "required": true
+   },
+   {
+    "id": "c2",
+    "label": "De levertijd is toegelicht",
+    "required": true
+   },
+   {
+    "id": "c3",
+    "label": "De garantievoorwaarden zijn toegelicht",
+    "required": true
+   }
+  ],
+  "segments": [
+   {
+    "id": "s1",
+    "text": "De prijs voor de licentie is tien euro per maand, inclusief support.",
+    "speaker": "seller",
+    "start": 3,
+    "end": 9
+   },
+   {
+    "id": "s2",
+    "text": "Oké, en hoe lang duurt de levering?",
+    "speaker": "other",
+    "start": 10,
+    "end": 13
+   },
+   {
+    "id": "s3",
+    "text": "De levering duurt twee weken na akkoord op de offerte.",
+    "speaker": "seller",
+    "start": 14,
+    "end": 19
+   },
+   {
+    "id": "s4",
+    "text": "Twee weken is prima, dat is akkoord voor ons.",
+    "speaker": "other",
+    "start": 20,
+    "end": 24
+   }
+  ]
+ },
+ "replies": {
+  "clean": "{\"assessments\": [{\"criterionId\": \"c1\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s1\", \"quote\": \"tien euro per maand\"}], \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\", \"kind\": \"explained\", \"customerConfirmed\": false, \"customerEvidence\": []}, {\"criterionId\": \"c2\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s3\", \"quote\": \"twee weken na akkoord\"}], \"explanation\": \"Levertijd toegelicht; klant stemt in.\", \"kind\": \"explained\", \"customerConfirmed\": true, \"customerEvidence\": [{\"segmentId\": \"s4\", \"quote\": \"dat is akkoord voor ons\"}]}, {\"criterionId\": \"c3\", \"status\": \"unmentioned\", \"evidence\": [], \"explanation\": \"Garantie is niet besproken.\", \"kind\": \"none\", \"customerConfirmed\": false, \"customerEvidence\": []}]}",
+  "fenced": "```json\n{\n  \"assessments\": [\n    {\n      \"criterionId\": \"c1\",\n      \"status\": \"covered\",\n      \"evidence\": [\n        {\n          \"segmentId\": \"s1\",\n          \"quote\": \"tien euro per maand\"\n        }\n      ],\n      \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\",\n      \"kind\": \"explained\",\n      \"customerConfirmed\": false,\n      \"customerEvidence\": []\n    },\n    {\n      \"criterionId\": \"c2\",\n      \"status\": \"covered\",\n      \"evidence\": [\n        {\n          \"segmentId\": \"s3\",\n          \"quote\": \"twee weken na akkoord\"\n        }\n      ],\n      \"explanation\": \"Levertijd toegelicht; klant stemt in.\",\n      \"kind\": \"explained\",\n      \"customerConfirmed\": true,\n      \"customerEvidence\": [\n        {\n          \"segmentId\": \"s4\",\n          \"quote\": \"dat is akkoord voor ons\"\n        }\n      ]\n    },\n    {\n      \"criterionId\": \"c3\",\n      \"status\": \"unmentioned\",\n      \"evidence\": [],\n      \"explanation\": \"Garantie is niet besproken.\",\n      \"kind\": \"none\",\n      \"customerConfirmed\": false,\n      \"customerEvidence\": []\n    }\n  ]\n}\n```",
+  "fenced_plain": "```\n{\"assessments\": [{\"criterionId\": \"c1\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s1\", \"quote\": \"tien euro per maand\"}], \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\", \"kind\": \"explained\", \"customerConfirmed\": false, \"customerEvidence\": []}, {\"criterionId\": \"c2\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s3\", \"quote\": \"twee weken na akkoord\"}], \"explanation\": \"Levertijd toegelicht; klant stemt in.\", \"kind\": \"explained\", \"customerConfirmed\": true, \"customerEvidence\": [{\"segmentId\": \"s4\", \"quote\": \"dat is akkoord voor ons\"}]}, {\"criterionId\": \"c3\", \"status\": \"unmentioned\", \"evidence\": [], \"explanation\": \"Garantie is niet besproken.\", \"kind\": \"none\", \"customerConfirmed\": false, \"customerEvidence\": []}]}\n```",
+  "think_then_fenced": "<think>Ik bekijk de criteria.</think>\n```json\n{\n  \"assessments\": [\n    {\n      \"criterionId\": \"c1\",\n      \"status\": \"covered\",\n      \"evidence\": [\n        {\n          \"segmentId\": \"s1\",\n          \"quote\": \"tien euro per maand\"\n        }\n      ],\n      \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\",\n      \"kind\": \"explained\",\n      \"customerConfirmed\": false,\n      \"customerEvidence\": []\n    },\n    {\n      \"criterionId\": \"c2\",\n      \"status\": \"covered\",\n      \"evidence\": [\n        {\n          \"segmentId\": \"s3\",\n          \"quote\": \"twee weken na akkoord\"\n        }\n      ],\n      \"explanation\": \"Levertijd toegelicht; klant stemt in.\",\n      \"kind\": \"explained\",\n      \"customerConfirmed\": true,\n      \"customerEvidence\": [\n        {\n          \"segmentId\": \"s4\",\n          \"quote\": \"dat is akkoord voor ons\"\n        }\n      ]\n    },\n    {\n      \"criterionId\": \"c3\",\n      \"status\": \"unmentioned\",\n      \"evidence\": [],\n      \"explanation\": \"Garantie is niet besproken.\",\n      \"kind\": \"none\",\n      \"customerConfirmed\": false,\n      \"customerEvidence\": []\n    }\n  ]\n}\n```",
+  "prose_around_fence": "Hier is het resultaat:\n```json\n{\n  \"assessments\": [\n    {\n      \"criterionId\": \"c1\",\n      \"status\": \"covered\",\n      \"evidence\": [\n        {\n          \"segmentId\": \"s1\",\n          \"quote\": \"tien euro per maand\"\n        }\n      ],\n      \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\",\n      \"kind\": \"explained\",\n      \"customerConfirmed\": false,\n      \"customerEvidence\": []\n    },\n    {\n      \"criterionId\": \"c2\",\n      \"status\": \"covered\",\n      \"evidence\": [\n        {\n          \"segmentId\": \"s3\",\n          \"quote\": \"twee weken na akkoord\"\n        }\n      ],\n      \"explanation\": \"Levertijd toegelicht; klant stemt in.\",\n      \"kind\": \"explained\",\n      \"customerConfirmed\": true,\n      \"customerEvidence\": [\n        {\n          \"segmentId\": \"s4\",\n          \"quote\": \"dat is akkoord voor ons\"\n        }\n      ]\n    },\n    {\n      \"criterionId\": \"c3\",\n      \"status\": \"unmentioned\",\n      \"evidence\": [],\n      \"explanation\": \"Garantie is niet besproken.\",\n      \"kind\": \"none\",\n      \"customerConfirmed\": false,\n      \"customerEvidence\": []\n    }\n  ]\n}\n```\nSucces!",
+  "extra_items": "{\"assessments\": [{\"criterionId\": \"c1\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s1\", \"quote\": \"tien euro per maand\"}], \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\", \"kind\": \"explained\", \"customerConfirmed\": false, \"customerEvidence\": []}, {\"criterionId\": \"c2\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s3\", \"quote\": \"twee weken na akkoord\"}], \"explanation\": \"Levertijd toegelicht; klant stemt in.\", \"kind\": \"explained\", \"customerConfirmed\": true, \"customerEvidence\": [{\"segmentId\": \"s4\", \"quote\": \"dat is akkoord voor ons\"}]}, {\"criterionId\": \"c3\", \"status\": \"unmentioned\", \"evidence\": [], \"explanation\": \"Garantie is niet besproken.\", \"kind\": \"none\", \"customerConfirmed\": false, \"customerEvidence\": []}, {\"criterionId\": \"c1\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s1\", \"quote\": \"tien euro per maand\"}], \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\", \"kind\": \"explained\", \"customerConfirmed\": false, \"customerEvidence\": []}, {\"criterionId\": \"zz\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s1\", \"quote\": \"tien euro\"}], \"explanation\": \"Onbekend criterium.\", \"kind\": \"explained\", \"customerConfirmed\": false, \"customerEvidence\": []}, {\"criterionId\": \"c1\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s1\", \"quote\": \"tien euro\"}], \"explanation\": \"Dubbel.\", \"kind\": \"explained\", \"customerConfirmed\": false, \"customerEvidence\": []}]}",
+  "too_much_evidence": "{\"assessments\": [{\"criterionId\": \"c1\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}, {\"segmentId\": \"s1\", \"quote\": \"tien euro\"}], \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\", \"kind\": \"explained\", \"customerConfirmed\": false, \"customerEvidence\": []}, {\"criterionId\": \"c2\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s3\", \"quote\": \"twee weken na akkoord\"}], \"explanation\": \"Levertijd toegelicht; klant stemt in.\", \"kind\": \"explained\", \"customerConfirmed\": true, \"customerEvidence\": [{\"segmentId\": \"s4\", \"quote\": \"dat is akkoord voor ons\"}]}, {\"criterionId\": \"c3\", \"status\": \"unmentioned\", \"evidence\": [], \"explanation\": \"Garantie is niet besproken.\", \"kind\": \"none\", \"customerConfirmed\": false, \"customerEvidence\": []}]}",
+  "missing_c3": "{\"assessments\": [{\"criterionId\": \"c1\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s1\", \"quote\": \"tien euro per maand\"}], \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\", \"kind\": \"explained\", \"customerConfirmed\": false, \"customerEvidence\": []}, {\"criterionId\": \"c2\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s3\", \"quote\": \"twee weken na akkoord\"}], \"explanation\": \"Levertijd toegelicht; klant stemt in.\", \"kind\": \"explained\", \"customerConfirmed\": true, \"customerEvidence\": [{\"segmentId\": \"s4\", \"quote\": \"dat is akkoord voor ons\"}]}]}",
+  "legacy_without_kind": "{\"assessments\": [{\"criterionId\": \"c1\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s1\", \"quote\": \"tien euro per maand\"}], \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\"}, {\"criterionId\": \"c2\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s3\", \"quote\": \"twee weken na akkoord\"}], \"explanation\": \"Levertijd toegelicht; klant stemt in.\"}, {\"criterionId\": \"c3\", \"status\": \"unmentioned\", \"evidence\": [], \"explanation\": \"Garantie is niet besproken.\"}]}",
+  "forged_quote": "{\"assessments\": [{\"criterionId\": \"c1\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s1\", \"quote\": \"honderd euro per maand\"}], \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\", \"kind\": \"explained\", \"customerConfirmed\": false, \"customerEvidence\": []}, {\"criterionId\": \"c2\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s3\", \"quote\": \"twee weken na akkoord\"}], \"explanation\": \"Levertijd toegelicht; klant stemt in.\", \"kind\": \"explained\", \"customerConfirmed\": true, \"customerEvidence\": [{\"segmentId\": \"s4\", \"quote\": \"dat is akkoord voor ons\"}]}, {\"criterionId\": \"c3\", \"status\": \"unmentioned\", \"evidence\": [], \"explanation\": \"Garantie is niet besproken.\", \"kind\": \"none\", \"customerConfirmed\": false, \"customerEvidence\": []}]}",
+  "truncated": "{\"assessments\": [{\"criterionId\": \"c1\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s1\", \"quote\": \"tien euro per maand\"}], \"explanation\": \"Prijs genoemd en toegelicht door de verkoper.\", \"kind\": \"explained\", \"customerConfirmed\": false, \"customerEvidence\": []}, {\"criterionId\": \"c2\", \"status\": \"covered\", \"evidence\": [{\"segmentId\": \"s3\", \"quote\": \"twee weken na akko",
+  "not_json": "Het spijt me, ik kan dit niet beoordelen."
+ }
+}

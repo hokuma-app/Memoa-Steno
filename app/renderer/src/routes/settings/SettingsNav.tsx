@@ -12,12 +12,14 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { productText as productT } from '@/i18n/product';
 
 // The full set of nav rail destinations. Distinct from Settings.tsx's
 // deep-linkable TabId, which additionally accepts the legacy 'transcription'
 // id as an alias that resolves onto 'ai' — the nav rail itself only ever
 // renders/highlights the ids listed here.
 export type SettingsTabId =
+  | 'product'
   | 'general'
   | 'ai'
   | 'templates'
@@ -43,6 +45,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     items: [
       { id: 'general', label: 'Preferences', icon: Settings2 },
+      { id: 'product', label: productT('product.title'), icon: LayoutTemplate },
       { id: 'ai', label: 'AI', icon: Sparkles },
       { id: 'templates', label: 'Templates', icon: LayoutTemplate },
       { id: 'people', label: 'People', icon: Users },

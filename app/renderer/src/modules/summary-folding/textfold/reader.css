@@ -1,0 +1,300 @@
+/* TextFold reader styles: the zoom bar, the stage, the column, the units and the Topic cards.
+   Derived from textfold/web/reader.css (lines 130-162, 193-336 and 437-440)
+   Source: https://github.com/chenxiachan/textfold at commit 5062eacc0b1e2a2528e0906414f5073033051a30 (Apache-2.0)
+   Modified by Veneta MemoAi: every selector scoped under .tf-root (TextFold's html/:root), custom properties prefixed
+   --tf- (host tokens in theme.css), print, width, font, CJK, link, note and map rules left out. See LICENSE and NOTICE. */
+.tf-root .zoombar {
+  pointer-events: auto; position: relative; display: flex; align-items: center; gap: 0; padding: 3px; border-radius: 999px;
+  background: color-mix(in srgb, var(--tf-line-2) 75%, var(--tf-surface)); border: 1px solid color-mix(in srgb, var(--tf-line) 80%, transparent);
+  box-shadow: inset 0 1px 2px rgba(40, 30, 10, .07), 0 10px 30px -16px rgba(40, 30, 10, .35);
+  touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+}
+.tf-root .zoombar.dragging,
+.tf-root .zoombar.dragging button {
+  cursor: grabbing;
+}
+.tf-root .zoombar button {
+  position: relative; z-index: 1; font: inherit; font-size: 14px; font-weight: 500; color: var(--tf-muted); background: none; border: 0;
+  cursor: inherit; padding: 6px 15px; border-radius: 999px; transition: color .2s;
+}
+.tf-root .zoombar button:hover {
+  color: var(--tf-ink-2);
+}
+.tf-root .zoombar button.on {
+  color: var(--tf-ink); font-weight: 600;
+}
+.tf-root .zthumb {
+  position: absolute; z-index: 0; top: 3px; bottom: 3px; left: 0; width: 0; border-radius: 999px; background: var(--tf-card); pointer-events: none;
+  box-shadow: 0 0 0 .5px rgba(30, 20, 0, .08), 0 1px 1.5px rgba(30, 20, 0, .14), 0 3px 9px rgba(30, 20, 0, .10);
+  transition: scale .2s cubic-bezier(.3, 1.4, .5, 1), box-shadow .2s; will-change: transform, width;
+}
+.tf-root .zoombar.dragging .zthumb {
+  scale: .955; box-shadow: 0 0 0 .5px rgba(30, 20, 0, .1), 0 2px 4px rgba(30, 20, 0, .16), 0 6px 16px rgba(30, 20, 0, .14);
+}
+.tf-root .zoombar .sep {
+  position: relative; z-index: 1; color: var(--tf-faint); font-size: 11px; opacity: .6; user-select: none;
+}
+.tf-root .hint {
+  color: var(--tf-muted); font-size: 12.5px;
+}
+.tf-root .zhost {
+  position: fixed; inset: 0; z-index: 10; pointer-events: none;
+}
+.tf-root .zstage {
+  position: fixed; inset: 0; z-index: 10; overflow: hidden; contain: strict; pointer-events: none; opacity: 0;
+}
+.tf-root .zstage.on {
+  opacity: 1; pointer-events: auto; background: var(--tf-surface);
+}
+.tf-root .zl {
+  position: absolute; inset: 0; opacity: 0; content-visibility: hidden;
+}
+.tf-root .zl.live {
+  content-visibility: visible;
+}
+.tf-root .zg {
+  position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transform-origin: 0 0; pointer-events: none;
+}
+.tf-root .zstage.on .zl.live > .zg,
+.tf-root .zstage.on .zl.live > .zp {
+  will-change: transform, opacity;
+}
+.tf-root .zp {
+  position: absolute !important; left: 0 !important; top: 0 !important; margin: 0 !important; transform-origin: 0 0; transition: none !important; animation: none !important; pointer-events: none;
+}
+.tf-root .zp.zi {
+  white-space: nowrap;
+}
+.tf-root .zp.zb {
+  white-space: normal; overflow: hidden;
+}
+.tf-root .zp img {
+  max-width: 100%; height: auto; display: inline-block;
+}
+.tf-root .zsand {
+  position: fixed; top: 0; height: 0; overflow: hidden; opacity: 0; pointer-events: none; contain: layout style paint;
+}
+.tf-root .tf-ghosts > * {
+  position: fixed; margin: 0; white-space: nowrap; transform-origin: 0 0;
+}
+.tf-root .doc {
+  position: relative; max-width: var(--tf-col); margin: 0 auto; padding: 8px 24px 160px;
+}
+.tf-root .doc[data-level="0"] {
+  max-width: 1280px;
+}
+.tf-root .tk {
+  display: inline-block; transform-origin: 0 0; white-space: pre-wrap;
+}
+.tf-root .tk.at {
+  white-space: nowrap;
+}
+.tf-root .tk.at.wrap {
+  white-space: normal; max-width: 100%;
+}
+.tf-root .wg {
+  white-space: nowrap;
+}
+.tf-root [data-id] {
+  transform-origin: 0 0;
+}
+.tf-root .chunk {
+  position: relative; transition: background-color .35s, border-color .35s, box-shadow .35s, padding .35s; border: 1px solid transparent; border-radius: 12px;
+}
+.tf-root .hd {
+  font-family: var(--tf-sans); color: var(--tf-ink); letter-spacing: -.015em; margin: 0;
+}
+.tf-root .hd .num {
+  color: var(--tf-muted); font-weight: 500; margin-right: .45em;
+}
+.tf-root .chunk.l2 > .hd {
+  font-size: calc(27px * var(--tf-fs)); font-weight: 700; margin: calc(56px * var(--tf-fs)) 0 calc(16px * var(--tf-fs));
+  padding-bottom: calc(8px * var(--tf-fs)); box-shadow: inset 0 -1px 0 var(--tf-line);
+}
+.tf-root .chunk.l3 > .hd {
+  font-size: calc(21.5px * var(--tf-fs)); font-weight: 680; margin: calc(40px * var(--tf-fs)) 0 calc(12px * var(--tf-fs));
+}
+.tf-root .chunk.l4 > .hd,
+.tf-root .chunk.l5 > .hd {
+  font-size: calc(18.5px * var(--tf-fs)); font-weight: 650; margin: calc(30px * var(--tf-fs)) 0 calc(8px * var(--tf-fs));
+}
+.tf-root .chunk.l5 > .hd {
+  color: var(--tf-ink-2);
+}
+.tf-root .stake {
+  display: none; font-family: var(--tf-sans); color: var(--tf-muted); font-size: calc(15px * var(--tf-fs)); line-height: calc(1.45 * var(--tf-lh, 1)); margin: -4px 0 calc(14px * var(--tf-fs));
+}
+.tf-root .doc[data-level="2"] .stake,
+.tf-root .doc[data-level="1"] .stake,
+.tf-root .doc[data-level="0"] .stake {
+  display: block;
+}
+.tf-root .u {
+  position: relative; transition: background-color .35s, border-color .35s, color .35s; border: 1px solid transparent;
+}
+.tf-root .u .tx {
+  margin: 0;
+}
+.tf-root .dot {
+  position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--tf-beat); opacity: 0; transition: opacity .3s; --tf-beat: var(--tf-r-context);
+}
+.tf-root .u.r-gap .dot {
+  --tf-beat: var(--tf-r-gap);
+}
+.tf-root .u.r-claim .dot {
+  --tf-beat: var(--tf-r-claim);
+}
+.tf-root .u.r-method .dot {
+  --tf-beat: var(--tf-r-method);
+}
+.tf-root .u.r-setup .dot {
+  --tf-beat: var(--tf-r-setup);
+}
+.tf-root .u.r-result .dot {
+  --tf-beat: var(--tf-r-result);
+}
+.tf-root .u.r-analysis .dot {
+  --tf-beat: var(--tf-r-analysis);
+}
+.tf-root .u.r-limitation .dot {
+  --tf-beat: var(--tf-r-limitation);
+}
+.tf-root .u[data-l="4"],
+.tf-root .u[data-l="3"] {
+  font-family: var(--tf-text); font-size: calc(18.5px * var(--tf-fs)); line-height: calc(1.62 * var(--tf-lh, 1)); color: var(--tf-ink-2); margin: 0 0 calc(14px * var(--tf-fs));
+}
+.tf-root .u[data-l="4"] .tk.lead,
+.tf-root .u[data-l="3"] .tk.lead,
+.tf-root .u[data-l="4"] .tr.lead,
+.tf-root .u[data-l="3"] .tr.lead {
+  color: var(--tf-ink);
+}
+.tf-root .tk.gap,
+.tf-root .tr.gap {
+  color: var(--tf-faint) !important; padding: 0 .1em;
+}
+.tf-root .u.local-open {
+  background: var(--tf-card); border-color: var(--tf-line); border-radius: 10px; padding: 10px 14px; margin-left: -15px; margin-right: -15px; box-shadow: 0 8px 28px -18px rgba(40, 30, 10, .35);
+}
+.tf-root .u[data-l="2"] {
+  font-family: var(--tf-sans); font-size: calc(16.5px * var(--tf-fs)); line-height: calc(1.55 * var(--tf-lh, 1)); color: var(--tf-muted); margin: 0 0 calc(12px * var(--tf-fs)); padding-left: 18px;
+}
+.tf-root .u[data-l="2"] .tk.lead,
+.tf-root .u[data-l="2"] .tr.lead {
+  color: var(--tf-ink); font-weight: 560;
+}
+.tf-root .u[data-l="2"] .dot {
+  left: 0; top: .62em; opacity: 1;
+}
+.tf-root .u[data-l="1"] {
+  font-family: var(--tf-sans); font-size: calc(15.5px * var(--tf-fs)); line-height: calc(1.45 * var(--tf-lh, 1)); color: var(--tf-ink-2); padding: 3px 0 3px 22px; margin: 0;
+}
+.tf-root .u[data-l="1"] .tk.lead,
+.tf-root .u[data-l="1"] .tr.lead {
+  color: var(--tf-ink); font-weight: 600;
+}
+.tf-root .u[data-l="1"] .dot {
+  left: 0; top: .72em; opacity: 1; box-shadow: 0 0 0 3px var(--tf-surface);
+}
+.tf-root .doc[data-level="1"] .chunk .body {
+  position: relative;
+}
+.tf-root .doc[data-level="1"] .chunk .body::before {
+  content: ""; position: absolute; left: 3px; top: 10px; bottom: 10px; width: 1px; background: var(--tf-line);
+}
+.tf-root .u[data-l="0"] {
+  display: inline-flex; align-items: center; gap: 5px; font-family: var(--tf-sans); font-size: calc(12px * var(--tf-fs)); font-weight: 550; line-height: 1.2;
+  color: var(--tf-ink); background: var(--tf-surface); border-color: var(--tf-line-2); border-radius: 999px; padding: 2px 8px 2px 7px; margin: 0 4px 4px 0; cursor: pointer;
+}
+.tf-root .u[data-l="0"]:hover {
+  border-color: var(--tf-accent);
+}
+.tf-root .u[data-l="0"] .dot {
+  position: static; flex: none; opacity: 1;
+}
+.tf-root .u[data-l="0"] .tx {
+  display: inline;
+}
+.tf-root .doc[data-level="0"] .chunks {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(226px, 1fr)); gap: 10px; align-items: start;
+}
+.tf-root .doc[data-level="0"] .chunk {
+  background: var(--tf-card); border-color: var(--tf-line); padding: 10px 10px 6px; box-shadow: 0 4px 18px -14px rgba(40, 30, 10, .3);
+}
+.tf-root .doc[data-level="0"] .chunk > .hd {
+  font-size: calc(13.5px * var(--tf-fs)); font-weight: 650; margin: 0 0 4px; padding-bottom: 0; box-shadow: none;
+}
+.tf-root .doc[data-level="0"] .chunk .stake {
+  font-size: calc(12px * var(--tf-fs)); line-height: 1.35; margin: 0 0 8px;
+}
+.tf-root .doc[data-level="0"] .chunk.empty {
+  grid-column: 1 / -1; background: none; border-color: transparent; box-shadow: none; padding: 10px 2px 0;
+}
+.tf-root .doc[data-level="0"] .chunk.empty > .hd {
+  font-size: calc(12px * var(--tf-fs)); text-transform: uppercase; letter-spacing: .08em; color: var(--tf-muted);
+}
+.tf-root .doc[data-level="0"] .chunk.parent {
+  grid-column: 1 / -1; background: none; border-color: transparent; box-shadow: none; padding: 18px 2px 2px;
+}
+.tf-root .doc[data-level="0"] .chunk.parent > .hd {
+  font-size: calc(17px * var(--tf-fs)); font-weight: 700; text-transform: none; letter-spacing: -.01em; color: var(--tf-ink);
+  padding-bottom: 7px; margin: 0 0 7px; box-shadow: inset 0 -1px 0 var(--tf-line);
+}
+.tf-root .doc[data-level="0"] .chunk.parent:not(.top) {
+  padding-top: 8px;
+}
+.tf-root .doc[data-level="0"] .chunk.parent:not(.top) > .hd {
+  font-size: calc(14.5px * var(--tf-fs)); box-shadow: none; padding-bottom: 0; margin-bottom: 4px;
+}
+.tf-root .doc[data-level="0"] .chunk.parent > .stake {
+  font-size: calc(13px * var(--tf-fs)); margin-bottom: 6px;
+}
+.tf-root .doc[data-level="0"] .chunk.parent .body {
+  max-height: none;
+}
+.tf-root .doc[data-level="0"] .chunk.newrow {
+  grid-column-start: 1;
+}
+.tf-root .doc:not([data-level="4"]) .chunk.ref {
+  display: none;
+}
+.tf-root .doc[data-level="0"] .chunk ul.list {
+  display: contents;
+}
+.tf-root .doc[data-level="0"] .chunk li.u {
+  list-style: none;
+}
+.tf-root .doc[data-level="0"] .chunk .body {
+  display: flex; flex-wrap: wrap; align-items: center;
+}
+.tf-root ul.list {
+  list-style: none; padding: 0; margin: 0 0 14px;
+}
+.tf-root li.u .mk {
+  position: absolute; left: -1.2em; color: var(--tf-muted); font-family: var(--tf-sans); font-size: .9em;
+}
+.tf-root li.u[data-l="4"],
+.tf-root li.u[data-l="3"] {
+  margin: 0 0 6px 1.3em;
+}
+.tf-root li.u[data-l="2"] {
+  padding-left: 34px;
+}
+.tf-root li.u[data-l="2"] .dot {
+  left: 14px;
+}
+.tf-root li.u[data-l="1"] {
+  padding-left: 38px;
+}
+.tf-root li.u[data-l="2"] .mk,
+.tf-root li.u[data-l="1"] .mk,
+.tf-root li.u[data-l="0"] .mk {
+  display: none;
+}
+.tf-root .doc:not([data-level="4"]) .u {
+  cursor: pointer;
+}
+.tf-root .doc:not([data-level="4"]) .u[data-l="1"]:hover .tx,
+.tf-root .doc:not([data-level="4"]) .u[data-l="2"]:hover .tx {
+  text-decoration: underline; text-decoration-color: var(--tf-line); text-underline-offset: 4px;
+}

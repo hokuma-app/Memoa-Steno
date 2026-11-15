@@ -33,6 +33,7 @@ export const COPY_ATTRIBUTES = [
   'alt',
   'aria-label',
   'aria-description',
+  'aria-valuetext',
   // This app's own copy-bearing component props
   'label',
   'description',

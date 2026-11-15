@@ -1,0 +1,54 @@
+/* Conversation checklist (0.9.3): live sidebar marks, summary pills and the transcript jump highlight. */
+.veneta-live-checklist,
+[data-testid='checklist-note-tab'] {
+  --cl-warn: #8a5a00;
+  --cl-warn-bg: #fff1cc;
+}
+html[data-theme='dark'] .veneta-live-checklist,
+html[data-theme='dark'] [data-testid='checklist-note-tab'] {
+  --cl-warn: #e3b35a;
+  --cl-warn-bg: rgba(227, 179, 90, 0.16);
+}
+.veneta-live-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 1.5px solid var(--fg-2);
+  border-radius: 9999px;
+  color: var(--surface-raised, #fff);
+}
+.veneta-live-mark-half {
+  border-color: var(--cl-warn);
+  background: linear-gradient(90deg, var(--cl-warn) 50%, transparent 50%);
+}
+.veneta-live-mark-done {
+  border-color: var(--success);
+  background: var(--success);
+}
+html[data-theme='dark'] .veneta-live-mark-done {
+  color: #14140f;
+}
+.veneta-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  background: var(--surface-sunken);
+  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.veneta-pill-good { background: var(--success-bg); color: var(--success); }
+.veneta-pill-warn { background: var(--cl-warn-bg, #fff1cc); color: var(--cl-warn, #8a5a00); }
+.veneta-pill-bad { background: var(--danger-bg); color: var(--danger); }
+.veneta-jump-flash > div:last-child {
+  box-shadow: 0 0 0 2px var(--fg-1);
+  transition: box-shadow 0.3s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .veneta-live-checklist * { transition: none !important; }
+}

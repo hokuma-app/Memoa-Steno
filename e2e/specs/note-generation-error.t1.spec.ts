@@ -68,6 +68,10 @@ test('failed regeneration keeps the existing summary visible and My notes usable
   });
   await page.evaluate(() => { window.location.hash = '#/meetings/stale_summary.md'; });
   await expect(page.getByText('Covers only the first segment.', { exact: true })).toBeVisible();
+  // The mock folding pass must preserve this note's own source, not replace it
+  // with the generic seed after the background levels arrive.
+  await expect(page.getByTestId('summary-folding-panel')).toHaveAttribute('data-provenance', 'ai');
+  await expect(page.getByText('Covers only the first segment.', { exact: true })).toBeVisible();
   await page.getByTestId('generate-notes-dock-button').click();
   await expect.poll(() => app.evaluate(() => (globalThis as any).__reprocessTest.calls)).toBe(1);
   await app.evaluate(() => (globalThis as any).__reprocessTest.finish({ success: false, error: 'Synthetic failure', error_code: 'generation_model_unavailable' }));

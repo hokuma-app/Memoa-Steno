@@ -1,5 +1,5 @@
 {
-  "total": 716,
+  "total": 711,
   "files": {
     "renderer/src/components/AskBar.tsx": 21,
     "renderer/src/components/ChatHistoryRow.tsx": 5,
@@ -26,12 +26,12 @@
     "renderer/src/routes/Chat.tsx": 11,
     "renderer/src/routes/ChatConversation.tsx": 14,
     "renderer/src/routes/FolderDetail.tsx": 10,
-    "renderer/src/routes/Home.tsx": 32,
+    "renderer/src/routes/Home.tsx": 31,
     "renderer/src/routes/MeetingDetail.tsx": 86,
     "renderer/src/routes/OrgShared.tsx": 20,
     "renderer/src/routes/Processing.tsx": 7,
     "renderer/src/routes/Recording.tsx": 6,
-    "renderer/src/routes/Setup.tsx": 39,
+    "renderer/src/routes/Setup.tsx": 35,
     "renderer/src/routes/settings/AboutTab.tsx": 16,
     "renderer/src/routes/settings/AdvancedTab.tsx": 19,
     "renderer/src/routes/settings/AiTab.tsx": 78,

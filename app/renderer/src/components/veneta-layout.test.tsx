@@ -6,6 +6,8 @@ import { useLiveTranscriptOpen } from '@/hooks/liveTranscriptOpenStore';
 const state = vi.hoisted(() => ({ mounts: 0, active: 0, veneta: true, route: '/recording', engine: 'parakeet' as string | undefined,
   recording: { status: 'recording', sessionName: 'session-a' } }));
 vi.mock('@/lib/productBrand', () => ({ get IS_VENETA_MEMOAI() { return state.veneta; } }));
+// Presentation now follows persisted runtime profile, not the immutable build identity.
+vi.mock('@/hooks/useProductSettings', () => ({ useVenetaProfile: () => state.veneta }));
 vi.mock('@/lib/router', () => ({ useRoute: () => state.route }));
 vi.mock('@/hooks/useRecording', () => ({ useRecording: () => state.recording }));
 vi.mock('@/hooks/useModels', () => ({ useLiveTranscriptAvailable: () => state.engine === 'parakeet', useTranscriptionEngine: () => ({ data: state.engine }) }));
@@ -105,17 +107,17 @@ describe('session open default', () => {
     const { rerender } = renderHook(() => useSessionTranscriptDefault(state.recording));
     expect(useLiveTranscriptOpen.getState().open).toBe(false);
     state.recording.status = 'recording'; rerender();
-    expect(useLiveTranscriptOpen.getState().open).toBe(true);
+    expect(useLiveTranscriptOpen.getState().open).toBe(false);
   });
-  it('opens a new active Parakeet session once, preserving close and pause choices', () => {
+  it('keeps a new Parakeet session collapsed, preserving manual open and pause choices', () => {
     useLiveTranscriptOpen.setState({ open: false });
     const { rerender } = renderHook(() => useSessionTranscriptDefault(state.recording));
-    expect(useLiveTranscriptOpen.getState().open).toBe(true);
-    act(() => useLiveTranscriptOpen.getState().setOpen(false));
-    state.recording.status = 'paused'; rerender();
     expect(useLiveTranscriptOpen.getState().open).toBe(false);
-    state.recording.sessionName = 'session-b'; rerender();
+    act(() => useLiveTranscriptOpen.getState().setOpen(true));
+    state.recording.status = 'paused'; rerender();
     expect(useLiveTranscriptOpen.getState().open).toBe(true);
+    state.recording.sessionName = 'session-b'; rerender();
+    expect(useLiveTranscriptOpen.getState().open).toBe(false);
   });
   it('waits for engine hydration and never opens Whisper or legacy sessions', () => {
     state.engine = undefined; useLiveTranscriptOpen.setState({ open: true });

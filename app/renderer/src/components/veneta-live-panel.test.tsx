@@ -7,7 +7,7 @@ vi.mock('@/lib/productBrand', () => ({ get IS_VENETA_MEMOAI() { return h.veneta;
 vi.mock('@/hooks/useRecording', () => ({ useRecording: () => ({ status: 'paused', sessionName: 'session', elapsed: 10, stopRecording: h.stop, resumeRecording: h.resume }) }));
 vi.mock('@/components/AudioWave', () => ({ AudioWave: () => null }));
 vi.mock('@/hooks/useSettings', () => ({ useLanguageSetting: () => ({ data: 'auto' }), useSetLanguage: () => ({ mutate: vi.fn() }) }));
-vi.mock('@/hooks/useLiveTranscript', () => ({ useLiveTranscript: () => {
+vi.mock('@/hooks/LiveTranscriptProvider', () => ({ useLiveTranscript: () => {
   const finals = [{ text: 'Final decision', start: 0, end: 2, isFinal: true, speaker: 'You' }];
   const partials = [{ text: 'Still speaking', start: 3, end: 4, isFinal: false, speaker: 'Others' }];
   return { status: 'streaming', segments: [...finals, ...partials], finals, partials, priorSegments: [], error: null, slow: false };
@@ -32,5 +32,14 @@ it('adds the live section heading while preserving actual segment rows, filter, 
   expect(h.resume).toHaveBeenCalledTimes(1); expect(h.stop).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole('button', { name: 'Minimize transcript' }));
   expect(useLiveTranscriptOpen.getState().open).toBe(false);
+  vi.unstubAllGlobals();
+});
+
+it('marks each transcript row with its start time so the checklist can scroll to a quote', () => {
+  vi.stubGlobal('requestAnimationFrame', () => 1); vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  useLiveTranscriptOpen.setState({ open: true });
+  render(<TooltipProvider><LiveTranscriptBar /></TooltipProvider>);
+  const rows = [...document.querySelectorAll('[data-testid="live-transcript-panel"] li.live-row')];
+  expect(rows.map((row) => row.getAttribute('data-live-start'))).toEqual(['0', '3']);
   vi.unstubAllGlobals();
 });

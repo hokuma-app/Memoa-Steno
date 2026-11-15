@@ -19,6 +19,7 @@ amount of wall-time so the assertions are deterministic (no real sleeps).
 """
 
 import unittest
+import os
 from unittest import mock
 
 try:
@@ -97,6 +98,27 @@ def _make_pipeline(transcribe_samples, sr=16000):
     # Silence the stdout LIVE_SEG emission; we only care about decode cadence.
     pipe._emit = lambda *a, **k: None
     return pipe
+
+
+@unittest.skipUnless(_HAVE_NUMPY, "numpy required for _LiveVadPipeline")
+class EnergySaverTests(unittest.TestCase):
+    def test_final_only_skips_repeated_decodes_but_preserves_final(self):
+        import numpy as np
+        decodes = []
+        def decode(samples, language="auto"):
+            decodes.append(len(samples))
+            return {"text": "Synthetische verkoopzin"}
+        with mock.patch.dict(os.environ, {"STENOAI_LIVE_FINAL_ONLY": "1"}):
+            pipe = _make_pipeline(decode)
+        finals = []
+        pipe.pending_finals.add = lambda **kwargs: finals.append(kwargs)
+        for _ in range(8):
+            pipe.process(np.ones(4096, dtype=np.float32))
+        self.assertEqual(decodes, [], "geen gedeeltelijke ASR tijdens het spreken")
+        pipe.finalize()
+        self.assertEqual(len(decodes), 1)
+        self.assertEqual(finals[0]["text"], "Synthetische verkoopzin")
+        self.assertEqual(finals[0]["channel"], "You")
 
 
 @unittest.skipUnless(_HAVE_NUMPY, "numpy required for _LiveVadPipeline")

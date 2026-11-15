@@ -117,7 +117,7 @@ test('Save notes as PDF exports the open template report, not the Standard note'
     const menu = page.getByTestId('note-view-menu');
     await page.getByTestId('note-view-menu-trigger').click();
     await menu.getByRole('button', { name: /^Status Report/ }).click();
-    await expect(page.getByText('Pipeline healthy')).toBeVisible();
+    await expect(page.getByTestId('meeting-detail')).toContainText('Pipeline healthy');
 
     await page.getByRole('button', { name: 'More options' }).click();
     await page.getByRole('button', { name: /Save notes as PDF/ }).click();

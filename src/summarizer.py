@@ -128,30 +128,46 @@ MAP_CONTEXT_MAX_CHARS = 400
 
 
 def _action_item_rules(meeting_date: Optional[str] = None) -> str:
-    """Owner/due-date format for action items. Both are added only when the
-    transcript states them; simple_recorder._action_items_as_tasks turns each
-    line into a ``- [ ]`` task afterwards."""
-    if meeting_date:
-        dates = (
-            f"Resolve a relative deadline (\"Friday\", \"next week Tuesday\", \"end of the month\") "
-            f"against the meeting date {meeting_date}. "
-        )
-    else:
-        dates = "Only use a deadline that is stated as a full calendar date. "
+    """Owner/deadline format for action items. Both are added only when the
+    transcript states them; the model never calculates a date: it copies the
+    deadline as spoken and src.action_items converts it deterministically
+    (simple_recorder._action_items_as_tasks) before the line becomes a ``- [ ]`` task."""
+    examples = (
+        "EXAMPLES (invented, copy the shape and never the content): "
+        "Emma says \"I'll send the offer to the client by Friday\" -> "
+        "\"- Emma: send the offer to the client (due friday)\". "
+        "Piet says \"I'll check the demo environment next week Tuesday\" -> "
+        "\"- Piet: check the demo environment (due next week tuesday)\". "
+        "Anna says \"the report will be ready by the end of the month\" -> "
+        "\"- Anna: finish the report (due end of the month)\". "
+        "Someone says \"we should update the planning before 15 November\" without saying who -> "
+        "\"- update the planning (due 15 november)\". "
+        "Jan says \"I'll book the room\" without any deadline -> \"- Jan: book the room\". "
+        "Someone says \"we should update the planning\" without saying who -> \"- update the planning\". "
+        "Anna says \"the questionnaire still needs updating, but nobody owns it yet\" -> "
+        "\"- update the questionnaire\". "
+        "A speaker shown only as \"Speaker 2\" says \"I'll call the supplier\" -> "
+        "\"- Speaker 2: call the supplier\". "
+    )
     return (
         "ACTION ITEM FORMAT: write each action item on one line as "
-        "\"- Name: task (due YYYY-MM-DD)\". "
+        "\"- Name: task (due <deadline exactly as spoken>)\". "
+        "Every line must contain the task itself: never write only a name and a date, and never put the task on a second line. "
         "Add \"Name: \" only when the transcript makes clear who will do it (someone "
         "volunteers, or is asked and agrees); use the name as spoken or as listed in the "
         "meeting context, and for [You] the recorder's name when it is known, otherwise "
-        "\"You\". "
-        "Add \" (due YYYY-MM-DD)\" only when a specific deadline is stated. "
-        f"{dates}"
+        "\"You\". A speaker label such as \"Speaker 2\" may stand as the name when nothing better is known. "
+        "Add \" (due <deadline exactly as spoken>)\" only when a deadline is stated in the transcript, and copy the "
+        "words the speaker used, for example (due friday), (due next week tuesday), (due 15 november), "
+        "(due end of the month), (due tomorrow). "
+        "Do not calculate, convert or guess a date, and never write the date of the meeting; the recorder converts the words. "
         "Keep vague timing (\"soon\", \"after the release\") in the task wording instead. "
-        "When no owner or deadline is stated, write just \"- task\". Never guess an owner "
-        "or a date, and never write placeholders such as Unassigned, TBD or Unknown. "
-        "Keep the word \"due\" and the YYYY-MM-DD format whatever the output language."
-    )
+        "When no owner or deadline is stated, write just \"- task\". "
+        "List every task that was agreed or still has to be done, also when nobody took it on. Never guess an owner "
+        "or a deadline, and never write placeholders such as Unassigned, TBD or Unknown. "
+        "Keep the word \"due\" whatever the output language. "
+        f"{examples}"
+    ).rstrip()
 
 
 def resolve_num_ctx(model_name: str) -> int:
@@ -172,6 +188,8 @@ def resolve_num_ctx(model_name: str) -> int:
 
 
 class OllamaSummarizer:
+    _summary_detail_override: Optional[str] = None
+
     def __init__(self, model_name: Optional[str] = None, ai_provider: Optional[str] = None, config: Optional['Config'] = None):
         """
         Initialize the summarizer with automatic service management.
@@ -186,6 +204,7 @@ class OllamaSummarizer:
         if config is None:
             config = get_config()
 
+        self._summary_config = config
         self.ai_provider = ai_provider or config.get_ai_provider()
         self.client = None
         self.cloud_client = None
@@ -385,6 +404,27 @@ class OllamaSummarizer:
                 result.append(overlap + raw)
         return result
 
+    def _summary_detail_rules(self) -> str:
+        """Read per request, including legacy callers constructed without __init__."""
+        from .config import get_config
+        config = getattr(self, "_summary_config", None)
+        if config is None:
+            config = get_config()
+        detail = getattr(self, '_summary_detail_override', None) or config.get_summary_detail()
+        instructions = {
+            "brief": "Give a concise account of the central outcomes and essential next steps.",
+            "balanced": "Cover each substantive topic with its main reasoning, outcomes and next steps.",
+            "detailed": (
+                "Write a substantive, extensive summary proportionate to the source. "
+                "Preserve arguments, supporting reasons, alternatives, decisions, uncertainties, "
+                "disagreements and explicit next steps for every substantive topic. "
+                "Use enough paragraphs and points to retain the important detail, with no fixed item limit."
+            ),
+        }
+        return (f"SUMMARY DETAIL: {detail}\n{instructions[detail]} "
+                "Do not invent detail or pad sparse source material. "
+                "The detail preference controls depth, not the required output schema or template headings.\n\n")
+
     def _create_map_prompt(self, chunk: str, chunk_num: int, total_chunks: int,
                            context_line: str = "") -> str:
         """Compact extraction prompt for one transcript chunk (map step).
@@ -392,12 +432,13 @@ class OllamaSummarizer:
         survive extraction; it is reserved out of the chunk budget."""
         context = f"{context_line}\n" if context_line else ""
         return (
+            f"{self._summary_detail_rules()}"
             f"This is part {chunk_num} of {total_chunks} of a meeting transcript.\n"
             f"{context}"
             "Extract only what is explicitly stated. Be concise.\n\n"
             "KEY POINTS\n- ...\n\n"
             "DECISIONS\n- ...\n\n"
-            "ACTION ITEMS\n- Name: action (due YYYY-MM-DD)\n"
+            "ACTION ITEMS\n- Name: action (due <deadline as spoken>)\n"
             "(name and due date only when stated; otherwise just \"- action\")\n\n"
             "OPEN QUESTIONS\n- ...\n\n"
             f"TRANSCRIPT SEGMENT:\n{chunk}"
@@ -523,6 +564,7 @@ class OllamaSummarizer:
         return (
             f"{self._meeting_context_block(meeting_context)}"
             f"{notes_context}"
+            f"{self._summary_detail_rules()}"
             f"The following are structured extracts from {n} segments of a long meeting.\n"
             "Merge and deduplicate into a single coherent summary. "
             "Do not refer to \"the extracts\" or \"the segments\" — "
@@ -533,13 +575,13 @@ class OllamaSummarizer:
             "Do not open with phrases like \"The meeting discussed\" or \"This meeting\".\n\n"
             "## Key Topics\n"
             "### [Topic title]\n"
-            "Brief analysis of what was discussed about this topic.\n\n"
+            "Analysis of what was discussed about this topic at the requested detail level.\n\n"
             "(Repeat for each major topic)\n\n"
             "## Key Points\n"
             "- [Key point 1]\n"
             "- [Key point 2]\n\n"
             "## Action Items\n"
-            "- Name: action (due YYYY-MM-DD)\n"
+            "- Name: action (due <deadline as spoken>)\n"
             "- action\n\n"
             f"{_action_item_rules(meeting_context.meeting_date if meeting_context else None)}\n\n"
             f"Only include information explicitly discussed. Do not infer or assume.{language_instruction}\n\n"
@@ -1160,7 +1202,7 @@ names, jargon, or context that helps interpret the transcript more accurately.
 """
 
         context_block = self._meeting_context_block(meeting_context)
-        return f"""{context_block}{diarisation_note}{notes_context}You are a helpful meeting assistant. Summarise this meeting transcript into discussion areas, key points and any next steps mentioned. Only base your summary on what was explicitly discussed in the transcript.
+        return f"""{self._summary_detail_rules()}{context_block}{diarisation_note}{notes_context}You are a helpful meeting assistant. Summarise this meeting transcript into discussion areas, key points and any next steps mentioned. Only base your summary on what was explicitly discussed in the transcript.
 
 IMPORTANT: Do not infer or assume information that wasn't directly mentioned.
 
@@ -1175,8 +1217,8 @@ CRITICAL JSON FORMATTING RULES:
 6. If no discussion areas, key points, or next steps are mentioned, return an empty array [] for that field.
 
 IMPORTANT - VARIABLE NUMBER OF ITEMS:
-- Discussion areas: Include as many as needed to organize the topics (1-2 for short meetings, 4-5 for complex discussions)
-- Key points: Extract as many as were actually discussed (2-3 for short meetings, 6-8 for detailed discussions)
+- Discussion areas: Include every substantive topic at the requested detail level
+- Key points: Extract as many as the source warrants, with no fixed item limit
 - Next steps: Include only action items that were clearly mentioned (could be 1, could be 6+)
 - assignee and deadline: only when the transcript states them, never guessed; write a deadline as YYYY-MM-DD when it can be pinned to a date
 - The examples below are illustrative - do not feel obligated to match the exact number shown
@@ -1200,15 +1242,15 @@ Return ONLY the response in this exact JSON format:
   "discussion_areas": [
     {{
       "title": "First main topic discussed",
-      "analysis": "Short paragraph about what was discussed in this topic"
+      "analysis": "Analysis of this topic at the requested detail level"
     }},
     {{
       "title": "Second main topic discussed",
-      "analysis": "Short paragraph about what was discussed in this topic"
+      "analysis": "Analysis of this topic at the requested detail level"
     }},
     {{
       "title": "Third main topic discussed",
-      "analysis": "Short paragraph about what was discussed in this topic"
+      "analysis": "Analysis of this topic at the requested detail level"
     }}
   ],
   "key_points": [
@@ -1483,14 +1525,14 @@ Return ONLY the response in this exact JSON format:
         context_block = self._meeting_context_block(meeting_context)
         action_rules = _action_item_rules(meeting_context.meeting_date if meeting_context else None)
 
-        return f"""{context_block}{diarisation_note}{notes_context}Summarise this meeting transcript as markdown. Output ONLY the markdown below with no preamble, commentary, or explanation. Start directly with ## Summary.
+        return f"""{self._summary_detail_rules()}{context_block}{diarisation_note}{notes_context}Summarise this meeting transcript as markdown. Output ONLY the markdown below with no preamble, commentary, or explanation. Start directly with ## Summary.
 
 ## Summary
 A 1-3 sentence overview of the main topics and outcomes, written directly. Do not refer to "the transcript", "the meeting", or "the recording", and do not open with phrases like "The transcript discusses" or "In this meeting".
 
 ## Key Topics
 ### [Topic title]
-Brief analysis of what was discussed about this topic.
+Analysis of what was discussed about this topic at the requested detail level.
 
 (Repeat for each major topic)
 
@@ -1499,7 +1541,7 @@ Brief analysis of what was discussed about this topic.
 - [Key point 2]
 
 ## Action Items
-- Name: action (due YYYY-MM-DD)
+- Name: action (due <deadline as spoken>)
 - action
 
 {action_rules}
@@ -1533,7 +1575,7 @@ TRANSCRIPT:
         context_block = self._meeting_context_block(meeting_context)
         action_rules = _action_item_rules(meeting_context.meeting_date if meeting_context else None)
         return (
-            f"{context_block}{diarisation_note}{notes_context}{template_prompt.strip()}\n\n"
+            f"{self._summary_detail_rules()}{context_block}{diarisation_note}{notes_context}{template_prompt.strip()}\n\n"
             "Base the report only on what was explicitly discussed; do not infer. "
             "Output the report as markdown with no preamble.\n\n"
             f"If the report lists action items or next steps: {action_rules}"

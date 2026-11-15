@@ -66,8 +66,38 @@ html[data-product='veneta-memoai'] #veneta-live-transcript-slot .mv-transcript >
     border-left: 1px solid var(--border-subtle);
   }
 
-  html[data-product='veneta-memoai'] .veneta-recording-layout .veneta-recording-notes > div {
-    padding-left: 32px;
-    padding-right: 32px;
+}
+
+/* Supported desktop widths keep the guide beside notes, independent of transcript expansion. */
+@media (min-width: 1000px) {
+  html[data-product='veneta-memoai'] .veneta-recording-layout:has([data-checklist-runtime]),
+  html[data-product='veneta-memoai'] .veneta-recording-layout:has(#veneta-live-transcript-slot:not(:empty)) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(310px, 34vw, 490px);
+    grid-template-rows: minmax(0, 1fr);
   }
+}
+html[data-product='veneta-memoai'] .veneta-conversation-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--border-subtle);
+}
+html[data-product='veneta-memoai'] .veneta-conversation-sidebar:not(:has([data-checklist-runtime])):has(#veneta-live-transcript-slot:empty) {
+  display: none;
+}
+html[data-product='veneta-memoai'] .veneta-conversation-sidebar > [data-checklist-runtime] {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  overscroll-behavior: contain;
+}
+html[data-product='veneta-memoai'] .veneta-conversation-sidebar:has([data-checklist-runtime]) #veneta-live-transcript-slot:not(:empty) {
+  flex: 0 0 min(40vh, 320px);
+  border-top: 1px solid var(--border-subtle);
+}
+html[data-product='veneta-memoai'] .veneta-conversation-sidebar:not(:has([data-checklist-runtime])) #veneta-live-transcript-slot:not(:empty) {
+  flex: 1;
 }

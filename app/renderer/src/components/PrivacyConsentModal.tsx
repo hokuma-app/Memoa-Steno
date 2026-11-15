@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { APP_NAME } from '@/lib/productBrand';
 import * as React from 'react';
 
 import {
@@ -91,7 +92,7 @@ export function PrivacyConsentModal({ open }: { open: boolean }) {
           </SettingRow>
           <SettingRow
             label="Launch on login"
-            description="Start Steno automatically when you log in (hidden in the menu bar)."
+            description={`Start ${APP_NAME} automatically when you log in (hidden in the menu bar).`}
             noBorder
           >
             <Switch

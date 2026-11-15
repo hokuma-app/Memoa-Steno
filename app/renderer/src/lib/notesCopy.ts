@@ -60,3 +60,33 @@ export function buildNotesCopyText(
   }
   return lines.join('\n');
 }
+
+/** Module-local copy for the second copy action (Dutch, like the fold reader). */
+export const NOTES_COPY_TEXT = {
+  copyFull: 'Kopieer volledige notitie',
+} as const;
+
+/**
+ * "Copy notes" while a detail level other than Volledig is on screen: the note header, then exactly the text of that
+ * level as Markdown (headings and bullets as shown), then the action items and participants that the note shows
+ * below the folded text. `extras` is false for a report, which has none outside its folded text.
+ */
+export function buildLevelCopyText(
+  sections: StructuredNoteSections,
+  levelMarkdown: string,
+  extras: boolean,
+): string {
+  const lines: string[] = [sections.name];
+  if (sections.meta) lines.push(sections.meta);
+  const body = levelMarkdown.trim();
+  if (body) lines.push('', body);
+  if (extras) {
+    if (sections.actionItems.length) {
+      lines.push('', '## Action items', ...sections.actionItems.map((item) => `- ${item}`));
+    }
+    if (sections.participants.length) {
+      lines.push('', '## Participants', sections.participants.join(', '));
+    }
+  }
+  return lines.join('\n');
+}

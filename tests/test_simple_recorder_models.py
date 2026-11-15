@@ -193,6 +193,13 @@ class VerifyModelCommandTests(unittest.TestCase):
 
 
 class PullModelCommandTests(unittest.TestCase):
+    def setUp(self):
+        # 0.10.0: pull-model looks up the download size in the public registry before it starts.
+        # Tests never touch the network, so the lookup is "unknown" here.
+        patcher = mock.patch("src.model_catalog.registry_size", return_value=None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_progress_line_includes_raw_byte_counts(self):
         from simple_recorder import cli
 
@@ -236,6 +243,25 @@ class PullModelCommandTests(unittest.TestCase):
 
 
 class DeleteModelCommandTests(unittest.TestCase):
+    def setUp(self):
+        # 0.10.0: delete-model refuses a model a function still runs on. Pin the chosen
+        # models to something else, and keep any /api/tags lookup off the real Ollama port.
+        import os
+        import socket
+        from src.config import Config
+
+        config = object.__new__(Config)
+        config._config = {"model": "other-model:1"}
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        for patcher in (
+            mock.patch("src.config.get_config", return_value=config),
+            mock.patch.dict(os.environ, {"OLLAMA_HOST": f"http://127.0.0.1:{port}"}),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def test_delete_model_success(self):
         from simple_recorder import cli
 

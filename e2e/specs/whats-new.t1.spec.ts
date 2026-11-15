@@ -17,6 +17,10 @@ async function foreground(app: ElectronApplication) {
       w.webContents.getURL().includes("index.html"),
     )!;
     win.show();
+    // Electron's headless macOS window can become visible without dispatching
+    // the native 'show' event. Replay that host event against the real window
+    // so the renderer receives the same visibility notification as production.
+    win.emit('show');
     // A window can be visible without activating its application on macOS.
     // Exercise real foreground state with CDP focus emulation still disabled.
     if (process.platform === 'darwin') electronApp.focus({ steal: true });
@@ -52,9 +56,12 @@ test("upgrade waits for foreground, dismisses across restarts, and reopens from 
   launchApp,
 }, testInfo) => {
   const first = await launchApp({ mockIpc: true, env });
-  // Playwright forces document focus by default, including hidden windows.
-  const cdp = await first.page.context().newCDPSession(first.page);
-  await cdp.send("Emulation.setFocusEmulationEnabled", { enabled: false });
+  // Chromium may report a focused, visible document for a hidden Electron
+  // window. The host's actual visibility must still gate the announcement.
+  await first.page.addInitScript(() => {
+    Object.defineProperty(document, 'hasFocus', { configurable: true, value: () => true });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+  });
   await first.page.evaluate(
     (key) => localStorage.setItem(key, "0.0.1"),
     seenKey,
@@ -76,9 +83,8 @@ test("upgrade waits for foreground, dismisses across restarts, and reopens from 
   await first.app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().forEach((win) => win.hide()),
   );
-  await expect
-    .poll(() => first.page.evaluate(() => document.hasFocus()))
-    .toBe(false);
+  await expect.poll(() => first.app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].isVisible())).toBe(false);
   await expect(dialog).toHaveAttribute("data-state", "open");
   expect(
     await first.page.evaluate((key) => localStorage.getItem(key), seenKey),

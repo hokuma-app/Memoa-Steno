@@ -21,14 +21,16 @@ test('My notes tab: switch, edit, autosave, and persistence across reload', asyn
   // Detail resolves on the Summary view by default (summary content visible).
   await expect(page.getByTestId('note-view-toggle')).toBeVisible();
   await expect(page.getByTestId('tab-summary')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('tab-summary-content')).toBeVisible();
+  await expect(page.getByTestId('meeting-detail')).toContainText(
+    'The team agreed to ship on Friday; Bob owns the release notes.',
+  );
   await expect(page.getByTestId('my-notes')).toHaveCount(0);
 
   // Switch to My notes → the editor is available even though a summary exists.
   await page.getByTestId('tab-notes').click();
   const input = page.getByTestId('my-notes-input');
   await expect(input).toBeVisible();
-  await expect(page.getByTestId('tab-summary-content')).toHaveCount(0);
+  await expect(page.getByTestId('summary-folding-panel')).toHaveCount(0);
 
   // Type notes → autosave persists (debounced; blur flushes immediately).
   await input.fill('Follow up with Dana about the migration.');
