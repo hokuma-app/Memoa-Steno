@@ -1,6 +1,5 @@
 import { useModuleEnabled, useVenetaProfile } from '@/hooks/useProductSettings';
 import { ChecklistRuntime } from '@/modules/conversation-checklist/ChecklistRuntime';
-import { runtimeText as checklistT } from '@/modules/conversation-checklist/runtimeCopy';
 import { AgendaRuntime } from '@/modules/agenda-chair/AgendaRuntime';
 
 import { t } from '@/i18n';
@@ -34,7 +33,6 @@ export function Recording() {
   const live = useLiveMeeting();
   const checklistEnabled = useModuleEnabled('conversation-checklist');
   const agendaEnabled = useModuleEnabled('agenda-chair');
-  const checklistLabel = checklistT('tabChecklist');
 
   // If we land on /recording with no active recording (e.g. cold reload after
   // it stopped), bounce back home so we don't leave the user on a dead page.
@@ -158,7 +156,7 @@ export function Recording() {
             </section>
           </div>
         </div>
-        {IS_VENETA_MEMOAI && <aside className="veneta-conversation-sidebar relative z-50 min-h-0 overflow-y-auto bg-background" aria-label={checklistLabel}>
+        {IS_VENETA_MEMOAI && <aside className="veneta-conversation-sidebar relative z-50 min-h-0 overflow-y-auto bg-background" aria-label={t('recording.conversationModules')}>
           {agendaEnabled && <AgendaRuntime />}
           {checklistEnabled && <ChecklistRuntime />}
           <div id="veneta-live-transcript-slot" aria-label={t('recording.transcriptHeading')} />

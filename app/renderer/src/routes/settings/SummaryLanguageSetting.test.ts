@@ -17,11 +17,22 @@ describe('summary language setting', () => {
     expect(options.map((option) => option.value)).toContain('nl');
   });
 
-  it('is shown only in the Veneta build, after the detail setting and before the provider', () => {
+  it('offers "same as the meeting" first in the default build too (0.11.0: the default is auto)', () => {
+    brand.veneta = false;
+    try {
+      const options = summaryLanguageOptions();
+      expect(options[0]).toEqual({ value: 'auto', label: 'Same as the meeting' });
+    } finally {
+      brand.veneta = true;
+    }
+  });
+
+  it('is shown in both builds (0.11.0), after the detail setting and before the provider', () => {
     const source = readFileSync('renderer/src/routes/settings/AiTab.tsx', 'utf8');
     const section = source.slice(source.indexOf('function SummarisationSection()'));
-    const row = section.indexOf('{IS_VENETA_MEMOAI && <SummaryLanguageSetting />}');
+    const row = section.indexOf('<SummaryLanguageSetting />');
     expect(row).toBeGreaterThan(section.indexOf('<SummaryDetailSettings />'));
     expect(row).toBeLessThan(section.indexOf("label={t('settingsAiTab.aiProvider')}"));
+    expect(section.slice(row - 40, row)).not.toContain('IS_VENETA_MEMOAI');
   });
 });

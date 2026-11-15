@@ -42,6 +42,9 @@ describe('recording column contract', () => {
     const { rerender } = render(<Recording />);
     expect(screen.getByRole('heading', { name: 'Gesprekschecklist' })).toBeTruthy();
     expect(document.getElementById('veneta-live-transcript-slot')).not.toBeNull();
+    // A neutral name for the column that holds the agenda and the checklist (0.11.0), from the catalogue.
+    expect(screen.getByRole('complementary', { name: 'Gespreksmodules' })).toBeTruthy();
+    expect(screen.queryByRole('complementary', { name: 'Gesprekschecklist' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'Mijn notities' })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'Mijn notities' })).toBeTruthy();
     state.veneta = false; rerender(<Recording />);

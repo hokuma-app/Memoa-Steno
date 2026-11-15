@@ -102,6 +102,16 @@ describe('Veneta Dutch catalogue', () => {
     for (const key of SAME_IN_DUTCH) expect(dutch[key]).toBe(english[key]);
   });
 
+  it('names Veneta MemoAi in the voice-profile text and the vault folder, keeping the real folder name (0.11.0)', () => {
+    expect(dutch['speakerReviewPanel.stenoCreatesANumericalBiometric']).toContain('Veneta MemoAi verstuurt het nooit');
+    expect(dutch['speakerReviewPanel.stenoCreatesANumericalBiometric']).not.toMatch(/Steno\b/);
+    expect(dutch['integrationsTab.transcripts_and_meeting_notes_are_written_under']).toBe(
+      'Veneta MemoAi schrijft transcripten en gespreksnotities in deze kluis, in de map StenoAI. Bestaande losse indelingen blijven behouden.');
+    // Telemetry (Steno Labs) and the open-source reference keep naming the real destination.
+    expect(dutch['setup.offByDefaultIfEnabled']).toContain('Steno Labs');
+    expect(dutch['settingsAboutTab.stenoIsOpenSourceBrowse']).toContain('Steno is open source');
+  });
+
   it('uses Dutch in the Veneta build and English in the default build', () => {
     const key = 'sidebar.settings' as TranslationKey;
     brand.veneta = false;
