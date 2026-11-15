@@ -1,0 +1,124 @@
+import type { ElectronApplication, Page } from '@playwright/test';
+import { existsSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+import { test, expect } from '../fixtures/electron';
+import { emitBufferedLiveSegments as emitLiveSegments } from '../fixtures/buffered-live-transcript';
+
+// Agenda en voorzitter, stand 1 (Stille voorzitter): Home > agenda inladen, opname met de stille voorzitter, notulen in
+// de notitie. Mock-IPC with the real host channels, planner, guards and files. MODELGRENS: only the model boundary is
+// replaced (app/e2e-mock-ipc.js agendaModel, a synthetic, deterministic labeller). This proves the route and the
+// interface, not the quality of a real local model. Invented agenda and conversation; no real persons.
+const launchOptions = { mockIpc: true, fakeAudio: true, releaseHighlightsSeen: true,
+  env: { STENOAI_E2E_MOCK_PARAKEET_INSTALLED: '1', STENOAI_E2E_PRODUCT_PROFILE: 'veneta', STENOAI_E2E_SEED_CHECKLIST_NOTE: '1' } };
+const agendaSwitch = (page: Page) => page.getByRole('switch', { name: 'Agenda en voorzitter', exact: true });
+const modelCalls = (app: ElectronApplication) => app.evaluate(() => (global as typeof global & { __agendaModelCalls?: number }).__agendaModelCalls ?? 0);
+const AGENDA = [
+  '# Werkoverleg Kastanje',
+  'Datum: 3 maart',
+  '1. Opening (5 min)',
+  '2. Nieuwe roosters (besluit, 10 min, Noor) [vereist]',
+  '3. Rondvraag',
+].join('\n');
+
+test('module off: Home shows no agenda card, the host reads and writes no agenda files and asks no model', async ({ launchApp, userDataDir }) => {
+  const { app, page } = await launchApp(launchOptions);
+  await expect(page.locator('[data-app-ready]')).toBeVisible();
+  await expect(page.getByTestId('agenda-prepare')).toHaveCount(0);
+  expect(await page.evaluate(() => window.stenoai.agenda.getPreparation())).toMatchObject({ success: false, code: 'module_disabled' });
+  const root = path.join(userDataDir, 'veneta-modules');
+  expect(existsSync(root) ? readdirSync(root).filter((name) => name.startsWith('agenda')) : []).toEqual([]);
+  expect(await modelCalls(app)).toBe(0);
+});
+
+test('before, during and after: agenda in, silent chair with a confirmed suggestion and findings, minutes in the note', async ({ launchApp, userDataDir }) => {
+  test.setTimeout(150_000);
+  const { app, page } = await launchApp(launchOptions);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(page.locator('[data-app-ready]')).toBeVisible();
+  await page.evaluate(() => { window.location.hash = '#/settings?tab=product'; });
+  await agendaSwitch(page).click();
+  await expect(agendaSwitch(page)).toBeChecked();
+  await page.evaluate(() => { window.location.hash = '#/'; });
+  // ---- BEFORE: paste, read (deterministic, no model), edit, prepare ----
+  const card = page.getByTestId('agenda-prepare');
+  await card.getByRole('button', { name: 'Agenda inladen', exact: true }).click();
+  await card.getByRole('textbox', { name: 'Plak de agenda (één punt per regel)', exact: true }).fill(AGENDA);
+  await card.getByRole('button', { name: 'Agenda lezen', exact: true }).click();
+  await expect(card.getByTestId('agenda-edit-row')).toHaveCount(3);
+  await expect(card.getByRole('textbox', { name: 'Eigenaar van punt 2', exact: true })).toHaveValue('Noor');
+  await expect(card.getByRole('combobox', { name: 'Uitkomst van punt 2', exact: true })).toHaveValue('besluit');
+  await card.getByRole('spinbutton', { name: 'Minuten voor punt 3', exact: true }).fill('5');
+  await card.getByRole('button', { name: 'Klaarzetten voor de volgende opname', exact: true }).click();
+  await expect(card.getByText('Staat klaar · 3 punten · AI volgt stil mee', { exact: true })).toBeVisible();
+  expect(await modelCalls(app)).toBe(0);
+  // ---- DURING ----
+  await page.getByRole('button', { name: 'New note', exact: true }).last().click();
+  const sidebar = page.locator('[data-agenda-runtime]');
+  await expect(sidebar.getByRole('heading', { name: 'Werkoverleg Kastanje', exact: true })).toBeVisible();
+  await expect(sidebar.getByText('Laat deelnemers weten dat er een AI meeluistert.', { exact: true })).toBeVisible();
+  const status = sidebar.getByRole('status', { name: 'Status agendacontrole', exact: true });
+  await expect(status).toHaveText('AI volgt mee · lokaal · wacht op gesproken tekst');
+  const session = await page.evaluate(async () => (await window.stenoai.recording.getQueue()).sessionName as string);
+  // Manual start always works; time counts from that moment.
+  await sidebar.locator('[data-agenda-item="p1"]').getByRole('button', { name: 'Start', exact: true }).click();
+  await expect(sidebar.locator('[data-agenda-item="p1"]')).toHaveAttribute('data-status', 'loopt');
+  await emitLiveSegments(app, session, [
+    { text: 'Welkom allemaal bij het werkoverleg.', start: 2, end: 5, isFinal: true, speaker: 'You' },
+    { text: 'We gaan naar punt 2, de nieuwe roosters.', start: 30, end: 33, isFinal: true, speaker: 'You' },
+  ]);
+  const suggestion = sidebar.getByTestId('agenda-suggestion');
+  await expect(suggestion).toContainText('Punt 2 lijkt begonnen: Nieuwe roosters', { timeout: 75_000 });
+  // A suggestion changes nothing by itself; one tap confirms it.
+  await expect(sidebar.locator('[data-agenda-item="p2"]')).toHaveAttribute('data-status', 'open');
+  await suggestion.getByRole('button', { name: 'Bevestig', exact: true }).click();
+  await expect(sidebar.locator('[data-agenda-item="p2"]')).toHaveAttribute('data-status', 'loopt');
+  await expect(sidebar.locator('[data-agenda-item="p1"]')).toHaveAttribute('data-status', 'afgerond');
+  await expect(sidebar.locator('[data-agenda-item="p2"]')).toContainText('voorstel bevestigd');
+  await emitLiveSegments(app, session, [
+    { text: 'We besluiten het nieuwe rooster in mei in te voeren.', start: 600, end: 604, isFinal: true, speaker: 'Others' },
+    { text: 'Noor stuurt het rooster voor vrijdag rond.', start: 606, end: 609, isFinal: true, speaker: 'You' },
+    { text: 'Wie boekt de zaal voor de volgende keer?', start: 612, end: 615, isFinal: true, speaker: 'Others' },
+  ]);
+  const running = sidebar.locator('[data-agenda-item="p2"]');
+  await expect(running).toContainText('Besluiten 1 · acties 1 · vragen 1', { timeout: 75_000 });
+  await expect(running.locator('[data-signal="besluit_zonder_eigenaar"]')).toHaveText('Besluit zonder eigenaar of termijn');
+  await expect(sidebar.locator('[data-agenda-diagnostics]')).toHaveText(/^tekstregels 5 · controles \d+ · laatste reden (stil|maxwacht)$/);
+  // The renderer plans nothing itself.
+  expect(await modelCalls(app)).toBeGreaterThanOrEqual(2);
+  await page.screenshot({ path: test.info().outputPath('agenda-tijdens.png'), animations: 'disabled' });
+  // ---- AFTER ----
+  await page.getByRole('button', { name: 'Show transcript', exact: true }).click();
+  await page.getByTestId('live-transcript-panel').getByRole('button', { name: 'Stop recording', exact: true }).click();
+  const tab = page.getByTestId('tab-agenda');
+  await expect(tab).toHaveText('Notulen');
+  await tab.click();
+  const minutes = page.getByTestId('agenda-note-tab');
+  await expect(page.getByTestId('agenda-pills')).toHaveText('1 besluiten1 acties1 open vragen3 voorstellen');
+  const item = minutes.locator('[data-agenda-note-item="p2"]');
+  await expect(item).toContainText('Liep nog bij het stoppen');
+  const decision = item.locator('[data-review]').filter({ hasText: 'We besluiten het nieuwe rooster in mei in te voeren.' }).first();
+  await expect(decision).toHaveAttribute('data-review', 'voorstel');
+  await expect(decision).toContainText('10:00 · Anderen');
+  await decision.getByRole('button', { name: 'Corrigeer', exact: true }).click();
+  await decision.getByRole('textbox', { name: 'Eigenaar', exact: true }).fill('Noor');
+  await decision.getByRole('textbox', { name: 'Termijn', exact: true }).fill('1 mei');
+  await decision.getByRole('button', { name: 'Bewaar', exact: true }).click();
+  await expect(decision).toHaveAttribute('data-review', 'gecorrigeerd');
+  await expect(decision).toContainText('Eigenaar: Noor · Termijn: 1 mei');
+  const action = item.locator('[data-review]').filter({ hasText: 'Noor stuurt het rooster' }).first();
+  await action.getByRole('button', { name: 'Bevestig', exact: true }).click();
+  await expect(action).toHaveAttribute('data-review', 'bevestigd');
+  await expect(page.getByTestId('agenda-pills')).toHaveText('1 besluiten1 acties1 open vragen1 voorstellen');
+  await page.screenshot({ path: test.info().outputPath('agenda-na.png'), animations: 'disabled' });
+  const noteFile = path.join(userDataDir, 'notes', 'klantgesprek_summary.md');
+  const note = await page.evaluate((file) => window.stenoai.agenda.noteResult({ noteFile: file }), noteFile);
+  if (!note.success || !note.found) throw new Error('no minutes');
+  expect(note.markdown).toMatch(/^# Notulen Werkoverleg Kastanje\n/);
+  expect(note.markdown).toContain('[gecorrigeerd] We besluiten het nieuwe rooster in mei in te voeren. · Eigenaar: Noor · Termijn: 1 mei');
+  expect(note.markdown).toContain('[bevestigd] Noor stuurt het rooster voor vrijdag rond.');
+  expect(note.markdown).toContain('[voorstel] Wie boekt de zaal voor de volgende keer?');
+  const root = path.join(userDataDir, 'veneta-modules');
+  for (const directory of ['agenda-sessions', 'agenda-reviews', 'agenda-note-results']) expect(readdirSync(path.join(root, directory))).toHaveLength(1);
+  // The canonical note is never written by the module.
+  expect(existsSync(noteFile)).toBe(false);
+});

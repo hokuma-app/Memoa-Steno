@@ -75,6 +75,7 @@ const { createTeardownRegistry } = require('./teardown');
 const { registerFoldersIpc } = require('./folders-ipc');
 const { registerSettingsIpc } = require('./settings-ipc');
 const { registerVenetaProductIpc } = require('./veneta-product-ipc');
+const { registerVenetaAgendaIpc } = require('./veneta-agenda-ipc');
 const { createChecklistRunner } = require('./veneta-checklist-runner');
 const { registerSummaryFoldingIpc } = require('./summary-folding-ipc');
 const { createSummaryFoldRunner } = require('./summary-folding-runner');
@@ -310,7 +311,8 @@ function applyRecordHotkey(enabled) {
   return globalShortcut.isRegistered(RECORD_HOTKEY_ACCEL);
 }
 if (IS_E2E_MOCK_IPC) {
-  require('./e2e-mock-ipc').install({ ipcMain, BrowserWindow, bindChecklistNote: (request) => venetaProduct.bindSessionToNote(request) });
+  require('./e2e-mock-ipc').install({ ipcMain, BrowserWindow, bindChecklistNote: (request) => venetaProduct.bindSessionToNote(request),
+    bindAgendaNote: (request) => venetaAgenda.bindSessionToNote(request) });
 }
 
 // Give development runs a distinct dock, About menu, and Cmd+Tab name.
@@ -5412,6 +5414,7 @@ function bufferLiveSegment(segment) {
   }
   if (segment.isFinal) {
     try { venetaProduct.live.notify(); } catch (_) { /* The checklist never disturbs the transcript. */ }
+    try { venetaAgenda.live.notify(); } catch (_) { /* The agenda chair never disturbs the transcript. */ }
   }
 }
 
@@ -6743,6 +6746,10 @@ ipcMain.handle('start-recording-ui', async (_, sessionName, trigger, appendTo) =
     try {
       venetaProduct.live.begin({ appendTarget: currentRecordingAppendTarget, startedAtMs: recordingRuntimeState.startedAtMs });
     } catch (_) { /* The checklist never blocks starting a recording. */ }
+    // The agenda chair (stand 1) is planned the same way, per recording, in the host. Off module: nothing happens.
+    try {
+      venetaAgenda.live.begin({ appendTarget: currentRecordingAppendTarget, startedAtMs: recordingRuntimeState.startedAtMs });
+    } catch (_) { /* The agenda never blocks starting a recording. */ }
     // Spawn the Parakeet+Silero transcribe-stream sidecar for live partials.
     // Whisper recordings skip it — the renderer gates its live-tap IPC on the
     // same engine, so no chunks are produced when the sidecar isn't running.
@@ -6790,6 +6797,7 @@ ipcMain.handle('start-recording-ui', async (_, sessionName, trigger, appendTo) =
     console.error('Start recording UI error:', error.message);
     // A recording that never started must not leave a planner session (or its timers) behind.
     try { venetaProduct.live.cancel({ keepFinishing: true }); } catch (_) { /* Best effort. */ }
+    try { venetaAgenda.live.cancel({ keepFinishing: true }); } catch (_) { /* Best effort. */ }
     systemAudioRecordingActive = false;
     currentRecordingSessionName = null;
     currentRecordingAppendTarget = null;
@@ -6973,6 +6981,14 @@ ipcMain.handle('stop-recording-ui', async () => {
         appended: Boolean(currentRecordingAppendTarget),
       });
     } catch (_) { /* The checklist link is best-effort and never blocks stopping. */ }
+    // The agenda minutes belong to the same note, by the same rule.
+    try {
+      venetaAgenda.bindSessionToNote({
+        noteFile: currentRecordingAppendTarget || activeSysAudioSummaryFile,
+        recordingId: String(recordingRuntimeState.startedAtMs),
+        appended: Boolean(currentRecordingAppendTarget),
+      });
+    } catch (_) { /* The agenda link is best-effort and never blocks stopping. */ }
 
     // Capture is renderer-driven; the renderer's stopCapture flow finalises the
     // WebM and reports systemAudioRecordingActive=false. Clear it here too in
@@ -6993,6 +7009,7 @@ ipcMain.handle('stop-recording-ui', async () => {
     // One last check over whatever was not assessed yet, in the background; its result lands in the same session
     // file. It waits for the real sidecar drain (bounded by the kill watchdog), so the last utterance counts.
     try { void venetaProduct.live.finish({ drained, drainTimeoutMs: SIDECAR_KILL_WATCHDOG_MS + 500 }); } catch (_) { /* Never blocks stopping. */ }
+    try { void venetaAgenda.live.finish({ drained, drainTimeoutMs: SIDECAR_KILL_WATCHDOG_MS + 500 }); } catch (_) { /* Never blocks stopping. */ }
     currentRecordingSessionName = null;
     // Captured before resetRecordingRuntimeState() clears startedAtMs.
     const recordingDurationBucket = durationBucket(getRecordingElapsedSeconds());
@@ -7003,6 +7020,7 @@ ipcMain.handle('stop-recording-ui', async () => {
   } catch (error) {
     console.error('Stop recording UI error:', error.message);
     try { venetaProduct.live.cancel(); } catch (_) { /* Best effort. */ }
+    try { venetaAgenda.live.cancel(); } catch (_) { /* Best effort. */ }
     systemAudioRecordingActive = false;
     currentRecordingSessionName = null;
     resetRecordingRuntimeState();
@@ -9155,16 +9173,41 @@ const venetaProduct = registerVenetaProductIpc({
   // Counters and reason codes only: never transcript text, criteria or quotes.
   logLive: (event, fields) => sendDebugLog(`[checklist] ${event}${Object.entries(fields || {}).map(([key, value]) => ` ${key}=${value}`).join('')}`),
 });
-app.on('will-quit', () => { checklistRunner.cancelAll(); venetaProduct.live.cancel(); });
+// Agenda en voorzitter (stand 1): the same guarded local route (backend `agenda-analyze`), sharing the one model slot.
+const agendaRunner = createChecklistRunner({
+  getUserDataDir, getBackendPath, getBackendCwd, spawn, killProcessTree, command: 'agenda-analyze',
+});
+const venetaAgenda = registerVenetaAgendaIpc({
+  ipcMain, getUserDataDir,
+  store: venetaProduct.store,
+  modelSlot: venetaProduct.modelSlot,
+  onSettingsChanged: venetaProduct.onSettingsChanged,
+  liveTimers: { energySaver: require('./package.json').venetaMemoAi === true
+    && process.env.STENOAI_VENETA_ENERGY_SAVER !== '0' },
+  isOllamaBusy: () => isProcessing || processingQueue.length > 0 || activeReprocessJobs.size > 0,
+  // Owned mock-IPC runs replace only the model boundary; the real guards, planner and files stay in the loop.
+  analyzeAgenda: IS_E2E && IS_E2E_MOCK_IPC ? require('./e2e-mock-ipc').agendaModel : agendaRunner,
+  getLiveFinals: () => [
+    ...(liveTranscriptState.priorSegments || []),
+    ...(liveTranscriptState.segments || []).filter((segment) => segment && segment.isFinal && segment.text),
+  ],
+  emitLiveState: (state) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('veneta-agenda-live-state', state);
+  },
+  // Counters and reason codes only: never transcript text, agenda titles or quotes.
+  logLive: (event, fields) => sendDebugLog(`[agenda] ${event}${Object.entries(fields || {}).map(([key, value]) => ` ${key}=${value}`).join('')}`),
+});
+app.on('will-quit', () => { checklistRunner.cancelAll(); agendaRunner.cancelAll(); venetaProduct.live.cancel(); venetaAgenda.live.cancel(); });
 if (IS_E2E && IS_E2E_MOCK_IPC) {
   // Synthetic live source of the owned fixture: the same buffer and planner as the sidecar path, without a sidecar.
   global.__venetaLive = {
     ingest: (segments) => { for (const segment of segments) bufferLiveSegment(segment); },
     start: ({ sessionName, appendTarget, startedAtMs }) => {
       liveTranscriptState = { sessionName, summaryFile: appendTarget || null, segments: [], priorSegments: [], ready: true, error: null };
+      venetaAgenda.live.begin({ appendTarget: appendTarget || null, startedAtMs });
       return venetaProduct.live.begin({ appendTarget: appendTarget || null, startedAtMs });
     },
-    stop: () => venetaProduct.live.finish(),
+    stop: () => Promise.all([venetaProduct.live.finish(), venetaAgenda.live.finish()]),
   };
 }
 const summaryFoldRunner = createSummaryFoldRunner({

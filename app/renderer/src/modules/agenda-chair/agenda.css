@@ -1,0 +1,100 @@
+/* Agenda en voorzitter (stand 1): Home card, live sidebar and the minutes tab. */
+.veneta-agenda-card,
+.veneta-agenda-live,
+.veneta-agenda-note {
+  --ag-warn: #8a5a00;
+  --ag-warn-bg: #fff1cc;
+  --ag-over: var(--danger, #b42318);
+  --ag-over-bg: var(--danger-bg, #fde8e6);
+}
+html[data-theme='dark'] .veneta-agenda-card,
+html[data-theme='dark'] .veneta-agenda-live,
+html[data-theme='dark'] .veneta-agenda-note {
+  --ag-warn: #e3b35a;
+  --ag-warn-bg: rgba(227, 179, 90, 0.16);
+}
+.veneta-agenda-card {
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+}
+.veneta-agenda-input {
+  border: 1px solid var(--border-subtle);
+  background: var(--page, transparent);
+  color: var(--fg-1);
+}
+.veneta-agenda-edit-row,
+.veneta-agenda-row,
+.veneta-agenda-note-item,
+.veneta-agenda-note-finding {
+  border: 1px solid var(--border-subtle);
+}
+.veneta-agenda-row-running {
+  border-color: var(--fg-1);
+}
+.veneta-agenda-status,
+.veneta-agenda-tag,
+.veneta-agenda-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: var(--surface-sunken);
+  color: var(--fg-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.veneta-agenda-pill { font-size: 12px; padding: 2px 10px; }
+.veneta-agenda-pill-warn,
+.veneta-agenda-review-voorstel { background: var(--ag-warn-bg); color: var(--ag-warn); }
+.veneta-agenda-review-bevestigd,
+.veneta-agenda-review-gecorrigeerd { background: var(--success-bg); color: var(--success); }
+.veneta-agenda-review-afgewezen { background: var(--ag-over-bg); color: var(--ag-over); }
+.veneta-agenda-signal {
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: var(--ag-warn-bg);
+  color: var(--ag-warn);
+  font-size: 11px;
+  font-weight: 600;
+}
+.veneta-agenda-signal[data-signal='tijd_om'],
+.veneta-agenda-signal[data-signal='over_tijd'] { background: var(--ag-over-bg); color: var(--ag-over); }
+.veneta-agenda-warn { background: var(--ag-warn-bg); color: var(--ag-warn); }
+.veneta-agenda-suggestion { border: 1px dashed var(--fg-1); background: var(--surface-raised); }
+.veneta-agenda-bar {
+  position: relative;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 9999px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+.veneta-agenda-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--success);
+  transition: width 0.4s ease;
+}
+.veneta-agenda-bar-near > span { background: var(--ag-warn); }
+.veneta-agenda-bar-over > span { background: var(--ag-over); }
+.veneta-agenda-quote {
+  border-left: 2px solid var(--border-subtle);
+  padding-left: 8px;
+}
+.veneta-agenda-rejected { opacity: 0.7; }
+@media (prefers-reduced-motion: reduce) {
+  .veneta-agenda-bar > span { transition: none; }
+}
+/* In the recording column (veneta-layout.css) the agenda sits above the checklist and scrolls on its own. */
+html[data-product='veneta-memoai'] .veneta-conversation-sidebar > [data-agenda-runtime] {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 60%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-bottom: 1px solid var(--border-subtle);
+}
+html[data-product='veneta-memoai'] .veneta-conversation-sidebar:not(:has([data-checklist-runtime])) > [data-agenda-runtime] {
+  flex: 1;
+  max-height: none;
+}

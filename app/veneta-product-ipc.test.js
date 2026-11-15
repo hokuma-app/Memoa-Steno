@@ -26,6 +26,21 @@ test('new profile reads without creating files, persists settings and retains mo
   assert.equal(fresh.moduleEnabled('conversation-checklist'), true);
 });
 
+test('agenda-chair is a second optional module: absent means off, an older settings file stays valid, only Veneta enables it', (t) => {
+  const { root, store } = fixture(t);
+  assert.equal(store.moduleEnabled('agenda-chair'), false);
+  fs.mkdirSync(path.join(root, 'veneta-modules'));
+  // A settings file written before the agenda module existed.
+  fs.writeFileSync(store.filePath, JSON.stringify({ schemaVersion: 1, profile: 'veneta', modules: { 'conversation-checklist': true } }));
+  assert.equal(store.moduleEnabled('agenda-chair'), false);
+  store.set({ modules: { 'agenda-chair': true } });
+  assert.deepEqual(store.get().modules, { 'conversation-checklist': true, 'agenda-chair': true });
+  assert.equal(store.moduleEnabled('agenda-chair'), true);
+  store.set({ profile: 'default' });
+  assert.equal(store.moduleEnabled('agenda-chair'), false);
+  for (const patch of [{ modules: { 'agenda-chair': 'true' } }, { modules: { 'agenda-chair': true, other: true } }]) assert.throws(() => store.set(patch));
+});
+
 test('invalid settings and corrupt existing files fail closed without overwriting bytes', (t) => {
   const { root, store } = fixture(t);
   for (const patch of [{ profile: 'Veneta' }, { modules: { 'conversation-checklist': 'true' } }, { modules: { unknown: true } }, { unexpected: true }]) {

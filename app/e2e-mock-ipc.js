@@ -354,7 +354,7 @@ const AUDIO_SEED_MEETINGS = [
   },
 ];
 
-function install({ ipcMain, bindChecklistNote }) {
+function install({ ipcMain, bindChecklistNote, bindAgendaNote }) {
   // Renderer tests can save and reopen chat turns without a backend or disk.
   let chatSessions = { sessions: [] };
   let privacyNoticeSeen = true;
@@ -631,6 +631,10 @@ function install({ ipcMain, bindChecklistNote }) {
       // The real handler binds the conversation checklist to the note file it knows; the spec names that file.
       if (process.env.STENOAI_E2E_SEED_CHECKLIST_NOTE === '1' && bindChecklistNote) {
         bindChecklistNote({ noteFile: checklistNoteFile(), recordingId: rec.recordingId, appended: false });
+      }
+      // The agenda minutes bind to the same note by the same rule (the module refuses when it is off).
+      if (process.env.STENOAI_E2E_SEED_CHECKLIST_NOTE === '1' && bindAgendaNote) {
+        bindAgendaNote({ noteFile: checklistNoteFile(), recordingId: rec.recordingId, appended: false });
       }
       // ... and then starts the last check over the unassessed text, in the background.
       void global.__venetaLive?.stop();
@@ -1903,7 +1907,7 @@ function install({ ipcMain, bindChecklistNote }) {
     } else if (foldingMocks[channel]) {
       fn = foldingMocks[channel];
     } else if (channel === 'get-product-settings' || channel === 'set-product-settings'
-        || channel.startsWith('veneta-checklist-')) {
+        || channel.startsWith('veneta-checklist-') || channel.startsWith('veneta-agenda-')) {
       // These handlers are local JSON only; test their actual owned-profile persistence. Evaluation goes through the
       // real guarded route and the real host planner; only the model boundary (checklistModel below) is replaced.
       fn = realFn;
@@ -1972,4 +1976,33 @@ async function checklistModel(request) {
     }) };
 }
 
-module.exports = { install, checklistModel };
+// Model boundary of the agenda chair, same rules as checklistModel: synthetic, deterministic, no list-index branch.
+// 'we gaan naar punt N' (or the title of an item) proposes item N; 'we besluiten' is a decision, '<Naam> pakt/regelt/stuurt'
+// an action with that owner, a sentence ending in '?' an open question. Quotes are whole segment texts, so they always
+// pass the host's literal check. STENOAI_E2E_AGENDA_FAIL=<reason> proves the visible failure status.
+async function agendaModel(request) {
+  global.__agendaModelCalls = (global.__agendaModelCalls || 0) + 1;
+  if (process.env.STENOAI_E2E_AGENDA_FAIL) throw Object.assign(new Error('mock failure'), { reason: process.env.STENOAI_E2E_AGENDA_FAIL });
+  const delay = Number(process.env.STENOAI_E2E_AGENDA_DELAY_MS || 0);
+  if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+  const lower = (text) => String(text).normalize('NFKC').toLocaleLowerCase('nl-NL');
+  let currentItem = null;
+  const findings = [];
+  for (const segment of request.segments) {
+    const text = lower(segment.text);
+    const number = /(?:naar|bij) (?:agenda)?punt (\d+)/.exec(text);
+    const byNumber = number ? request.items[Number(number[1]) - 1] : null;
+    const byTitle = /we gaan (?:nu )?(?:door )?naar|over naar/.test(text) ? request.items.find((item) => text.includes(lower(item.title))) : null;
+    const item = byNumber || byTitle;
+    if (item) currentItem = { itemId: item.id, segmentId: segment.id, quote: segment.text };
+    const due = /(maandag|dinsdag|woensdag|donderdag|vrijdag|volgende week|eind van de maand)/.exec(text);
+    const actor = /(\p{Lu}\p{Ll}+) (?:pakt|regelt|stuurt|maakt|zorgt)/u.exec(segment.text);
+    const base = { itemId: request.currentItemId, segmentId: segment.id, quote: segment.text, text: segment.text.slice(0, 300) };
+    if (/we besluiten|besloten|we kiezen/.test(text)) findings.push({ ...base, kind: 'besluit', owner: actor ? actor[1] : null, due: due ? due[1] : null });
+    else if (actor) findings.push({ ...base, kind: 'actie', owner: actor[1], due: due ? due[1] : null });
+    else if (/\?\s*$/.test(segment.text)) findings.push({ ...base, kind: 'vraag', owner: null, due: null });
+  }
+  return { revision: request.revision, currentItem, findings: findings.slice(0, 48) };
+}
+
+module.exports = { install, checklistModel, agendaModel };

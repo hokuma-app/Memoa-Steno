@@ -74,3 +74,20 @@ test('the runner deadline covers two bounded local model rounds and reports a ti
   await assert.rejects(runner({}), (error) => error.reason === 'timeout');
   assert.ok(createChecklistRunner.DEFAULT_TIMEOUT_MS >= 2 * 150000 + 30000);
 });
+
+test('the agenda chair uses the same private transport with its own fixed backend command; other commands are refused', async (t) => {
+  const root = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'veneta-agenda-runner-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const seen = [];
+  const runner = createChecklistRunner({ getUserDataDir: () => root, getBackendPath: () => 'owned', getBackendCwd: () => root, killProcessTree() {},
+    command: 'agenda-analyze', spawn(_executable, args) {
+      seen.push(args[0]);
+      const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); child.pid = 424243;
+      queueMicrotask(() => { child.stdout.emit('data', Buffer.from('{"revision":"a1","currentItem":null,"findings":[]}')); child.emit('close', 0); });
+      return child;
+    } });
+  assert.deepEqual(await runner({ revision: 'a1' }), { revision: 'a1', currentItem: null, findings: [] });
+  assert.deepEqual(seen, ['agenda-analyze']);
+  assert.throws(() => createChecklistRunner({ getUserDataDir: () => root, getBackendPath: () => 'owned', getBackendCwd: () => root,
+    killProcessTree() {}, spawn() {}, command: 'pull' }));
+});

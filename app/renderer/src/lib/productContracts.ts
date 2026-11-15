@@ -1,10 +1,11 @@
 export type ProductProfileId = 'default' | 'veneta';
-export type ProductModuleId = 'conversation-checklist';
+export type ProductModuleId = 'conversation-checklist' | 'agenda-chair';
 
 export interface ProductSettings {
   schemaVersion: 1;
   profile: ProductProfileId;
-  modules: Record<ProductModuleId, boolean>;
+  /** The checklist key is always present; a newer module key is optional (absent = off). */
+  modules: { 'conversation-checklist': boolean } & Partial<Record<ProductModuleId, boolean>>;
 }
 
 export interface ProductSettingsPatch {

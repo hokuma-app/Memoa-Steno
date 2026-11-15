@@ -10451,6 +10451,17 @@ def checklist_evaluate(request_path):
         raise click.exceptions.Exit(1)
 
 
+@cli.command('agenda-analyze')
+@click.argument('request_path', type=click.Path(path_type=Path))
+def agenda_analyze(request_path):
+    """Label a private agenda-chair request (Veneta, stand 1) with configured local AI; never acts."""
+    from src.veneta_agenda import evaluate_file
+    result = evaluate_file(request_path)
+    click.echo(json.dumps(result, ensure_ascii=False, allow_nan=False))
+    if 'error' in result:
+        raise click.exceptions.Exit(1)
+
+
 @cli.command('test-model-function')
 @click.argument('function')
 def test_model_function_cmd(function):

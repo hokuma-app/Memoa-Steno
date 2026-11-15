@@ -3,7 +3,7 @@ import type { ProductModuleId, ProductProfileId, ProductSettings } from './produ
 
 export type { ProductModuleId, ProductProfileId, ProductSettings } from './productContracts';
 export const PRODUCT_PROFILE_IDS: readonly ProductProfileId[] = ['default', 'veneta'];
-export const PRODUCT_MODULE_IDS: readonly ProductModuleId[] = ['conversation-checklist'];
+export const PRODUCT_MODULE_IDS: readonly ProductModuleId[] = ['conversation-checklist', 'agenda-chair'];
 export const BUILD_PRODUCT_PROFILE: ProductProfileId = IS_VENETA_MEMOAI ? 'veneta' : 'default';
 export function initialProductSettings(
   profile: ProductProfileId = BUILD_PRODUCT_PROFILE

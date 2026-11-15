@@ -2,6 +2,19 @@
 
 Dit bestand beschrijft de eigen Veneta-releases, niet de releases van StenoAI upstream. Gepland werk staat apart van opgeleverde functionaliteit. Een versienummer in de bron is nog geen gebouwde of vrijgegeven release.
 
+## Ongepubliceerd: Agenda en voorzitter (stand 1)
+
+Nog geen release, geen versienummer, geen pakket. Branch `feat/agenda-voorzitter`.
+
+Nieuwe module `Agenda en voorzitter`, stand 1 (Stille voorzitter), naast de Gesprekschecklist en met dezelfde grenzen: standaard uit, alleen in het Veneta-profiel, uit betekent geen leesacties, geen modelaanroepen en geen bestanden. Beschrijving: `app/renderer/src/modules/agenda-chair/README.md`.
+
+- Voor: agenda plakken of een .md/.txt-bestand kiezen; de host leest het zonder model in agendapunten (genummerd of opsomming, tijdsblok, eigenaar, uitkomst, vereist), maximaal 32 punten en 24.000 tekens; daarna bewerkbaar en klaar te zetten voor de volgende opname.
+- Tijdens: zijbalk met lopend punt, tijd per punt tegen tijdsblok en de signalen tijd bijna om (80%), tijd om (100%), besluit zonder eigenaar of termijn, uitkomst ontbreekt en vereist punt open (minder dan 10 minuten over). De host stelt via het lokale model een wissel voor ('Punt 2 lijkt begonnen') die een mens met een tik bevestigt; starten, afronden, overslaan en doorschuiven kan altijd. Besluiten, acties en open vragen komen als voorstel met letterlijk citaat, tijdcode en spreker.
+- Na: tab `Notulen` in de notitie per agendapunt, met bevestigen, corrigeren, afwijzen en ongedaan maken per bevinding, en `Kopieer als markdown`. Laatste controle bij stoppen.
+- Techniek: host-planner in het hoofdproces gevoed door definitieve live-segmenten, single-flight met het modelslot van de checklist gedeeld, begrensd venster (nieuwste aaneengesloten staart), inhoudsvrije diagnose, backendcommando `agenda-analyze` met de bestaande lokale route en lokaal-bewijs-controle, sidecars in `veneta-modules/agenda-*`. De productinstellingen accepteren een tweede, optionele modulesleutel; bestaande instellingenbestanden blijven geldig.
+
+Bekende grenzen: afdwaling niet gebouwd; herkenningskwaliteit niet gemeten; een pauze zet de klok van het lopende punt niet stil; tijdcodes in een voortgezette notitie beginnen opnieuw; sprekers zijn kanalen.
+
 ## Versiebeleid
 
 - Iedere nieuwe opgeleverde release krijgt een eigen versienummer.

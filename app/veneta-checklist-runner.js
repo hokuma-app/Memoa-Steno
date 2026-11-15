@@ -9,7 +9,11 @@ const REASONS = new Set(['server_unreachable', 'server_start_failed', 'model_mis
 // Two bounded model rounds of up to 150 s each, one server start of up to 30 s, plus margin.
 const DEFAULT_TIMEOUT_MS = 2 * 150000 + 30000 + 60000;
 
-function createChecklistRunner({ getUserDataDir, getBackendPath, getBackendCwd, spawn, killProcessTree, timeoutMs = DEFAULT_TIMEOUT_MS }) {
+// `command` is the backend subcommand: `checklist-evaluate` (default) or `agenda-analyze` for the agenda chair. Both read
+// the same private request file and use the same local-only model route.
+const COMMANDS = new Set(['checklist-evaluate', 'agenda-analyze']);
+function createChecklistRunner({ getUserDataDir, getBackendPath, getBackendCwd, spawn, killProcessTree, timeoutMs = DEFAULT_TIMEOUT_MS, command = 'checklist-evaluate' }) {
+  if (!COMMANDS.has(command)) throw new Error('Onbekende analyseopdracht.');
   const active = new Set();
   const run = (request) => new Promise((resolve, reject) => {
     let requestFile; let child; let timer; let settled = false;
@@ -46,7 +50,7 @@ function createChecklistRunner({ getUserDataDir, getBackendPath, getBackendCwd, 
       const serialized = JSON.stringify(request);
       if (Buffer.byteLength(serialized, 'utf8') > 262144) throw failure();
       fs.writeFileSync(requestFile, serialized, { mode: 0o600, flag: 'wx' });
-      child = spawn(getBackendPath(), ['checklist-evaluate', requestFile], { cwd: getBackendCwd() });
+      child = spawn(getBackendPath(), [command, requestFile], { cwd: getBackendCwd() });
       active.add(cancel);
       const chunks = []; let outputBytes = 0; let errorBytes = 0;
       timer = setTimeout(() => stop('timeout'), timeoutMs);
