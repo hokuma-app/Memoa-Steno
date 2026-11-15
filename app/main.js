@@ -468,14 +468,12 @@ let notificationWindow;
 // one supersedes (closes) the current one — matching the pre-existing
 // pre-meeting toast.
 //
-// Cross-platform: the window options (transparent, alwaysOnTop, skipTaskbar,
-// focusable:false, hasShadow:false, positioned top-right via workArea) and the
-// setVisibleOnAllWorkspaces/setAlwaysOnTop calls are all valid on macOS AND
-// Windows — the `visibleOnFullScreen` option and the `'screen-saver'` level are
-// macOS-only but are harmlessly ignored on Windows. This is the exact window
-// config the pre-meeting toast already shipped with on both platforms, so
-// there's no new platform-specific surface to gate.
+// Window level (0.11.0): the toast sits at the normal window level, no longer
+// always on top, on every desktop or over full-screen apps; an active window
+// may cover it. It still never takes focus or brings the app forward. The
+// options and the show rule live in notification-window.js (pure, tested).
 const { EventEmitter } = require('events');
+const { TOAST_AUTO_CLOSE_MS, toastWindowOptions, showToast } = require('./notification-window');
 
 class Notification extends EventEmitter {
   constructor(options = {}) {
@@ -504,8 +502,6 @@ class Notification extends EventEmitter {
 
     const { screen } = require('electron');
     const primaryDisplay = screen.getPrimaryDisplay();
-    const { width } = primaryDisplay.workAreaSize;
-    const { x, y } = primaryDisplay.workArea;
 
     // Capture the window in a local `win` so the ready-to-show / closed
     // closures below always reference THIS toast's window — never a later one
@@ -513,39 +509,14 @@ class Notification extends EventEmitter {
     // module-level var inside those closures was the original closure bug: a
     // fast-following toast reassigned it, and the earlier toast's timers/handlers
     // then acted on the wrong window (closing the new toast, leaking the old).
-    const win = new BrowserWindow({
-      width: 400,
-      height: 70,
-      x: x + width - 425,
-      y: y + 1,
-      // Create HIDDEN and only ever show via showInactive() in ready-to-show
-      // below. Without this, `show` defaults to true, so the constructor shows
-      // the window with the *activating* show() — which brings the whole app to
-      // the foreground (firing app.on('activate') → mainWindow.show()/focus()),
-      // so a passive toast appearing wrongly refocuses Steno. focusable:false
-      // stops the toast taking key focus but does NOT stop app activation; only
-      // show:false + showInactive() keeps the app in the background.
-      show: false,
-      // Because the toast now stays in a backgrounded app, a click on its
-      // buttons would otherwise be swallowed as the app-activating click (so the
-      // user has to click twice — once to activate, once to act). acceptFirstMouse
-      // makes that first click register as a real click on the button.
-      acceptFirstMouse: true,
-      frame: false,
-      transparent: true,
-      alwaysOnTop: true,
-      resizable: false,
-      skipTaskbar: true,
-      focusable: false,
-      hasShadow: false,
-      backgroundColor: '#00000000',
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: true,
-        preload: path.join(__dirname, 'preload.js'),
-      },
-    });
+    // Hidden at creation, shown with showInactive() only (no focus, the app stays
+    // in the background), focusable:false, acceptFirstMouse, normal window
+    // level: see notification-window.js.
+    const win = new BrowserWindow(toastWindowOptions({
+      workArea: primaryDisplay.workArea,
+      workAreaSize: primaryDisplay.workAreaSize,
+      preload: path.join(__dirname, 'preload.js'),
+    }));
     notificationWindow = win;
     // Deny window.open + block foreign navigation on the toast window too, so the
     // security guards cover EVERY BrowserWindow (#377). allowExternalLinks lets a
@@ -580,18 +551,14 @@ class Notification extends EventEmitter {
 
     win.once('ready-to-show', () => {
       // Headless E2E: the toast renders and Playwright can drive it, but it
-      // never reaches the screen (no showInactive, no all-workspaces, no
-      // screen-saver level above the user's apps).
-      if (mayExposeWindow({ isE2EHeadless: IS_E2E_HEADLESS })) {
-        win.showInactive();
-        win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-        win.setAlwaysOnTop(true, 'screen-saver', 1);
-      }
+      // never reaches the screen. Otherwise showInactive() only, at the normal
+      // window level (0.11.0).
+      showToast(win, { mayExpose: mayExposeWindow({ isE2EHeadless: IS_E2E_HEADLESS }) });
 
       // Keep the 15s auto-close (matches the pre-existing pre-meeting toast).
       autoCloseTimer = setTimeout(() => {
         if (!win.isDestroyed()) win.close();
-      }, 15000);
+      }, TOAST_AUTO_CLOSE_MS);
 
       win.webContents.send('show-notification', this.payload);
     });
