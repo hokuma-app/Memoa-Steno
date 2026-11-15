@@ -261,10 +261,9 @@ export function MeetingsShell({
         title={deleteTarget ? t('meetingsShell.deleteFolder', { name: deleteTarget.name }) : ''}
         description={
           deleteTarget && deleteTarget.meetingCount > 0 ? (
-            <>
-              {deleteTarget.meetingCount} {t('meetingsShell.meeting')}
-              {deleteTarget.meetingCount === 1 ? '' : t('meetingsShell.s')} {t('meetingsShell.willBeMovedBackTo')}
-            </>
+            deleteTarget.meetingCount === 1
+              ? t('meetingsShell.movedBack.one', { count: deleteTarget.meetingCount })
+              : t('meetingsShell.movedBack.other', { count: deleteTarget.meetingCount })
           ) : (
             <>{t('meetingsShell.noRecordingsOrTranscriptsWill')}</>
           )

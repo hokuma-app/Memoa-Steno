@@ -947,7 +947,9 @@ function AllDayInline({ events, expanded, onToggle }: AllDayInlineProps) {
         className="-mx-1 self-start rounded px-1 py-0.5 text-xs transition-colors hover:bg-[color:var(--surface-hover)]"
         style={{ color: 'var(--fg-2)' }}
       >
-        + {events.length} {t('home.allDayEvent')}{events.length === 1 ? '' : t('home.s')} {t('home.today2')}
+        {events.length === 1
+          ? t('home.allDayToday.one', { count: events.length })
+          : t('home.allDayToday.other', { count: events.length })}
       </button>
       {expanded && (
         // Render as full UpcomingCards so all-day events match the visual

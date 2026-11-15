@@ -39,14 +39,22 @@ describe('conditional sidebar brand', () => {
     expect(lockup?.querySelector('img')?.getAttribute('src')).toBe(approvedIcon);
     expect(lockup?.querySelector('img')?.width).toBe(46);
     expect(element.textContent).not.toMatch(/audio.*(local|device)|audio verlaat/i);
-    expect(element.querySelector('.sb-row.active')?.textContent).toBe('All notes');
+    expect(element.querySelector('.sb-row.active')?.textContent).toBe('Alle notities');
   });
-  it('keeps the upstream brand and navigation unchanged when disabled', () => {
+  it('keeps the upstream brand and English navigation when disabled', () => {
     const legacy = sidebar(false);
     expect(legacy.querySelector('.veneta-sidebar-brand')).toBeNull();
     expect(legacy.textContent).toContain('Steno');
     expect(legacy.querySelector('svg[viewBox="0 0 450 450"]')).not.toBeNull();
-    expect(legacy.querySelector('nav')?.innerHTML).toBe(sidebar(true).querySelector('nav')?.innerHTML);
+    const labels = (root: Element) => [...root.querySelectorAll('nav .sb-row')].map((row) => row.textContent);
+    expect(labels(legacy)).toEqual(['Home', 'All notes', 'Chat', 'Agents', 'Calendar', 'People']);
+    // Same rows and structure in the Veneta build, only the words are Dutch.
+    const veneta = sidebar(true);
+    expect(labels(veneta)).toEqual(['Start', 'Alle notities', 'Chat', 'Agents', 'Agenda', 'Personen']);
+    const structure = (root: Element) => root.querySelector('nav')?.innerHTML
+      .replace(/>[^<]*</g, '><')
+      .replace(/aria-label="[^"]*"/g, 'aria-label=""');
+    expect(structure(legacy)).toBe(structure(veneta));
   });
   it('preserves collapse, width and resize affordances with either brand', () => {
     for (const enabled of [false, true]) {

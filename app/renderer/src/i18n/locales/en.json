@@ -346,9 +346,6 @@
   "mainToolbar.stopTheCurrentRecordingTo": "Stop the current recording to import a file.",
   "mainToolbar.transcribeAndSummariseAnExisting": "Transcribe and summarise an existing recording. It will appear in the list while it processes.",
   "meetingsShell.deleteFolder": "Delete folder \"{{name}}\"?",
-  "meetingsShell.meeting": "meeting",
-  "meetingsShell.s": "s",
-  "meetingsShell.willBeMovedBackTo": "will be moved back to All Notes. No recordings or transcripts will be deleted.",
   "meetingsShell.noRecordingsOrTranscriptsWill": "No recordings or transcripts will be deleted.",
   "meetingsShell.delete": "Delete",
   "meetingsShell.newFolder": "New folder",
@@ -501,9 +498,6 @@
   "home.searchNotes": "Search notes",
   "home.clearSearch": "Clear search",
   "home.noMeetingsMatch": "No meetings match “",
-  "home.allDayEvent": "all-day event",
-  "home.s": "s",
-  "home.today2": "today",
   "meetingDetail.loadingMeeting": "Loading meeting…",
   "meetingDetail.couldnTLoadNote": "Couldn't load note.",
   "meetingDetail.anErrorOccurredLoadingThis": "An error occurred loading this note.",
@@ -1303,5 +1297,9 @@
   "settingsAiTab.deleteToFreeUpDisk.other": "Delete {{label}} ({{size}}) to free up disk space? You can re-download them anytime.",
   "notesPdf.kicker": "Meeting Notes",
   "notesPdf.footer": "Steno is the privacy-first AI notepad for highly sensitive conversations.",
-  "processing.note": "Note"
+  "processing.note": "Note",
+  "meetingsShell.movedBack.one": "{{count}} meeting will be moved back to All Notes. No recordings or transcripts will be deleted.",
+  "meetingsShell.movedBack.other": "{{count}} meetings will be moved back to All Notes. No recordings or transcripts will be deleted.",
+  "home.allDayToday.one": "+ {{count}} all-day event today",
+  "home.allDayToday.other": "+ {{count}} all-day events today"
 }
