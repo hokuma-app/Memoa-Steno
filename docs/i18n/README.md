@@ -11,9 +11,49 @@ cd app && npm run i18n:inventory:update
 
 ## Translation catalogue
 
-New renderer copy can be placed in `app/renderer/src/i18n/locales/en.json` and read through the typed `t()` helper from `@/i18n`.
-Dynamic values use `{{name}}` placeholders and the second `t()` argument supplies their string or numeric values.
-The app remains English-only until locale selection and additional catalogues land, but migrated components no longer need another copy move later.
+All renderer copy lives in `app/renderer/src/i18n/locales/en.json` and is read through the typed `t()` helper from `@/i18n`.
+Dynamic values use `{{name}}` placeholders and the second `t()` argument supplies their values.
+Counts get whole sentences per form (`.one` / `.other`) instead of sentence fragments, so each language can phrase them.
+
+The default build is English. The Veneta build (`IS_VENETA_MEMOAI`) reads `veneta-nl.json` on top of the English catalogue.
+`app/renderer/src/i18n/veneta-nl.test.ts` fails when an English key has no Dutch value, when placeholders differ,
+or when a Dutch value is still the English text outside a reviewed list (product names, units, URLs).
+
+The main process has its own catalogue, `app/main-copy.js` (tray, menus, notifications, dialogs, updater and
+the IPC errors the renderer shows as-is), checked by `app/main-copy.test.js`. Identifiers never go through a
+catalogue: bundle ID, internal app name, data root, file names, log lines and error codes other code compares.
+Python output that other code reads stays English; the renderer translates known reasons (for example the
+Obsidian sync's waiting reasons in `VaultSyncStatusLine.tsx`).
+
+Interface language, transcription language and summary language are three separate things. The summary
+language is the `summary_language` setting (`src/config.py`); the Veneta build recommends Dutch through an
+environment default that applies only while the user has not chosen one.
+
+## Woordenlijst Nederlands (Veneta-build)
+
+Gebruik deze termen overal hetzelfde. Je-vorm, gewone zinnen, geen em dashes.
+
+| Engels | Nederlands |
+| --- | --- |
+| note / notes | notitie / notities |
+| meeting | gesprek |
+| recording / record | opname / opnemen |
+| transcript | transcript (de transcriptie is het proces) |
+| summary / summarise | samenvatting / samenvatten |
+| summary detail, detail levels | samenvattingsdetail, detailniveaus |
+| key points / key topics | belangrijkste punten / belangrijkste onderwerpen |
+| action items | actiepunten |
+| checklist | checklist |
+| template / report | sjabloon / verslag |
+| settings | instellingen |
+| folder | map |
+| speaker / voice profile | spreker / stemprofiel |
+| vault (Obsidian) | kluis |
+| menu bar | menubalk |
+| Steno, StenoAI (as the product) | Veneta MemoAi |
+
+Upstream names stay as they are where they name the real destination or a fixed identifier:
+Steno Labs and StenoLabs (telemetry), Steno Enterprise, the Steno skill, the `StenoAI` vault folder.
 
 Translation keys must be static string literals.
 The inventory resolves those calls against the English catalogue and records the English value under the calling source file, so moving a literal behind `t()` does not rewrite or shrink the copy inventory.
