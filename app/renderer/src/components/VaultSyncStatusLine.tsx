@@ -30,7 +30,7 @@ export function VaultSyncStatusLine({ summaryFile }: { summaryFile: string }) {
       : sync.status === 'pending'
         ? t('vaultSyncStatusLine.vaultWaitingForTheNext')
         : sync.status === 'waiting'
-          ? t('vaultSyncStatusLine.vaultNotExportedYet', { reason: sync.reason })
+          ? t('vaultSyncStatusLine.vaultNotExportedYet', { reason: vaultWaitingReasonText(sync.reason) })
           : t('vaultSyncStatusLine.vaultSyncFailed', { message: sync.message });
   return (
     <p
@@ -42,4 +42,25 @@ export function VaultSyncStatusLine({ summaryFile }: { summaryFile: string }) {
       {text}
     </p>
   );
+}
+
+/**
+ * The Obsidian sync (custom/obsidian_sync.py `incomplete_reason`) reports why a
+ * note waits as one of four fixed English phrases, which other tooling reads
+ * from the sync state. Treat them as reason codes and translate them here; any
+ * other text is shown as it arrived.
+ */
+export function vaultWaitingReasonText(reason: string): string {
+  switch (reason) {
+    case 'still processing':
+      return t('vaultSyncStatusLine.reason.stillProcessing');
+    case 'transcription failed, waiting for a retry':
+      return t('vaultSyncStatusLine.reason.transcriptionFailed');
+    case 'no transcript yet':
+      return t('vaultSyncStatusLine.reason.noTranscript');
+    case 'live fallback only, waiting for full transcription':
+      return t('vaultSyncStatusLine.reason.liveFallbackOnly');
+    default:
+      return reason;
+  }
 }

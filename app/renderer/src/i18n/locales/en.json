@@ -1301,5 +1301,9 @@
   "meetingsShell.movedBack.one": "{{count}} meeting will be moved back to All Notes. No recordings or transcripts will be deleted.",
   "meetingsShell.movedBack.other": "{{count}} meetings will be moved back to All Notes. No recordings or transcripts will be deleted.",
   "home.allDayToday.one": "+ {{count}} all-day event today",
-  "home.allDayToday.other": "+ {{count}} all-day events today"
+  "home.allDayToday.other": "+ {{count}} all-day events today",
+  "vaultSyncStatusLine.reason.stillProcessing": "still processing",
+  "vaultSyncStatusLine.reason.transcriptionFailed": "transcription failed, waiting for a retry",
+  "vaultSyncStatusLine.reason.noTranscript": "no transcript yet",
+  "vaultSyncStatusLine.reason.liveFallbackOnly": "live fallback only, waiting for full transcription"
 }

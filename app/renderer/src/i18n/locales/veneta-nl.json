@@ -1301,5 +1301,9 @@
   "meetingsShell.movedBack.one": "{{count}} gesprek gaat terug naar Alle notities. Er worden geen opnamen of transcripten verwijderd.",
   "meetingsShell.movedBack.other": "{{count}} gesprekken gaan terug naar Alle notities. Er worden geen opnamen of transcripten verwijderd.",
   "home.allDayToday.one": "+ {{count}} afspraak voor de hele dag vandaag",
-  "home.allDayToday.other": "+ {{count}} afspraken voor de hele dag vandaag"
+  "home.allDayToday.other": "+ {{count}} afspraken voor de hele dag vandaag",
+  "vaultSyncStatusLine.reason.stillProcessing": "wordt nog verwerkt",
+  "vaultSyncStatusLine.reason.transcriptionFailed": "transcriptie mislukt, wacht op een nieuwe poging",
+  "vaultSyncStatusLine.reason.noTranscript": "nog geen transcript",
+  "vaultSyncStatusLine.reason.liveFallbackOnly": "alleen het live transcript, wacht op de volledige transcriptie"
 }
