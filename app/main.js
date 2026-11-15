@@ -207,7 +207,7 @@ const os = require('os');
 const { URL, URLSearchParams } = require('url');
 const crypto = require('crypto');
 const { EXPORT_CANCELED } = require('./ipc-sentinels');
-const { mayExposeMainWindow } = require('./e2e-window-visibility');
+const { mayExposeMainWindow, mayExposeWindow, e2eActivationPolicy } = require('./e2e-window-visibility');
 const { PostHog } = require('posthog-node');
 const { initMain } = require('electron-audio-loopback');
 const { autoUpdater } = require('electron-updater');
@@ -225,6 +225,38 @@ if (process.env.STENOAI_USER_DATA_DIR) {
 const IS_E2E = process.env.STENOAI_E2E === '1';
 const IS_E2E_MOCK_IPC = process.env.STENOAI_E2E_MOCK_IPC === '1';
 const IS_E2E_HEADLESS = IS_E2E && process.env.STENOAI_E2E_HEADLESS === '1';
+// Headless E2E on macOS: become an accessory app before anything else can
+// activate the app, so a test launch shows no dock icon and never comes to the
+// front over the user's other apps. Production keeps the normal policy.
+const E2E_ACTIVATION_POLICY = e2eActivationPolicy({ isE2EHeadless: IS_E2E_HEADLESS });
+if (E2E_ACTIVATION_POLICY) {
+  try { app.setActivationPolicy(E2E_ACTIVATION_POLICY); } catch (_) { /* re-applied in whenReady */ }
+}
+// A native dialog would surface over the host desktop. Headless E2E answers
+// the real Electron dialog as if the user cancelled; a spec that stubs
+// dialog.* through app.evaluate still gets its stub, and every other run shows
+// the real dialog. Modules receive `guardedDialog` instead of `dialog`.
+const NATIVE_DIALOG = {
+  showOpenDialog: dialog.showOpenDialog,
+  showSaveDialog: dialog.showSaveDialog,
+  showMessageBox: dialog.showMessageBox,
+};
+function showNativeDialog(kind, ...args) {
+  const fn = dialog[kind];
+  if (fn === NATIVE_DIALOG[kind] && !mayExposeWindow({ isE2EHeadless: IS_E2E_HEADLESS })) {
+    if (kind === 'showMessageBox') {
+      const options = args.find((arg) => arg && typeof arg === 'object' && 'message' in arg) || {};
+      return Promise.resolve({ response: typeof options.cancelId === 'number' ? options.cancelId : 0, checkboxChecked: false });
+    }
+    return Promise.resolve({ canceled: true, filePaths: [], filePath: undefined });
+  }
+  return fn.apply(dialog, args);
+}
+const guardedDialog = {
+  showOpenDialog: (...args) => showNativeDialog('showOpenDialog', ...args),
+  showSaveDialog: (...args) => showNativeDialog('showSaveDialog', ...args),
+  showMessageBox: (...args) => showNativeDialog('showMessageBox', ...args),
+};
 
 // Global (system-wide) accelerator to toggle recording. CommandOrControl
 // resolves to Cmd on macOS and Ctrl on Windows/Linux, so no manual
@@ -545,9 +577,14 @@ class Notification extends EventEmitter {
     });
 
     win.once('ready-to-show', () => {
-      win.showInactive();
-      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-      win.setAlwaysOnTop(true, 'screen-saver', 1);
+      // Headless E2E: the toast renders and Playwright can drive it, but it
+      // never reaches the screen (no showInactive, no all-workspaces, no
+      // screen-saver level above the user's apps).
+      if (mayExposeWindow({ isE2EHeadless: IS_E2E_HEADLESS })) {
+        win.showInactive();
+        win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        win.setAlwaysOnTop(true, 'screen-saver', 1);
+      }
 
       // Keep the 15s auto-close (matches the pre-existing pre-meeting toast).
       autoCloseTimer = setTimeout(() => {
@@ -2014,7 +2051,7 @@ if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   const meetingTransfer = registerMeetingTransferIpc({
-    app, ipcMain, dialog, getMainWindow: () => mainWindow, exposeMainWindow,
+    app, ipcMain, dialog: guardedDialog, getMainWindow: () => mainWindow, exposeMainWindow,
     getOutputDir, getUserDataDir,
     isBusy: () => currentRecordingProcess !== null || systemAudioRecordingActive || isProcessing || activeReprocessJobs.size > 0,
     readMeeting: readMeetingForTransfer,
@@ -2124,6 +2161,9 @@ if (!gotSingleInstanceLock) {
   });
 
   app.whenReady().then(async () => {
+    if (E2E_ACTIVATION_POLICY) {
+      try { app.setActivationPolicy(E2E_ACTIVATION_POLICY); } catch (_) { /* best effort */ }
+    }
     // Resolve whether this launch was an OS login-item auto-launch BEFORE the
     // app_opened event and the first window show below. macOS reports it via
     // wasOpenedAtLogin (the deprecated openAsHidden no longer works on 13+);
@@ -2275,7 +2315,7 @@ if (!gotSingleInstanceLock) {
 
     // Dev runs otherwise show the default Electron dock icon. Packaged builds
     // already get this icon via electron-builder's `mac.icon` setting.
-    if (!app.isPackaged && process.platform === 'darwin' && app.dock) {
+    if (!app.isPackaged && !IS_E2E_HEADLESS && process.platform === 'darwin' && app.dock) {
       try {
         app.dock.setIcon(path.join(__dirname, 'build', 'icon-dragonfly.icns'));
       } catch (e) {
@@ -2835,7 +2875,7 @@ const IMPORT_AUDIO_EXTENSIONS = [
 ];
 
 ipcMain.handle('select-audio-file', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
+  const result = await showNativeDialog('showOpenDialog', mainWindow, {
     properties: ['openFile'],
     filters: [
       { name: mainText('dialog.audioFiles'), extensions: IMPORT_AUDIO_EXTENSIONS }
@@ -4285,7 +4325,7 @@ ipcMain.handle('export-transcript', async (event, defaultFilename, content) => {
         typeof defaultFilename === 'string' && defaultFilename.trim()
           ? path.basename(defaultFilename).slice(0, 200)
           : 'transcript.md';
-      const result = await dialog.showSaveDialog(mainWindow, {
+      const result = await showNativeDialog('showSaveDialog', mainWindow, {
         defaultPath: suggested,
         filters: [
           { name: mainText('dialog.markdown'), extensions: ['md'] },
@@ -4408,7 +4448,7 @@ ipcMain.handle('export-note-pdf', async (event, defaultFilename, html) => {
         typeof defaultFilename === 'string' && defaultFilename.trim()
           ? path.basename(defaultFilename).slice(0, 200)
           : 'notes.pdf';
-      const result = await dialog.showSaveDialog(mainWindow, {
+      const result = await showNativeDialog('showSaveDialog', mainWindow, {
         defaultPath: suggested,
         filters: [{ name: mainText('dialog.pdf'), extensions: ['pdf'] }],
       });
@@ -4463,7 +4503,7 @@ ipcMain.handle('save-diagnostics', async (event, defaultFilename, content) => {
         typeof defaultFilename === 'string' && defaultFilename.trim()
           ? path.basename(defaultFilename).slice(0, 200)
           : 'stenoai-diagnostics.txt';
-      const result = await dialog.showSaveDialog(mainWindow, {
+      const result = await showNativeDialog('showSaveDialog', mainWindow, {
         defaultPath: suggested,
         filters: [{ name: mainText('dialog.text'), extensions: ['txt'] }],
       });
@@ -8496,7 +8536,7 @@ ipcMain.handle('get-app-version', async () => {
 registerFoldersIpc({
   ipcMain,
   runPythonScript,
-  dialog,
+  dialog: guardedDialog,
   getMainWindow: () => mainWindow,
   getUserDataDir,
   validateMeetingFilePath,
@@ -8540,14 +8580,14 @@ const watchedFolders = require('./watched-folders').createWatchedFolders({
   onLog: (message) => sendDebugLog(message),
 });
 require('./watched-folders-ipc').registerWatchedFoldersIpc({
-  ipcMain, watchedFolders, dialog, getMainWindow: () => mainWindow, allowPathArg: IS_E2E,
+  ipcMain, watchedFolders, dialog: guardedDialog, getMainWindow: () => mainWindow, allowPathArg: IS_E2E,
 });
 
 // Obsidian vault sync IPC (#413): config toggle + vault picker + conflicts read.
 registerObsidianIpc({
   ipcMain,
   runPythonScript,
-  dialog,
+  dialog: guardedDialog,
   getMainWindow: () => mainWindow,
   obsidianSync,
   sendDebugLog,
@@ -9470,7 +9510,9 @@ ipcMain.handle('set-dock-icon', async (event, hidden) => {
     const result = await runPythonScript('simple_recorder.py', ['set-dock-icon', hidden ? 'True' : 'False']);
 
     // Apply immediately
-    if (process.platform === 'darwin' && app.dock) {
+    // Headless E2E stays an accessory app: dock.show() would turn it back into
+    // a regular, activatable app with a dock icon.
+    if (process.platform === 'darwin' && app.dock && mayExposeWindow({ isE2EHeadless: IS_E2E_HEADLESS })) {
       if (hidden) {
         app.dock.hide();
       } else {
