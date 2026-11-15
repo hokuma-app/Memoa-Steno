@@ -2607,6 +2607,40 @@ class Config:
         self._config["language"] = language_code
         return self._save()
 
+    # A product build may recommend a summary language for users who never
+    # chose one (the Veneta build sets "nl"). Read only while the user's config
+    # has no summary_language key, so an explicit choice, including "auto",
+    # always wins and is never rewritten.
+    SUMMARY_LANGUAGE_DEFAULT_ENV = "STENOAI_SUMMARY_LANGUAGE_DEFAULT"
+
+    def get_summary_language(self) -> str:
+        """Language for newly generated summaries, titles and reports.
+
+        Separate from the interface language and from get_language(), which
+        drives transcription. "auto" keeps the previous behaviour: write in
+        the meeting's language (the pin or the detected transcript language).
+        Existing notes are never rewritten because this changed.
+        """
+        if "summary_language" in self._config:
+            value = self._config.get("summary_language")
+            return value if isinstance(value, str) and value in self.SUPPORTED_LANGUAGES else "auto"
+        recommended = os.environ.get(self.SUMMARY_LANGUAGE_DEFAULT_ENV, "")
+        return recommended if recommended in self.SUPPORTED_LANGUAGES else "auto"
+
+    def summary_language_is_default(self) -> bool:
+        """True while the user has not chosen a summary language themselves."""
+        return "summary_language" not in self._config
+
+    def set_summary_language(self, language_code: str) -> bool:
+        """Persist an explicit summary language ("auto" follows the meeting)."""
+        if language_code == "zh":
+            language_code = "zh-Hans"
+        if not isinstance(language_code, str) or language_code not in self.SUPPORTED_LANGUAGES:
+            logger.error(f"Unsupported summary language code: {language_code}")
+            return False
+        self._config["summary_language"] = language_code
+        return self._save()
+
     def get_language_name(self, language_code: Optional[str] = None) -> str:
         """Get the display name for a language code."""
         if language_code is None:

@@ -1305,5 +1305,8 @@
   "vaultSyncStatusLine.reason.stillProcessing": "wordt nog verwerkt",
   "vaultSyncStatusLine.reason.transcriptionFailed": "transcriptie mislukt, wacht op een nieuwe poging",
   "vaultSyncStatusLine.reason.noTranscript": "nog geen transcript",
-  "vaultSyncStatusLine.reason.liveFallbackOnly": "alleen het live transcript, wacht op de volledige transcriptie"
+  "vaultSyncStatusLine.reason.liveFallbackOnly": "alleen het live transcript, wacht op de volledige transcriptie",
+  "settingsSummaryLanguage.label": "Samenvattingstaal",
+  "settingsSummaryLanguage.description": "Taal voor nieuwe samenvattingen, titels en actiepunten. Bestaande notities blijven zoals ze zijn.",
+  "settingsSummaryLanguage.auto": "Zelfde taal als het gesprek"
 }

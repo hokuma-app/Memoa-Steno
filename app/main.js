@@ -89,6 +89,11 @@ const { registerObsidianIpc } = require('./obsidian-ipc');
 const { isSafeToAutoInstall } = require('./update-idle-gate');
 const { describeUpdateError, updateErrorPhase, isMissingUpdateFeedError } = require('./update-error-copy');
 const { mainText, menuRoles } = require('./main-copy');
+const { applySummaryLanguageDefault } = require('./summary-language');
+
+// Before any backend spawn: every child inherits process.env.
+applySummaryLanguageDefault(process.env, require('./package.json'));
+
 const { isOSUpdateEligible, MIN_MACOS_FOR_AUTOUPDATE } = require('./update-os-gate');
 const processingLog = require('./processing-log');
 const { isMeetingApp, allowsDeviceLevelFallback, isMacos14Plus } = require('./meeting-detect');

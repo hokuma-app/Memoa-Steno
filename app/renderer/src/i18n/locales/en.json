@@ -1305,5 +1305,8 @@
   "vaultSyncStatusLine.reason.stillProcessing": "still processing",
   "vaultSyncStatusLine.reason.transcriptionFailed": "transcription failed, waiting for a retry",
   "vaultSyncStatusLine.reason.noTranscript": "no transcript yet",
-  "vaultSyncStatusLine.reason.liveFallbackOnly": "live fallback only, waiting for full transcription"
+  "vaultSyncStatusLine.reason.liveFallbackOnly": "live fallback only, waiting for full transcription",
+  "settingsSummaryLanguage.label": "Summary language",
+  "settingsSummaryLanguage.description": "Language for new summaries, titles and action items. Existing notes stay as they are.",
+  "settingsSummaryLanguage.auto": "Same as the meeting"
 }

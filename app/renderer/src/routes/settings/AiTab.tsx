@@ -78,6 +78,8 @@ import { ModelCard, formatModelSize, isDefaultModel, parsePullPercent } from './
 import { modelMayExceedMemory } from './model-memory';
 import { ModelChoiceSettings } from './ModelChoiceSettings';
 import { LANGUAGES_PARAKEET, LANGUAGES_WHISPER } from './languages';
+import { SummaryLanguageSetting } from './SummaryLanguageSetting';
+import { IS_VENETA_MEMOAI } from '@/lib/productBrand';
 
 export function AiTab() {
   return (
@@ -871,6 +873,10 @@ function SummarisationSection() {
       </SettingRow>
 
       <SummaryDetailSettings />
+
+      {/* The Veneta build recommends Dutch summaries and offers the choice;
+          the default build keeps following the meeting's language unchanged. */}
+      {IS_VENETA_MEMOAI && <SummaryLanguageSetting />}
 
       <SettingRow
         label={t('settingsAiTab.aiProvider')}

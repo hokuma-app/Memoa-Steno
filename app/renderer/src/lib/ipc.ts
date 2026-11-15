@@ -825,6 +825,8 @@ export type GetSilenceAutoStopResponse = Result<{
 export type SetSilenceAutoStopEnabledResponse = Result<{ silence_auto_stop_enabled: boolean }>;
 export type SetSilenceAutoStopMinutesResponse = Result<{ silence_auto_stop_minutes: number }>;
 export type GetLanguageResponse = Result<{ language: string }>;
+/** `is_default`: the user never chose; the value is the build's recommendation. */
+export type GetSummaryLanguageResponse = Result<{ summary_language: string; is_default?: boolean }>;
 export type GetMicrophoneResponse = Result<{
   device_id: string | null;
   label: string | null;
@@ -1537,6 +1539,10 @@ export interface StenoaiBridge {
     >;
     getLanguage: RequestFn<[], GetLanguageResponse>;
     setLanguage: RequestFn<[code: string], Result<Record<string, never>>>;
+    /** Language for newly generated summaries; separate from the transcription
+     *  language (getLanguage) and the interface language. */
+    getSummaryLanguage: RequestFn<[], GetSummaryLanguageResponse>;
+    setSummaryLanguage: RequestFn<[code: string], Result<{ summary_language: string }>>;
     getMicrophone: RequestFn<[], GetMicrophoneResponse>;
     setMicrophone: RequestFn<[deviceId: string, label: string], GetMicrophoneResponse>;
     getUserName: RequestFn<[], GetUserNameResponse>;

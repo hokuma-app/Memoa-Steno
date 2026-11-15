@@ -17,6 +17,7 @@ export const settingsKeys = {
   launchOnLogin: () => [...settingsKeys.all, 'launchOnLogin'] as const,
   silenceAutoStop: () => [...settingsKeys.all, 'silenceAutoStop'] as const,
   language: () => [...settingsKeys.all, 'language'] as const,
+  summaryLanguage: () => [...settingsKeys.all, 'summaryLanguage'] as const,
   microphone: () => [...settingsKeys.all, 'microphone'] as const,
   storagePath: () => [...settingsKeys.all, 'storagePath'] as const,
   appVersion: () => [...settingsKeys.all, 'appVersion'] as const,
@@ -264,6 +265,23 @@ export function useSetLanguage() {
   return useMutation({
     mutationFn: async (code: string) => unwrap(await ipc().settings.setLanguage(code)),
     onSuccess: () => qc.invalidateQueries({ queryKey: settingsKeys.language() }),
+  });
+}
+
+/** Language for newly generated summaries, separate from the transcription
+ *  language above. Changing it never rewrites existing notes. */
+export function useSummaryLanguageSetting() {
+  return useQuery({
+    queryKey: settingsKeys.summaryLanguage(),
+    queryFn: async () => unwrap(await ipc().settings.getSummaryLanguage()),
+  });
+}
+
+export function useSetSummaryLanguage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (code: string) => unwrap(await ipc().settings.setSummaryLanguage(code)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: settingsKeys.summaryLanguage() }),
   });
 }
 
