@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { readFileSync, rmSync, mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
+import { uiPart, uiSource, uiText } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC, no backend. Drives the REAL MeetingDetail
@@ -56,7 +57,7 @@ async function openDetail(page: Page) {
   }, SUMMARY_FILE);
   // The seeded meeting's title and the transcript actions are present once the
   // detail route has resolved the meeting from the mocked list.
-  await expect(page.getByRole('button', { name: 'Copy transcript' })).toBeVisible();
+  await expect(page.getByRole('button', { name: uiPart('askBar.copyTranscript') })).toBeVisible();
 }
 
 test('Copy transcript copies the renderer-built bundle and confirms only on success', async ({
@@ -66,7 +67,7 @@ test('Copy transcript copies the renderer-built bundle and confirms only on succ
   await openDetail(page);
   await installClipboardRecorder(page);
 
-  await page.getByRole('button', { name: 'Copy transcript' }).click();
+  await page.getByRole('button', { name: uiPart('askBar.copyTranscript') }).click();
 
   // Exactly one write, carrying the bundle BUILT from the meeting (not an
   // arbitrary string): English metadata labels + headings, the notes and the
@@ -75,17 +76,19 @@ test('Copy transcript copies the renderer-built bundle and confirms only on succ
   expect(writes).toHaveLength(1);
   const bundle = writes[0];
   expect(bundle).toContain('# Epsilon Planning');
-  expect(bundle).toContain('Date: ');
-  expect(bundle).toContain('Duration: 25 min');
-  expect(bundle).toContain('Participants: Alice, Bob');
-  expect(bundle).toContain('## Notes\nRemember to send the deck.');
-  expect(bundle).toContain('## Transcript\nAlice: we ship Friday.\nBob: I will prep the release notes.');
-  for (const german of ['Datum', 'Dauer', 'Teilnehmer', 'Notizen', 'Transkript']) {
+  expect(bundle).toContain(uiText('transcriptBundle.date', { dateStr: '' }));
+  expect(bundle).toContain(uiText('transcriptBundle.duration', { durStr: '25 min' }));
+  expect(bundle).toContain(uiText('transcriptBundle.participants', { people: 'Alice, Bob' }));
+  expect(bundle).toContain(`${uiText('transcriptBundle.notes')}\nRemember to send the deck.`);
+  expect(bundle).toContain(`${uiText('transcriptBundle.transcript')}\nAlice: we ship Friday.\nBob: I will prep the release notes.`);
+  // The host locale must not leak in; a word that is also this build's own label (Dutch 'Datum') is not a leak.
+  const labels = ['date', 'duration', 'participants', 'notes', 'transcript'].map((key) => uiText(`transcriptBundle.${key}`));
+  for (const german of ['Datum', 'Dauer', 'Teilnehmer', 'Notizen', 'Transkript'].filter((word) => !labels.some((label) => label.includes(word)))) {
     expect(bundle).not.toContain(german);
   }
 
   // The button confirms the copy only after the write resolved.
-  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
+  await expect(page.getByRole('button', { name: uiPart('meetingDetail.copied') })).toBeVisible();
 });
 
 test('Copy transcript includes a readable diarised view and the timestamped source', async ({
@@ -101,16 +104,16 @@ test('Copy transcript includes a readable diarised view and the timestamped sour
   await openDetail(page);
   await installClipboardRecorder(page);
 
-  await page.getByRole('button', { name: 'Copy transcript' }).click();
+  await page.getByRole('button', { name: uiPart('askBar.copyTranscript') }).click();
 
   const writes = await clipboardWrites(page);
   expect(writes).toHaveLength(1);
   const bundle = writes[0];
   expect(bundle).toContain(
-    '## Transcript\nMe: We should ship Friday. I will prepare the release.\n\nOthers: Sounds good.',
+    `${uiText('transcriptBundle.transcript')}\n${uiText('transcriptBundle.me')}: We should ship Friday. I will prepare the release.\n\nOthers: Sounds good.`,
   );
   expect(bundle).toContain(
-    '## Timestamped transcript\n[00:00] [You] We should ship Friday.\n[00:02] [You] I will prepare the release.\n[00:06] [Others] Sounds good.',
+    `${uiText('transcriptBundle.timestampedTranscript')}\n[00:00] [You] We should ship Friday.\n[00:02] [You] I will prepare the release.\n[00:06] [Others] Sounds good.`,
   );
 });
 
@@ -124,13 +127,13 @@ test('Copy transcript does not confirm when the clipboard write is rejected', as
     (window as unknown as { __clipboardReject: boolean }).__clipboardReject = true;
   });
 
-  await page.getByRole('button', { name: 'Copy transcript' }).click();
+  await page.getByRole('button', { name: uiPart('askBar.copyTranscript') }).click();
 
   // The write was attempted but rejected, so the button must NOT flip to
   // "Copied"; the failure surfaces instead.
-  await expect(page.getByText(/Couldn't copy transcript/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Copied' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Copy transcript' })).toBeVisible();
+  await expect(page.getByText(new RegExp(uiSource('meetingDetail.couldnTCopyTranscript')))).toBeVisible();
+  await expect(page.getByRole('button', { name: uiPart('meetingDetail.copied') })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: uiPart('askBar.copyTranscript') })).toBeVisible();
 });
 
 test('Save transcript as .md passes the same built bundle to export-transcript', async ({
@@ -149,12 +152,12 @@ test('Save transcript as .md passes the same built bundle to export-transcript',
 
     // Capture what Copy puts on the clipboard, then Save, and assert the file
     // the export handler received is byte-for-byte the same bundle.
-    await page.getByRole('button', { name: 'Copy transcript' }).click();
+    await page.getByRole('button', { name: uiPart('askBar.copyTranscript') }).click();
     const [copied] = await clipboardWrites(page);
     expect(copied).toBeTruthy();
 
-    await page.getByRole('button', { name: 'More options' }).click();
-    await page.getByRole('button', { name: /Save transcript as \.md/ }).click();
+    await page.getByRole('button', { name: uiPart('meetingDetail.moreOptions') }).click();
+    await page.getByRole('button', { name: new RegExp(uiSource('meetingDetail.saveTranscriptAsMd')) }).click();
 
     await expect.poll(() => {
       try {

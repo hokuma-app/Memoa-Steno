@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { ui, uiPart } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC. Regression guard for the phantom "Recording"
@@ -49,13 +50,13 @@ test('a session name left behind by a failed start shows no recording row', asyn
   await page.waitForTimeout(2000);
 
   await expect(page.locator('[data-testid="previous-row"][data-recording="true"]')).toHaveCount(0);
-  await expect(page.getByText('Recording', { exact: true })).toHaveCount(0);
+  await expect(page.getByText(ui('previousRow.recording'), { exact: true })).toHaveCount(0);
 
   // The toolbar button is the other half of the same state: while a session is
   // believed to be live it reads "Stop recording", so a user cannot start a new
   // note at all. (Asserted as an absence — "New note" matches both the icon
   // button and the labelled one.)
-  await expect(page.getByRole('button', { name: 'Stop recording' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: uiPart('mainToolbar.stopRecording') })).toHaveCount(0);
 });
 
 test('a genuinely running session still shows its recording row', async ({ launchApp }) => {

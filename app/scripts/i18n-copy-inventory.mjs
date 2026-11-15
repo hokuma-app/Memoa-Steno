@@ -162,6 +162,10 @@ export function collectFromSource(file, catalogue = {}) {
     const text = normalize(value.replace(/\{\{\s*[A-Za-z_][\w.-]*\s*\}\}/g, '{{…}}'));
     const accept = certain ? isCopy : (candidate) => !definitelyNotCopy(candidate);
     if (accept(text)) record(text, certain);
+    // Interpolated values are rendered inside the looked-up sentence, so a literal or a
+    // nested lookup passed as a parameter (`{ noun: count === 1 ? t('note') : t('notes') }`)
+    // is copy too. Stopping at the outer call silently dropped those fragments.
+    for (const argument of node.arguments.slice(1)) walkRenderedExpression(argument, certain);
     return true;
   };
 

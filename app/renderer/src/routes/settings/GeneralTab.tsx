@@ -73,9 +73,9 @@ export function GeneralTab() {
   const systemAudioSupport = useSystemAudioSupport();
   const systemAudioDescription = (() => {
     if (systemAudioSupport.data && !systemAudioSupport.data.supported) {
-      return `Capture both sides of a call (requires macOS 14.4+, you're on ${systemAudioSupport.data.osVersion || 'an older version'}). Mic-only recording still works.`;
+      return t('settingsGeneralTab.captureBothSidesOfA', { value: systemAudioSupport.data.osVersion || t('settingsGeneralTab.anOlderVersion') });
     }
-    return 'Capture both sides of a call. Turn off to record your mic only.';
+    return t('settingsGeneralTab.captureBothSidesOfA2');
   })();
   const autoDetect = useAutoDetectMeetingsSetting();
   const setAutoDetect = useSetAutoDetectMeetings();
@@ -248,8 +248,8 @@ export function GeneralTab() {
   return (
     <section data-settings-tab="general">
       <SettingRow
-        label="Your name"
-        description="First name only — used for in-app greetings. Stored locally."
+        label={t('settingsGeneralTab.yourName')}
+        description={t('settingsGeneralTab.firstNameOnlyUsedFor')}
       >
         <Input
           value={nameDraft}
@@ -266,7 +266,7 @@ export function GeneralTab() {
               (e.target as HTMLInputElement).blur();
             }
           }}
-          placeholder="Your name"
+          placeholder={t('settingsGeneralTab.yourName')}
           autoComplete="given-name"
           className="h-[30px] w-[180px] rounded-[6px] bg-[color:var(--surface-raised)] text-[13px]"
           data-testid="user-name-input"
@@ -274,8 +274,8 @@ export function GeneralTab() {
       </SettingRow>
 
       <SettingRow
-        label="Appearance"
-        description="Choose light, dark, or match your system"
+        label={t('settingsGeneralTab.appearance')}
+        description={t('settingsGeneralTab.chooseLightDarkOrMatch')}
         noBorder
       >
         <Select
@@ -289,21 +289,21 @@ export function GeneralTab() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="system">System</SelectItem>
-            <SelectItem value="light">Light</SelectItem>
-            <SelectItem value="dark">Dark</SelectItem>
+            <SelectItem value="system">{t('settingsGeneralTab.system')}</SelectItem>
+            <SelectItem value="light">{t('settingsGeneralTab.light')}</SelectItem>
+            <SelectItem value="dark">{t('settingsGeneralTab.dark')}</SelectItem>
           </SelectContent>
         </Select>
       </SettingRow>
 
-      <SectionHeading>Calendar</SectionHeading>
+      <SectionHeading>{t('settingsGeneralTab.calendar')}</SectionHeading>
 
       <SettingRow
-        label="Connect calendar"
+        label={t('settingsGeneralTab.connectCalendar')}
         description={
           calendarConnected
-            ? `Connected to ${calendarEmail || calendarProvider}`
-            : 'Show upcoming meetings on the home screen'
+            ? t('settingsGeneralTab.connectedTo', { value: calendarEmail || calendarProvider })
+            : t('settingsGeneralTab.showUpcomingMeetingsOnThe')
         }
         noBorder
       >
@@ -322,7 +322,7 @@ export function GeneralTab() {
             ) : (
               <OutlookIcon size={13} />
             )}
-            Disconnect
+            {t('settingsGeneralTab.disconnect')}
           </Button>
         ) : (
           <div className="flex gap-2">
@@ -333,7 +333,7 @@ export function GeneralTab() {
               onClick={() => void startConnect('google')}
             >
               <GoogleCalendarIcon size={13} />
-              Google
+              {t('settingsGeneralTab.google')}
             </Button>
             <Button
               variant="outline"
@@ -342,7 +342,7 @@ export function GeneralTab() {
               onClick={() => void startConnect('outlook')}
             >
               <OutlookIcon size={13} />
-              Outlook
+              {t('settingsGeneralTab.outlook')}
             </Button>
           </div>
         )}
@@ -387,11 +387,11 @@ export function GeneralTab() {
         onRetry={() => oauth && void startConnect(oauth.provider)}
       />
 
-      <SectionHeading>Meeting notifications</SectionHeading>
+      <SectionHeading>{t('settingsGeneralTab.meetingNotifications')}</SectionHeading>
 
       <SettingRow
-        label="Scheduled meetings"
-        description="Show a notification before meetings start, based on your calendar."
+        label={t('settingsGeneralTab.scheduledMeetings')}
+        description={t('settingsGeneralTab.showANotificationBeforeMeetings')}
       >
         <Switch
           checked={premeetingNotifications.data ?? true}
@@ -401,13 +401,11 @@ export function GeneralTab() {
       </SettingRow>
 
       <SettingRow
-        label="Auto-detected meetings"
+        label={t('settingsGeneralTab.autoDetectedMeetings')}
         description={
           autoDetectSupported
-            ? 'Watch for other apps using your microphone and notify you when a call starts, with a one-click button to record.'
-            : `Watch for other apps using your microphone and notify you when a call starts. Requires macOS 14 (Sonoma) or later${
-                systemAudioSupport.data?.osVersion ? `, you're on ${systemAudioSupport.data.osVersion}` : ''
-              }.`
+            ? t('settingsGeneralTab.watchForOtherAppsUsing')
+            : t('settingsGeneralTab.watchForOtherAppsUsing2', { value: systemAudioSupport.data?.osVersion ? t('settingsGeneralTab.youReOn', { version: systemAudioSupport.data.osVersion }) : '' })
         }
       >
         <Switch
@@ -418,8 +416,8 @@ export function GeneralTab() {
       </SettingRow>
 
       <SettingRow
-        label="Post meeting notifications"
-        description="Notify when your notes are ready or a recording auto-stops from silence."
+        label={t('settingsGeneralTab.postMeetingNotifications')}
+        description={t('settingsGeneralTab.notifyWhenYourNotesAre')}
         noBorder
       >
         <Switch
@@ -429,11 +427,11 @@ export function GeneralTab() {
         />
       </SettingRow>
 
-      <SectionHeading>Recording</SectionHeading>
+      <SectionHeading>{t('settingsGeneralTab.recording')}</SectionHeading>
 
       <SettingRow
-        label="Microphone"
-        description={`Which input device ${APP_NAME} records from. Pins your choice so the OS switching its default (e.g. AirPods connecting) doesn't silently change what gets recorded. Applies the next time you start a recording.`}
+        label={t('settingsGeneralTab.microphone')}
+        description={t('settingsGeneralTab.whichInputDeviceRecordsFrom', { appName: APP_NAME })}
       >
         <Select
           value={microphone.data?.device_id ?? DEFAULT_MIC_VALUE}
@@ -458,10 +456,10 @@ export function GeneralTab() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={DEFAULT_MIC_VALUE}>System Default</SelectItem>
+            <SelectItem value={DEFAULT_MIC_VALUE}>{t('settingsGeneralTab.systemDefault')}</SelectItem>
             {audioInputDevices.map((d, i) => (
               <SelectItem key={d.deviceId} value={d.deviceId}>
-                {d.label || `Microphone ${i + 1}`}
+                {d.label || t('settingsGeneralTab.microphone2', { value: i + 1 })}
               </SelectItem>
             ))}
             {/* The selected device was unplugged / isn't in the current device
@@ -470,7 +468,7 @@ export function GeneralTab() {
             {microphone.data?.device_id &&
               !audioInputDevices.some((d) => d.deviceId === microphone.data?.device_id) && (
                 <SelectItem value={microphone.data.device_id}>
-                  {microphone.data.label || 'Unknown device (disconnected)'}
+                  {microphone.data.label || t('settingsGeneralTab.unknownDeviceDisconnected')}
                 </SelectItem>
               )}
           </SelectContent>
@@ -481,7 +479,7 @@ export function GeneralTab() {
           record mic+system (toggle hidden), so this control isn't shown
           there. */}
       {isMac && (
-        <SettingRow label="Record system audio" description={systemAudioDescription}>
+        <SettingRow label={t('settingsGeneralTab.recordSystemAudio')} description={systemAudioDescription}>
           <Switch
             checked={(systemAudio.data ?? true) && (systemAudioSupport.data?.supported ?? true)}
             onCheckedChange={(v) => setSystemAudio.mutate(v)}
@@ -491,8 +489,8 @@ export function GeneralTab() {
       )}
 
       <SettingRow
-        label="Auto-stop on silence"
-        description="End the recording and start processing it once both the mic and system audio have been silent for the chosen duration. Useful when you forget to stop after a meeting ends."
+        label={t('settingsGeneralTab.autoStopOnSilence')}
+        description={t('settingsGeneralTab.endTheRecordingAndStart')}
         noBorder
       >
         <div className="flex items-center gap-3">
@@ -509,7 +507,7 @@ export function GeneralTab() {
             <SelectContent>
               {(silenceAutoStop.data?.supportedMinutes ?? [2, 5, 10, 15, 30]).map((m) => (
                 <SelectItem key={m} value={String(m)}>
-                  {m} minutes
+                  {m} {t('settingsGeneralTab.minutes')}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -522,11 +520,11 @@ export function GeneralTab() {
         </div>
       </SettingRow>
 
-      <SectionHeading>System</SectionHeading>
+      <SectionHeading>{t('settingsGeneralTab.system')}</SectionHeading>
 
       <SettingRow
-        label="Launch on login"
-        description={`Start ${APP_NAME} automatically when you log in, hidden in the menu bar. Turn off to launch it manually.`}
+        label={t('settingsGeneralTab.launchOnLogin')}
+        description={t('settingsGeneralTab.startAutomaticallyWhenYouLog', { appName: APP_NAME })}
       >
         <Switch
           checked={launchOnLogin.data ?? true}
@@ -536,8 +534,8 @@ export function GeneralTab() {
       </SettingRow>
 
       <SettingRow
-        label="Install updates automatically"
-        description="When the app is idle and not recording, download and install updates in the background, then restart. You'll still be notified when an update is available."
+        label={t('settingsGeneralTab.installUpdatesAutomatically')}
+        description={t('settingsGeneralTab.whenTheAppIsIdle')}
       >
         <Switch
           checked={autoInstallWhenIdle.data ?? true}
@@ -547,13 +545,13 @@ export function GeneralTab() {
       </SettingRow>
 
       <SettingRow
-        label={isMac ? 'Show in menu bar' : 'Show in system tray'}
+        label={isMac ? t('settingsGeneralTab.showInMenuBar') : t('settingsGeneralTab.showInSystemTray')}
         description={
           bothIconsHidden
-            ? `Both your dock icon and menu bar icon will be hidden. Reopen ${APP_NAME} from Applications or Spotlight to bring the window back.`
+            ? t('settingsGeneralTab.bothYourDockIconAnd', { appName: APP_NAME })
             : isMac
-              ? `Show a ${APP_NAME} icon in the menu bar for quick access.`
-              : `Show a ${APP_NAME} icon in the system tray for quick access.`
+              ? t('settingsGeneralTab.showAIconInThe', { appName: APP_NAME })
+              : t('settingsGeneralTab.showAIconInThe2', { appName: APP_NAME })
         }
       >
         <Switch
@@ -570,11 +568,11 @@ export function GeneralTab() {
           macOS menu bar and the Windows system tray alike.) */}
       {isMac && (
         <SettingRow
-          label="Hide dock icon"
+          label={t('settingsGeneralTab.hideDockIcon')}
           description={
             bothIconsHidden
-              ? `Both your dock icon and menu bar icon will be hidden. Reopen ${APP_NAME} from Applications or Spotlight to bring the window back.`
-              : 'Run as menu bar app only'
+              ? t('settingsGeneralTab.bothYourDockIconAnd', { appName: APP_NAME })
+              : t('settingsGeneralTab.runAsMenuBarApp')
           }
           noBorder
         >
@@ -586,18 +584,17 @@ export function GeneralTab() {
         </SettingRow>
       )}
 
-      <SectionHeading>Keyboard shortcut</SectionHeading>
+      <SectionHeading>{t('settingsGeneralTab.keyboardShortcut')}</SectionHeading>
 
       <SettingRow
-        label="Global record shortcut"
+        label={t('settingsGeneralTab.globalRecordShortcut')}
         description={
           <>
-            Start or stop recording from anywhere with {recordAccel}. Turn off if it
-            conflicts with another app.
+            {t('settingsGeneralTab.startOrStopRecordingFrom')} {recordAccel}{t('settingsGeneralTab.turnOffIfItConflicts')}
             {recordHotkey.data?.enabled === true &&
               recordHotkey.data.registered === false && (
                 <span className="mt-1 block" style={{ color: 'var(--fg-2)' }}>
-                  Couldn't register — another app may be using this shortcut.
+                  {t('settingsGeneralTab.couldnTRegisterAnotherApp')}
                 </span>
               )}
           </>
@@ -635,20 +632,20 @@ function OAuthPrompt({ state, onClose, onRetry }: OAuthPromptProps) {
         <DialogHeader>
           <DialogTitle>
             {state?.state === 'error'
-              ? `Couldn't connect to ${providerName}`
-              : `Connecting to ${providerName}`}
+              ? t('settingsGeneralTab.couldnTConnectTo', { providerName })
+              : t('settingsGeneralTab.connectingTo', { providerName })}
           </DialogTitle>
           <DialogDescription>
             {state?.state === 'error'
-              ? state.message || 'The authorization flow did not complete.'
-              : 'Complete the authorization in your browser. This dialog will close automatically once access is granted.'}
+              ? state.message || t('settingsGeneralTab.theAuthorizationFlowDidNot')
+              : t('settingsGeneralTab.completeTheAuthorizationInYour')}
           </DialogDescription>
         </DialogHeader>
 
         {state?.state === 'pending' && (
           <div className="flex items-center gap-3 rounded-md border border-border bg-paper-0 p-3 text-sm text-muted-foreground dark:bg-paper-1">
             <Loader2 className="size-4 animate-spin text-foreground" />
-            <span className="flex-1">Waiting for authorization…</span>
+            <span className="flex-1">{t('settingsGeneralTab.waitingForAuthorization')}</span>
             <ExternalLink className="size-3.5" />
           </div>
         )}
@@ -657,13 +654,13 @@ function OAuthPrompt({ state, onClose, onRetry }: OAuthPromptProps) {
           {state?.state === 'error' ? (
             <>
               <Button variant="outline" onClick={onClose}>
-                Close
+                {t('settingsGeneralTab.close')}
               </Button>
-              <Button onClick={onRetry}>Try again</Button>
+              <Button onClick={onRetry}>{t('settingsGeneralTab.tryAgain')}</Button>
             </>
           ) : (
             <Button variant="outline" onClick={onClose}>
-              Cancel
+              {t('settingsGeneralTab.cancel')}
             </Button>
           )}
         </DialogFooter>

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const zlib = require('node:zlib');
+const { createMainText, isVenetaBuild } = require('./main-copy');
 
 // Decode real non-interlaced 8-bit RGBA PNG pixels without Electron or installs.
 function readPng(file) {
@@ -99,6 +100,7 @@ function productionTray(metadata, isPackaged = false) {
       setToolTip(value) { this.tooltip = value; }
     },
     tray: null, updateTrayMenu() {},
+    mainText: createMainText(isVenetaBuild(metadata)),
   });
   vm.runInContext(source.slice(start, end), context);
   return { context, images };
@@ -136,6 +138,19 @@ test('non-boolean/missing Veneta flags retain legacy paths and template behavior
       assert.deepEqual(images.map(image => image.template), [true, true, true]);
     }
   }
+});
+
+test('tray tooltip is Dutch with the Veneta name only in the Veneta build', () => {
+  const veneta = productionTray({ venetaMemoAi: true }).context;
+  veneta.createTray();
+  assert.equal(veneta.tray.tooltip, 'Veneta MemoAi');
+  veneta.updateTrayIcon(true);
+  assert.equal(veneta.tray.tooltip, 'Veneta MemoAi - opname loopt');
+  const legacy = productionTray({}).context;
+  legacy.createTray();
+  assert.equal(legacy.tray.tooltip, 'StenoAI');
+  legacy.updateTrayIcon(true);
+  assert.equal(legacy.tray.tooltip, 'StenoAI - Recording');
 });
 
 test('update without an existing tray creates no native image', () => {

@@ -5,6 +5,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { initializeMemoaTestProfile } = require('./memoa-test-profile');
+const { createMainText, createMenuRoles, isVenetaBuild } = require('./main-copy');
 
 function initialize(metadata, override) {
   const calls = [];
@@ -57,15 +58,31 @@ function nativeMenu(metadata, name, platform = 'darwin') {
   const end = source.indexOf('Menu.setApplicationMenu(appMenu);', start);
   assert.ok(end > start, 'production application-menu installation exists');
   // Execute the actual production template, not a duplicate label expression.
+  const veneta = isVenetaBuild(metadata);
   return vm.runInNewContext(source.slice(start, end) + '\nappMenu;', {
     app: { name }, process: { platform }, settingsItem: {}, helpSubmenu: {},
     Menu: { buildFromTemplate: (template) => template },
     require: (id) => { assert.equal(id, './package.json'); return metadata; },
+    // main.js resolves these once from the same package metadata.
+    mainText: createMainText(veneta), menuRoles: createMenuRoles(veneta),
   });
 }
 
 test('real native application-menu template uses Veneta display branding only for strict metadata', () => {
   assert.equal(nativeMenu({ venetaMemoAi: true }, 'Memoa Test')[0].label, 'Veneta MemoAi');
+});
+
+test('Veneta native menus are Dutch; the default build keeps its bare English roles', () => {
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  const [appMenu, fileMenu, editMenu, viewMenu, windowMenu] = plain(nativeMenu({ venetaMemoAi: true }, 'Memoa Test'));
+  assert.deepEqual(appMenu.submenu.filter((item) => item.role).map((item) => item.label),
+    ['Over Veneta MemoAi', 'Voorzieningen', 'Verberg Veneta MemoAi', 'Verberg andere', 'Toon alles', 'Stop Veneta MemoAi']);
+  assert.deepEqual([fileMenu, editMenu, viewMenu, windowMenu].map((menu) => menu.label), ['Archief', 'Wijzig', 'Weergave', 'Venster']);
+  assert.ok(editMenu.submenu.every((item) => item.type === 'separator' || (item.role && item.label)));
+  const legacy = plain(nativeMenu({}, 'StenoAI'));
+  assert.deepEqual(legacy.slice(1, 5), [{ role: 'fileMenu' }, { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' }]);
+  assert.ok(legacy[0].submenu.filter((item) => item.role).every((item) => !('label' in item)));
+  assert.equal(nativeMenu({ venetaMemoAi: true }, 'Memoa Test', 'win32')[0].label, '&Bestand');
 });
 
 test('real native application-menu template preserves the old app.name fallback', () => {
@@ -76,7 +93,7 @@ test('real native application-menu template preserves the old app.name fallback'
     }
   }
   for (const platform of ['win32', 'linux']) {
-    assert.equal(nativeMenu({ venetaMemoAi: true }, 'Memoa Test', platform)[0].label, '&File');
+    assert.equal(nativeMenu({}, 'Memoa Test', platform)[0].label, '&File');
   }
 });
 

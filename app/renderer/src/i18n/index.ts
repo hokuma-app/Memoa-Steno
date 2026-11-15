@@ -3,7 +3,9 @@ import { IS_VENETA_MEMOAI } from '@/lib/productBrand';
 import { venetaCopy } from './veneta';
 
 export type TranslationKey = keyof typeof en;
-export type TranslationParams = Readonly<Record<string, string | number>>;
+// Values are stringified like a template literal would, so moving
+// `${value}` behind t() keeps the rendered text identical.
+export type TranslationParams = Readonly<Record<string, string | number | boolean | null | undefined>>;
 
 const INTERPOLATION = /\{\{\s*([A-Za-z_][\w.-]*)\s*\}\}/g;
 
@@ -20,11 +22,17 @@ export function createTranslator<const Catalogue extends Record<string, string>>
   };
 }
 
+const english = createTranslator(en);
+const dutch = createTranslator({ ...en, ...venetaCopy });
+
 /**
  * Resolve renderer copy from the canonical English catalogue.
  *
- * English remains the default. The explicitly selected Veneta build overrides
- * only its product-owned copy; existing copy keeps its English fallback.
+ * English remains the default build's interface language. The explicitly
+ * selected Veneta build shows the Dutch catalogue, which translates every
+ * English key (enforced by veneta-nl.test.ts). The build flag is read per call
+ * so a test that switches the product boundary sees the matching language.
  */
-export const t: (key: TranslationKey, params?: TranslationParams) => string =
-  createTranslator(IS_VENETA_MEMOAI ? { ...en, ...venetaCopy } : en);
+export function t(key: TranslationKey, params?: TranslationParams): string {
+  return (IS_VENETA_MEMOAI ? dutch : english)(key, params);
+}

@@ -1,6 +1,7 @@
 import type { ElectronApplication, Page } from '@playwright/test';
 import { test, expect } from '../fixtures/electron';
 import { emitBufferedLiveSegments as emitLiveSegments } from '../fixtures/buffered-live-transcript';
+import { ui } from '../fixtures/ui-copy';
 
 // 0.10.1: Martin's recording showed points 1 and 2 half, then everything full, then a reset. A small local model is not
 // stable between runs, so a later check may say "not mentioned" about a point it found before. The host now keeps what
@@ -29,7 +30,7 @@ test('a point the model found stays found when later checks say not mentioned: s
   await card(page).getByRole('textbox', { name: 'Checklistpunten (één per regel)', exact: true }).fill('Leg gratis inmeten uit\nNoem de garantie\nMaak een concrete vervolgafspraak');
   await card(page).getByRole('button', { name: 'Bewaar checklist', exact: true }).click();
   await expect(card(page).getByText('Staat klaar · AI controleert automatisch mee', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'New note', exact: true }).last().click();
+  await page.getByRole('button', { name: ui('mainToolbar.newNote'), exact: true }).last().click();
   const sidebar = page.locator('[data-checklist-runtime]');
   await expect(sidebar.getByRole('listitem')).toHaveCount(3);
   const session = await page.evaluate(async () => (await window.stenoai.recording.getQueue()).sessionName as string);
@@ -56,13 +57,13 @@ test('a point the model found stays found when later checks say not mentioned: s
 
   // A remount in the middle of the recording (route change and back) shows the host's truth, not a reset.
   await page.evaluate(() => { window.location.hash = '#/'; });
-  await page.getByRole('button', { name: 'Open recording in progress', exact: true }).click();
+  await page.getByRole('button', { name: ui('mainToolbar.openRecording'), exact: true }).click();
   await expect(sidebar.getByRole('listitem').first()).toHaveAttribute('data-state', 'done');
 
   // The last check at stop follows the same rule, and the note tab reads the same persisted result.
   await emitLiveSegments(app, session, [{ text: 'Tot ziens en bedankt voor het gesprek.', start: 20, end: 22, isFinal: true, speaker: 'You' }]);
-  await page.getByRole('button', { name: 'Show transcript', exact: true }).click();
-  await page.getByTestId('live-transcript-panel').getByRole('button', { name: 'Stop recording', exact: true }).click();
+  await page.getByRole('button', { name: ui('liveDock.showTranscript'), exact: true }).click();
+  await page.getByTestId('live-transcript-panel').getByRole('button', { name: ui('mainToolbar.stopRecording'), exact: true }).click();
   const tab = page.getByTestId('tab-checklist');
   await expect(tab).toBeVisible();
   // The last check starts after the drain; wait for it to have run and for the note tab to stop saying it is running.

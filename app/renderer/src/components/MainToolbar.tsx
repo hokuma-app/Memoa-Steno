@@ -86,7 +86,7 @@ export function MainToolbar({
               <button
                 type="button"
                 onClick={onToggleSidebar}
-                aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+                aria-label={sidebarCollapsed ? t('mainToolbar.showSidebar') : t('mainToolbar.hideSidebar')}
                 style={{
                   position: 'fixed',
                   top: 14,
@@ -104,7 +104,7 @@ export function MainToolbar({
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              {sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+              {sidebarCollapsed ? t('mainToolbar.showSidebar') : t('mainToolbar.hideSidebar')}
             </TooltipContent>
           </Tooltip>
         )}
@@ -130,18 +130,18 @@ export function MainToolbar({
             type="button"
             onClick={showChatPrimary ? () => navigate('/chat') : onToggleRecording}
             className="record-btn"
-            aria-label={showChatPrimary ? 'New chat' : 'New note'}
-            title={showChatPrimary ? 'New chat' : 'New note'}
+            aria-label={showChatPrimary ? t('mainToolbar.newChat') : t('mainToolbar.newNote')}
+            title={showChatPrimary ? t('mainToolbar.newChat') : t('mainToolbar.newNote')}
           >
             {showChatPrimary ? (
               <>
                 <MessageSquare className="size-[13px]" />
-                New chat
+                {t('mainToolbar.newChat')}
               </>
             ) : (
               <>
                 <Plus className="size-[13px]" />
-                New note
+                {t('mainToolbar.newNote')}
               </>
             )}
           </button>
@@ -192,7 +192,7 @@ function RecordingControls({
         >
           {formatElapsed(elapsedSeconds)}
         </span>
-        <span>{isPaused ? 'Paused' : 'Recording'}</span>
+        <span>{isPaused ? t('mainToolbar.paused') : t('mainToolbar.recording')}</span>
       </button>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -247,20 +247,20 @@ function RecordingOptionsPopover({
               variant="ghost"
               size="icon"
               className="size-8"
-              aria-label="Recording options"
+              aria-label={t('mainToolbar.recordingOptions')}
             >
               <MoreHorizontal className="size-4" />
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent side="bottom">Recording options</TooltipContent>
+        <TooltipContent side="bottom">{t('mainToolbar.recordingOptions')}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-72" data-recording-options>
         <div className="space-y-3">
           <div className="space-y-0.5">
-            <p className="text-sm font-medium">Recording options</p>
+            <p className="text-sm font-medium">{t('mainToolbar.recordingOptions')}</p>
             <p className="text-xs text-muted-foreground">
-              Deep links and the tray menu also start and stop recording.
+              {t('mainToolbar.deepLinksAndTheTray')}
             </p>
           </div>
 
@@ -276,7 +276,7 @@ function RecordingOptionsPopover({
                     htmlFor="maintoolbar-system-audio"
                     className="text-sm font-medium"
                   >
-                    Record system audio
+                    {t('mainToolbar.recordSystemAudio')}
                   </label>
                   <Switch
                     id="maintoolbar-system-audio"
@@ -286,7 +286,7 @@ function RecordingOptionsPopover({
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Capture both sides of calls. Turn off to record your mic only.
+                  {t('mainToolbar.captureBothSidesOfCalls')}
                 </p>
               </div>
             </div>
@@ -304,11 +304,11 @@ function RecordingOptionsPopover({
           >
             <FileAudio className="mt-0.5 size-4 flex-shrink-0 text-muted-foreground" />
             <div className="flex-1 space-y-0.5">
-              <p className="text-sm font-medium">Import audio file…</p>
+              <p className="text-sm font-medium">{t('mainToolbar.importAudioFile')}</p>
               <p className="text-xs text-muted-foreground">
                 {disabled
-                  ? 'Stop the current recording to import a file.'
-                  : 'Transcribe and summarise an existing recording. It will appear in the list while it processes.'}
+                  ? t('mainToolbar.stopTheCurrentRecordingTo')
+                  : t('mainToolbar.transcribeAndSummariseAnExisting')}
               </p>
             </div>
           </button>

@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { readFileSync, rmSync, mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
+import { uiPart, uiSource, uiText } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC, no backend. Drives the REAL MeetingDetail
@@ -20,7 +21,7 @@ async function openDetail(page: Page, summaryFile = SUMMARY_FILE) {
   await page.evaluate((f) => {
     window.location.hash = `#/meetings/${encodeURIComponent(f)}`;
   }, summaryFile);
-  await expect(page.getByRole('button', { name: 'Copy transcript' })).toBeVisible();
+  await expect(page.getByRole('button', { name: uiPart('askBar.copyTranscript') })).toBeVisible();
 }
 
 test('Save notes as PDF passes the renderer-built branded HTML to export-note-pdf', async ({
@@ -36,8 +37,8 @@ test('Save notes as PDF passes the renderer-built branded HTML to export-note-pd
   try {
     await openDetail(page);
 
-    await page.getByRole('button', { name: 'More options' }).click();
-    await page.getByRole('button', { name: /Save notes as PDF/ }).click();
+    await page.getByRole('button', { name: uiPart('meetingDetail.moreOptions') }).click();
+    await page.getByRole('button', { name: new RegExp(uiSource('meetingDetail.saveNotesAsPdf')) }).click();
 
     await expect
       .poll(
@@ -61,7 +62,7 @@ test('Save notes as PDF passes the renderer-built branded HTML to export-note-pd
     expect(html).toContain('data:image/svg+xml;base64,');
     expect(html).toContain('www.stenoai.co');
     // The seeded meeting's structured note carried through.
-    expect(html).toContain('>Summary</h2>');
+    expect(html).toContain(`>${uiText('notesPdf.heading.summary')}</h2>`);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
   }
@@ -70,8 +71,8 @@ test('Save notes as PDF passes the renderer-built branded HTML to export-note-pd
 test('Save notes as PDF is enabled for a note with structured content', async ({ launchApp }) => {
   const { page } = await launchApp({ mockIpc: true, env: { STENOAI_E2E_SEED_MEETING: '1' } });
   await openDetail(page);
-  await page.getByRole('button', { name: 'More options' }).click();
-  await expect(page.getByRole('button', { name: /Save notes as PDF/ })).toBeEnabled();
+  await page.getByRole('button', { name: uiPart('meetingDetail.moreOptions') }).click();
+  await expect(page.getByRole('button', { name: new RegExp(uiSource('meetingDetail.saveNotesAsPdf')) })).toBeEnabled();
 });
 
 test('Save notes as PDF is disabled for a transcript-only note (no structured content)', async ({
@@ -85,9 +86,9 @@ test('Save notes as PDF is disabled for a transcript-only note (no structured co
     env: { STENOAI_E2E_SEED_PENDING_NOTE: '1' },
   });
   await openDetail(page, 'pending_summary.md');
-  await page.getByRole('button', { name: 'More options' }).click();
-  await expect(page.getByRole('button', { name: /Save notes as PDF/ })).toBeDisabled();
-  await expect(page.getByRole('button', { name: /Save transcript as \.md/ })).toBeEnabled();
+  await page.getByRole('button', { name: uiPart('meetingDetail.moreOptions') }).click();
+  await expect(page.getByRole('button', { name: new RegExp(uiSource('meetingDetail.saveNotesAsPdf')) })).toBeDisabled();
+  await expect(page.getByRole('button', { name: new RegExp(uiSource('meetingDetail.saveTranscriptAsMd')) })).toBeEnabled();
 });
 
 /**
@@ -119,8 +120,8 @@ test('Save notes as PDF exports the open template report, not the Standard note'
     await menu.getByRole('button', { name: /^Status Report/ }).click();
     await expect(page.getByTestId('meeting-detail')).toContainText('Pipeline healthy');
 
-    await page.getByRole('button', { name: 'More options' }).click();
-    await page.getByRole('button', { name: /Save notes as PDF/ }).click();
+    await page.getByRole('button', { name: uiPart('meetingDetail.moreOptions') }).click();
+    await page.getByRole('button', { name: new RegExp(uiSource('meetingDetail.saveNotesAsPdf')) }).click();
 
     await expect
       .poll(
@@ -145,7 +146,7 @@ test('Save notes as PDF exports the open template report, not the Standard note'
     // Labelled with the template it came from.
     expect(html).toContain('>Status Report</h2>');
     // The Standard note's sections did NOT ride along.
-    expect(html).not.toContain('>Key Topics</h2>');
+    expect(html).not.toContain(`>${uiText('notesPdf.heading.keyTopics')}</h2>`);
     expect(html).not.toContain('Alice, Bob');
     // Reasoning is stripped, exactly as in the rendered view and the clipboard.
     expect(html).not.toContain('secret chain of thought');

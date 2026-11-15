@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { uiPart, uiText } from '../fixtures/ui-copy';
 
 /**
  * T1 -- the engine picker in the Individual speakers row, and its
@@ -22,7 +23,7 @@ async function openAiSettings(page: import('@playwright/test').Page) {
 
 async function chooseNemotron(page: import('@playwright/test').Page) {
   await page.getByTestId('diarization-engine-select').click();
-  await page.getByRole('option', { name: /nemotron 3/i }).click();
+  await page.getByRole('option', { name: uiPart('settings.ai.diarization.nemotron3Name') }).click();
 }
 
 test('picking Nemotron 3 prepares its models and saves it', async ({ launchApp }) => {
@@ -34,7 +35,7 @@ test('picking Nemotron 3 prepares its models and saves it', async ({ launchApp }
   await openAiSettings(page);
 
   const trigger = page.getByTestId('diarization-engine-select');
-  await expect(trigger).toContainText('Standard');
+  await expect(trigger).toContainText(uiPart('settings.ai.diarization.sortformerName'));
   await chooseNemotron(page);
 
   await expect(trigger).toContainText('Nemotron 3');
@@ -68,8 +69,8 @@ test('a failed Nemotron 3 download keeps Standard and says so', async ({ launchA
 
   const trigger = page.getByTestId('diarization-engine-select');
   const row = page.locator('[data-settings-speaker-models]');
-  await expect(row.getByRole('alert')).toContainText('previous model is still active');
-  await expect(trigger).toContainText('Standard');
+  await expect(row.getByRole('alert')).toContainText(uiText('settings.ai.diarization.saveError'));
+  await expect(trigger).toContainText(uiPart('settings.ai.diarization.sortformerName'));
   await expect(trigger).toBeEnabled();
 });
 
@@ -84,7 +85,7 @@ test('a failed speaker detection setting read offers a retry', async ({ launchAp
   const trigger = page.getByTestId('diarization-engine-select');
   const row = page.locator('[data-settings-speaker-models]');
   await expect(trigger).toBeDisabled();
-  await expect(row.getByRole('alert')).toContainText('Could not load the speaker detection setting');
+  await expect(row.getByRole('alert')).toContainText(uiText('settings.ai.diarization.loadError'));
   const retry = page.getByTestId('diarization-engine-retry');
   await expect(retry).toBeVisible();
 
@@ -113,14 +114,14 @@ test('an upgraded install can download its default engine models', async ({
 
   const row = page.locator('[data-settings-speaker-models]');
   const trigger = page.getByTestId('diarization-engine-select');
-  await expect(row.getByText('Installed')).toHaveCount(0);
-  await row.getByRole('button', { name: 'Download' }).click();
+  await expect(row.getByText(uiPart('settings.ai.speakers.installed'))).toHaveCount(0);
+  await row.getByRole('button', { name: uiPart('settings.ai.speakers.download') }).click();
   await expect(trigger).toBeDisabled();
   await app.evaluate(() =>
     (global as { __speakerModels?: { finish: () => void } }).__speakerModels!.finish(),
   );
 
-  await expect(row.getByText('Installed')).toBeVisible();
+  await expect(row.getByText(uiPart('settings.ai.speakers.installed'))).toBeVisible();
   await expect(trigger).toBeEnabled();
   await expect(trigger).toContainText('Nemotron 3');
 });

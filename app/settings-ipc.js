@@ -194,6 +194,31 @@ function registerSettingsIpc({ ipcMain, runPythonScript, sendDebugLog }) {
     }
   });
 
+  // Summary language: its own setting, separate from the transcription
+  // language above and from the interface language (see summary-language.js).
+  ipcMain.handle('get-summary-language', async () => {
+    try {
+      const result = await runPythonScript('simple_recorder.py', ['get-summary-language'], true);
+      return { success: true, ...JSON.parse(result) };
+    } catch (error) {
+      sendDebugLog(`Error getting summary language: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('set-summary-language', async (event, languageCode) => {
+    try {
+      sendDebugLog(`Setting summary language to: ${languageCode}`);
+      const result = await runPythonScript('simple_recorder.py', ['set-summary-language', String(languageCode)]);
+      const jsonMatch = result.match(/\{.*\}/s);
+      if (jsonMatch) return JSON.parse(jsonMatch[0]);
+      return { success: false, error: 'No response from backend' };
+    } catch (error) {
+      sendDebugLog(`Error setting summary language: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  });
+
   // Microphone selection IPC handlers
   ipcMain.handle('get-microphone', async () => {
     try {

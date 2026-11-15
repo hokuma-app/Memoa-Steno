@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { uiPart } from '../fixtures/ui-copy';
 
 /**
  * T1 (0.10.2) — action items the model wrote over several lines show as "Name: task (due ...)", never as an owner
@@ -13,7 +14,7 @@ test('action items with the task on the next line show name and task; an owner w
     env: { STENOAI_E2E_SEED_MEETING: '1', STENOAI_E2E_SEED_ACTION_LINES: '1' },
   });
   await page.evaluate(() => { window.location.hash = '#/meetings/epsilon_summary.json'; });
-  await expect(page.getByRole('button', { name: 'Copy notes' })).toBeVisible();
+  await expect(page.getByRole('button', { name: uiPart('meetingDetail.copyNotes') })).toBeVisible();
 
   const items = page.locator('ul.mv-bullets').last().locator('li');
   await expect(items).toHaveText([

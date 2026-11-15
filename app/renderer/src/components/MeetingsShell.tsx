@@ -34,6 +34,7 @@ import { useRecording } from '@/hooks/useRecording';
 import { navigate, useRoute } from '@/lib/router';
 import type { Meeting } from '@/lib/ipc';
 import { UI_LOCALE } from '@/lib/locale';
+import { t } from '@/i18n';
 
 interface MeetingsShellProps {
   activeSummaryFile: string | null;
@@ -81,7 +82,7 @@ export function MeetingsShell({
   const [newFolderName, setNewFolderName] = React.useState('');
   const creatingFolder = React.useRef(false);
   const [folderError, setFolderError] = React.useState<string | null>(null);
-  const createFolderLabel = createFolder.isPending ? 'Creating folder…' : 'Create folder';
+  const createFolderLabel = createFolder.isPending ? t('meetingsShell.creatingFolder') : t('meetingsShell.createFolder');
   const [renameTarget, setRenameTarget] = React.useState<
     { type: 'folder' | 'meeting'; id: string; current: string; itemRect: DOMRectReadOnly } | null
   >(null);
@@ -146,7 +147,7 @@ export function MeetingsShell({
       setNewFolderName('');
       setNewFolderOpen(false);
     } catch {
-      setFolderError('Could not create folder. Please try again.');
+      setFolderError(t('meetingsShell.couldNotCreateFolderPlease'));
     } finally {
       creatingFolder.current = false;
     }
@@ -257,19 +258,17 @@ export function MeetingsShell({
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title={deleteTarget ? `Delete folder "${deleteTarget.name}"?` : ''}
+        title={deleteTarget ? t('meetingsShell.deleteFolder', { name: deleteTarget.name }) : ''}
         description={
           deleteTarget && deleteTarget.meetingCount > 0 ? (
-            <>
-              {deleteTarget.meetingCount} meeting
-              {deleteTarget.meetingCount === 1 ? '' : 's'} will be moved back to All Notes. No
-              recordings or transcripts will be deleted.
-            </>
+            deleteTarget.meetingCount === 1
+              ? t('meetingsShell.movedBack.one', { count: deleteTarget.meetingCount })
+              : t('meetingsShell.movedBack.other', { count: deleteTarget.meetingCount })
           ) : (
-            <>No recordings or transcripts will be deleted.</>
+            <>{t('meetingsShell.noRecordingsOrTranscriptsWill')}</>
           )
         }
-        confirmLabel="Delete"
+        confirmLabel={t('meetingsShell.delete')}
         destructive
         onConfirm={handleConfirmDeleteFolder}
         isPending={deleteFolder.isPending}
@@ -283,16 +282,16 @@ export function MeetingsShell({
       }}>
         <DialogContent closeDisabled={createFolder.isPending}>
           <DialogHeader>
-            <DialogTitle>New folder</DialogTitle>
+            <DialogTitle>{t('meetingsShell.newFolder')}</DialogTitle>
             <DialogDescription>
-              Group related meetings together. Folder names are only visible to you.
+              {t('meetingsShell.groupRelatedMeetingsTogetherFolder')}
             </DialogDescription>
           </DialogHeader>
           <Input
             disabled={createFolder.isPending}
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
-            placeholder="e.g. Acme Corp"
+            placeholder={t('meetingsShell.eGAcmeCorp')}
             autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter') void handleCreateFolder();
@@ -301,7 +300,7 @@ export function MeetingsShell({
           {folderError && <p role="alert">{folderError}</p>}
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" disabled={createFolder.isPending}>Cancel</Button>
+              <Button variant="outline" disabled={createFolder.isPending}>{t('meetingsShell.cancel')}</Button>
             </DialogClose>
             <Button disabled={createFolder.isPending || !newFolderName.trim()} aria-busy={createFolder.isPending} onClick={() => void handleCreateFolder()}>
               {createFolderLabel}
@@ -381,14 +380,14 @@ function ContextMenu({
         className="flex w-full items-center rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
         onClick={() => onRename(currentLabel)}
       >
-        Rename
+        {t('meetingsShell.rename')}
       </button>
       <button
         type="button"
         className="flex w-full items-center rounded px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
         onClick={onDelete}
       >
-        Delete
+        {t('meetingsShell.delete')}
       </button>
     </div>
   );
@@ -519,14 +518,14 @@ export function formatDateLabel(info: Meeting['session_info']): string | undefin
     d.getFullYear() === now.getFullYear() &&
     d.getMonth() === now.getMonth() &&
     d.getDate() === now.getDate();
-  if (sameDay) return 'Today';
+  if (sameDay) return t('meetingsShell.today');
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   const wasYesterday =
     d.getFullYear() === yesterday.getFullYear() &&
     d.getMonth() === yesterday.getMonth() &&
     d.getDate() === yesterday.getDate();
-  if (wasYesterday) return 'Yesterday';
+  if (wasYesterday) return t('meetingsShell.yesterday');
   if (now.getTime() - d.getTime() < 7 * 24 * 60 * 60 * 1000) {
     return d.toLocaleDateString(UI_LOCALE, { weekday: 'short' });
   }

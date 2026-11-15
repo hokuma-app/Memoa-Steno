@@ -41,11 +41,12 @@ const CHANNELS = [
   'get-privacy-notice-seen', 'set-privacy-notice-seen',
   'get-system-audio', 'set-system-audio',
   'get-language', 'set-language',
+  'get-summary-language', 'set-summary-language',
   'get-microphone', 'set-microphone',
   'get-user-name', 'set-user-name',
 ];
 
-test('registers exactly the 21 settings-toggle handlers', () => {
+test('registers exactly the 23 settings-toggle handlers', () => {
   const { handlers } = harness();
   assert.deepStrictEqual(Object.keys(handlers).sort(), [...CHANNELS].sort());
 });
@@ -58,6 +59,7 @@ const SPREAD_GETTERS = [
   'get-identity-matching-enabled',
   'get-silence-auto-stop',
   'get-user-name', 'get-system-audio', 'get-language', 'get-microphone',
+  'get-summary-language',
 ];
 
 test('every spread getter reads its own subcommand silently and spreads the parsed result', async () => {
@@ -174,4 +176,12 @@ test('backend failures surface as { success:false, error } and log via the injec
   // A handler with no error logging (keep-recordings) still fails soft.
   const r2 = await handlers['get-keep-recordings']();
   assert.deepStrictEqual(r2, { success: false, error: 'backend exploded' });
+});
+
+test('set-summary-language passes the code through and returns the backend verdict', async () => {
+  const ok = harness({ pyResult: 'noise\n{"success": true, "summary_language": "nl"}' });
+  assert.deepStrictEqual(await ok.handlers['set-summary-language']({}, 'nl'), { success: true, summary_language: 'nl' });
+  assert.deepStrictEqual(ok.calls.py[0].args, ['set-summary-language', 'nl']);
+  const silent = harness({ pyResult: 'no json' });
+  assert.strictEqual((await silent.handlers['set-summary-language']({}, 'nl')).success, false);
 });

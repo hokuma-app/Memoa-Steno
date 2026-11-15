@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { uiPart } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC, no backend. Drives the real org sign-in UI and
@@ -21,13 +22,13 @@ test('UI sign-in flips provider to org and locks the picker', async ({ launchApp
 
   // Fill and submit the password sign-in form.
   await page.getByPlaceholder('https://steno-adapter.yourcompany.com').fill('https://e2e.example.com');
-  await page.getByPlaceholder('you@yourcompany.com').fill('e2e@example.com');
+  await page.getByPlaceholder(uiPart('settingsOrganisationTab.youYourcompanyCom')).fill('e2e@example.com');
   await page.getByPlaceholder('••••••').fill('hunter2');
-  await page.getByRole('button', { name: /sign in with password/i }).click();
+  await page.getByRole('button', { name: uiPart('settingsOrganisationTab.signInWithPassword') }).click();
 
   // Signed-in: the session card replaces the form.
   await expect(page.getByTestId('org-signed-in-card')).toBeVisible();
-  await expect(page.getByText(/signed in as/i)).toBeVisible();
+  await expect(page.getByText(uiPart('settingsOrganisationTab.signedInAs'))).toBeVisible();
 
   // Switch to the AI tab (click, not hash — Settings only reads ?tab on mount).
   await page.getByRole('button', { name: 'AI', exact: true }).click();
@@ -39,6 +40,6 @@ test('UI sign-in flips provider to org and locks the picker', async ({ launchApp
   // combobox on the same screen since the merge, so "the only combobox"
   // no longer holds) shows "Organisation", and the managed-by-org copy
   // appears (the Select is disabled while signed in).
-  await expect(aiSection.getByTestId('ai-provider-select')).toContainText('Organisation');
-  await expect(aiSection.getByText(/managed by your organisation/i)).toBeVisible();
+  await expect(aiSection.getByTestId('ai-provider-select')).toContainText(uiPart('settingsAiTab.organisation'));
+  await expect(aiSection.getByText(uiPart('settingsAiTab.managedByYourOrganisationWhile'))).toBeVisible();
 });

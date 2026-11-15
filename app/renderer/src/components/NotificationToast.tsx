@@ -3,6 +3,10 @@ import { ipc } from '@/lib/ipc';
 import { useTheme } from '@/hooks/useTheme';
 import { AppIcon } from '@/components/ui/app-icon';
 import { AlertCircle, CheckCircle2, Mic, Info } from 'lucide-react';
+import { t } from '@/i18n';
+
+// Styling for the transparent notification window, not user-facing copy.
+const TRANSPARENT_ROOT_CSS = "\n        html, body, #root {\n          background: transparent !important;\n        }\n      ";
 
 export type NotificationIconType = 'app' | 'alert' | 'success' | 'recording';
 
@@ -124,11 +128,7 @@ export function NotificationToast() {
 
   return (
     <>
-      <style>{`
-        html, body, #root {
-          background: transparent !important;
-        }
-      `}</style>
+      <style>{TRANSPARENT_ROOT_CSS}</style>
       <div className="flex h-screen w-screen items-center justify-center bg-transparent p-3">
         <div
           className="group relative flex w-full cursor-pointer items-center justify-between rounded-[20px] bg-white p-2.5 pr-3 border border-gray-200 shadow-sm dark:bg-[#1E1E1E] dark:border-white/10"
@@ -138,7 +138,7 @@ export function NotificationToast() {
           <button
             onClick={handleClose}
             className="absolute -top-1.5 -left-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 opacity-0 transition-opacity hover:bg-gray-50 hover:text-gray-700 group-hover:opacity-100 dark:bg-[#2C2C2E] dark:border-white/10 dark:text-gray-400 dark:hover:bg-[#3C3C3E] dark:hover:text-gray-200"
-            title="Close"
+            title={t('notificationToast.close')}
           >
             <svg width="8" height="8" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -188,7 +188,7 @@ export function NotificationToast() {
                 className="flex items-center gap-2 rounded-[10px] border border-gray-200 bg-white px-3 py-1.5 text-[13px] font-medium text-gray-900 transition-all hover:bg-gray-50 hover:shadow-sm active:bg-gray-100 active:scale-[0.98] shrink-0 dark:border-white/10 dark:bg-[#2C2C2E] dark:text-gray-100 dark:hover:bg-[#3C3C3E] dark:active:bg-[#1C1C1E]"
               >
                 <ProfessionalCameraIcon className="h-5 w-5" backgroundColor={barColor} />
-                <span>Join &amp; take notes</span>
+                <span>{t('notificationToast.joinTakeNotes')}</span>
               </button>
             ) : null
           ) : (

@@ -1,12 +1,13 @@
 import { test, expect } from '../fixtures/electron';
+import { ui, uiPart, uiText } from '../fixtures/ui-copy';
 
 const summaryFile = 'pending_summary.md';
 
 for (const scenario of [
-  { name: 'connection', code: 'generation_connection_failed', message: 'Could not reach the AI service.' },
-  { name: 'missing model', code: 'generation_model_unavailable', message: 'The selected AI model is unavailable.' },
-  { name: 'unknown diagnostics', code: 'unexpected-server-code', message: 'Notes could not be generated.' },
-  { name: 'stream then generic exit', code: 'generation_connection_failed', message: 'Could not reach the AI service.', stream: true },
+  { name: 'connection', code: 'generation_connection_failed', message: uiText('noteGenerationError.couldNotReachTheAi') },
+  { name: 'missing model', code: 'generation_model_unavailable', message: uiText('noteGenerationError.theSelectedAiModelIs') },
+  { name: 'unknown diagnostics', code: 'unexpected-server-code', message: uiText('noteGenerationError.notesCouldNotBeGenerated') },
+  { name: 'stream then generic exit', code: 'generation_connection_failed', message: uiText('noteGenerationError.couldNotReachTheAi'), stream: true },
 ]) {
   test(`${scenario.name}: stable detail, safe cause and working retry`, async ({ launchApp }) => {
     const { app, page } = await launchApp({
@@ -28,14 +29,14 @@ for (const scenario of [
     }, { code: scenario.code, stream: Boolean(scenario.stream), file: summaryFile });
     const alert = page.getByRole('alert');
     await expect(alert).toContainText(scenario.message);
-    await expect(page.getByRole('button', { name: 'Copy transcript' })).toBeVisible();
-    await expect(alert.getByRole('button', { name: 'Generate notes', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: uiPart('askBar.copyTranscript') })).toBeVisible();
+    await expect(alert.getByRole('button', { name: ui('meetingDetail.generateNotes'), exact: true })).toBeEnabled();
     await expect(page.getByText('Unfinished synthetic summary', { exact: true })).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText('internal.invalid');
     await expect(page.locator('body')).not.toContainText('unexpected-server-code');
     // Disk preservation is verified by note-generation-error.t2; this mock returns static data.
 
-    await alert.getByRole('button', { name: 'Generate notes', exact: true }).click();
+    await alert.getByRole('button', { name: ui('meetingDetail.generateNotes'), exact: true }).click();
     await expect.poll(() => app.evaluate(() => (globalThis as any).__reprocessTest.calls)).toBe(2);
     await app.evaluate(({ BrowserWindow }, file) => {
       BrowserWindow.getAllWindows()[0].webContents.send('processing-complete', { success: true, summaryFile: file, sessionName: 'New note', notesGenerated: false });
@@ -43,7 +44,7 @@ for (const scenario of [
     }, summaryFile);
     await expect(alert).toHaveCount(0);
     await expect(page.getByTestId('generate-notes-dock-button')).toBeEnabled();
-    await expect(page.getByRole('button', { name: 'Copy transcript' })).toBeVisible();
+    await expect(page.getByRole('button', { name: uiPart('askBar.copyTranscript') })).toBeVisible();
   });
 }
 
@@ -75,8 +76,8 @@ test('failed regeneration keeps the existing summary visible and My notes usable
   await page.getByTestId('generate-notes-dock-button').click();
   await expect.poll(() => app.evaluate(() => (globalThis as any).__reprocessTest.calls)).toBe(1);
   await app.evaluate(() => (globalThis as any).__reprocessTest.finish({ success: false, error: 'Synthetic failure', error_code: 'generation_model_unavailable' }));
-  await expect(page.getByRole('alert')).toContainText('The selected AI model is unavailable.');
+  await expect(page.getByRole('alert')).toContainText(uiText('noteGenerationError.theSelectedAiModelIs'));
   await expect(page.getByText('Covers only the first segment.', { exact: true })).toBeVisible();
-  await page.getByRole('tab', { name: 'My notes', exact: true }).click();
-  await expect(page.getByRole('tab', { name: 'My notes', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: ui('recording.notesHeading'), exact: true }).click();
+  await expect(page.getByRole('tab', { name: ui('recording.notesHeading'), exact: true })).toHaveAttribute('aria-selected', 'true');
 });

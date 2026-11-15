@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/electron';
 import type { Page } from '@playwright/test';
+import { uiPart } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC, no backend. Drives the enterprise "Shared
@@ -22,9 +23,9 @@ async function signIn(page: Page) {
   });
   await expect(page.getByTestId('org-sign-in-card')).toBeVisible();
   await page.getByPlaceholder('https://steno-adapter.yourcompany.com').fill('https://e2e.example.com');
-  await page.getByPlaceholder('you@yourcompany.com').fill('e2e@example.com');
+  await page.getByPlaceholder(uiPart('settingsOrganisationTab.youYourcompanyCom')).fill('e2e@example.com');
   await page.getByPlaceholder('••••••').fill('hunter2');
-  await page.getByRole('button', { name: /sign in with password/i }).click();
+  await page.getByRole('button', { name: uiPart('settingsOrganisationTab.signInWithPassword') }).click();
   await expect(page.getByTestId('org-signed-in-card')).toBeVisible();
   await page.evaluate(() => {
     window.location.hash = '#/';
@@ -35,13 +36,13 @@ test('enabled: Shared notes tab shows and opens the browse view', async ({ launc
   const { page } = await launchApp({ mockIpc: true });
   await signIn(page);
 
-  const tab = page.getByRole('button', { name: 'Shared notes' });
+  const tab = page.getByRole('button', { name: uiPart('folderScopePicker.sharedNotes') });
   await expect(tab).toBeVisible();
 
   await tab.click();
   // The browse view renders its own <h1>Shared notes</h1> (heading role,
   // distinct from the sidebar button) once the route is allowed.
-  await expect(page.getByRole('heading', { name: 'Shared notes' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: uiPart('folderScopePicker.sharedNotes') })).toBeVisible();
 });
 
 test('disabled: Shared notes tab is hidden and /org/shared redirects to Home', async ({
@@ -61,6 +62,6 @@ test('disabled: Shared notes tab is hidden and /org/shared redirects to Home', a
 
   // Did not land on the OrgShared browse view, and the sidebar tab is absent
   // now that policy has positively resolved to disabled.
-  await expect(page.getByRole('heading', { name: 'Shared notes' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Shared notes' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: uiPart('folderScopePicker.sharedNotes') })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: uiPart('folderScopePicker.sharedNotes') })).toHaveCount(0);
 });

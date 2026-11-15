@@ -1,5 +1,6 @@
 import type { Meeting } from '@/lib/ipc';
 import { parseTranscript } from '@/lib/transcriptSegments';
+import { t } from '@/i18n';
 
 const COALESCE_MAX_GAP_S = 2.5;
 const COALESCE_MAX_SPAN_S = 20;
@@ -14,7 +15,7 @@ export function buildTranscriptBundle(meeting: Meeting | null | undefined): stri
   if (!meeting) return '';
 
   const info = meeting.session_info;
-  const title = (info?.name ?? '').trim() || 'Untitled note';
+  const title = (info?.name ?? '').trim() || t('transcriptBundle.untitledNote');
 
   // Prefer the diarised ([You]/[Others]) text when present; else the flat transcript.
   const body = (
@@ -26,24 +27,24 @@ export function buildTranscriptBundle(meeting: Meeting | null | undefined): stri
 
   const metaParts: string[] = [];
   const dateStr = meetingDate(info);
-  if (dateStr) metaParts.push(`Date: ${dateStr}`);
+  if (dateStr) metaParts.push(t('transcriptBundle.date', { dateStr }));
   const durStr = secondsToMinutes(info?.duration_seconds);
-  if (durStr) metaParts.push(`Duration: ${durStr}`);
+  if (durStr) metaParts.push(t('transcriptBundle.duration', { durStr }));
   const people = participantNames(meeting.participants);
-  if (people) metaParts.push(`Participants: ${people}`);
+  if (people) metaParts.push(t('transcriptBundle.participants', { people }));
 
   const lines: string[] = [`# ${title}`];
   if (metaParts.length) lines.push(metaParts.join(' · '));
 
   const notes = (meeting.user_notes ?? meeting.notes ?? '').trim();
-  if (notes) lines.push('', '## Notes', notes);
+  if (notes) lines.push('', t('transcriptBundle.notes'), notes);
 
   const conversation = meeting.is_diarised ? coalesceConversation(body) : null;
   if (conversation) {
-    lines.push('', '## Transcript', conversation);
-    lines.push('', '## Timestamped transcript', body);
+    lines.push('', t('transcriptBundle.transcript'), conversation);
+    lines.push('', t('transcriptBundle.timestampedTranscript'), body);
   } else {
-    lines.push('', '## Transcript', body);
+    lines.push('', t('transcriptBundle.transcript'), body);
   }
   return lines.join('\n');
 }
@@ -138,9 +139,9 @@ function participantNames(participants: unknown): string | null {
 
 
 function conversationSpeaker(raw: string | null): string {
-  if (raw === 'You') return 'Me';
+  if (raw === 'You') return t('transcriptBundle.me');
   const label = raw?.trim();
-  return label ? label : 'Unknown';
+  return label ? label : t('transcriptBundle.unknown');
 }
 
 function normalizeConversationText(text: string): string {

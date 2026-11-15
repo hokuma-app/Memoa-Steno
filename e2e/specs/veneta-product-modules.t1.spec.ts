@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test, expect } from '../fixtures/electron';
 import { emitBufferedLiveSegments as emitLiveSegments } from '../fixtures/buffered-live-transcript';
+import { ui } from '../fixtures/ui-copy';
 
 const launchOptions = { mockIpc: true, fakeAudio: true, releaseHighlightsSeen: true,
   env: { STENOAI_E2E_MOCK_PARAKEET_INSTALLED: '1', STENOAI_E2E_PRODUCT_PROFILE: 'veneta' } };
@@ -167,10 +168,10 @@ test('before, during and after: automatic AI check without opt-in or manual tick
     // ---- DURING ----
     const session = 'Synthetic conversation';
     await page.evaluate(async name => { await window.stenoai.recording.start(name); }, session);
-    await page.getByRole('button', { name: 'Open recording in progress', exact: true }).click();
+    await page.getByRole('button', { name: ui('mainToolbar.openRecording'), exact: true }).click();
     const panel = page.getByTestId('live-transcript-panel');
     await expect(panel).toHaveCount(0);
-    await page.getByRole('button', { name: 'Show transcript', exact: true }).click();
+    await page.getByRole('button', { name: ui('liveDock.showTranscript'), exact: true }).click();
     const sidebar = page.locator('[data-checklist-runtime]');
     await expect(sidebar.getByRole('heading', { name: 'Eigen synthetische leidraad', exact: true })).toBeVisible();
     await expect(sidebar.getByText('0 / 3', { exact: true })).toBeVisible();
@@ -202,12 +203,12 @@ test('before, during and after: automatic AI check without opt-in or manual tick
     await points.nth(0).getByRole('button').click();
     await expect(panel.locator('li[data-live-start="192"]')).toHaveClass(/veneta-jump-flash/);
     // The transcript folds away independently; the checklist stays.
-    await panel.getByRole('button', { name: 'Minimize transcript', exact: true }).click();
+    await panel.getByRole('button', { name: ui('liveTranscriptBar.minimizeTranscript'), exact: true }).click();
     await expect(panel).toHaveCount(0);
     await expect(sidebar.getByRole('heading', { name: 'Eigen synthetische leidraad', exact: true })).toBeVisible();
     await points.nth(0).getByRole('button').click();
     await expect(sidebar.getByText('Open het transcript om het citaat te zien.', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Show transcript', exact: true }).click();
+    await page.getByRole('button', { name: ui('liveDock.showTranscript'), exact: true }).click();
     await expect(panel).toBeVisible();
     // Drafts are keyed by the recording identity and carry the checklist name; nothing manual was written.
     const draftsDir = path.join(root, 'drafts');
@@ -226,14 +227,14 @@ test('before, during and after: automatic AI check without opt-in or manual tick
           const side = await page.locator('.veneta-conversation-sidebar').boundingBox();
           return !!notes && !!side && notes.x + notes.width <= side.x + 1 && side.x + side.width <= width + 1;
         }).toBe(true);
-        await expect(panel.getByRole('button', { name: 'Stop recording', exact: true })).toBeInViewport();
+        await expect(panel.getByRole('button', { name: ui('mainToolbar.stopRecording'), exact: true })).toBeInViewport();
         await page.screenshot({ path: evidence(`tijdens-${width}-${scheme}.png`), animations: 'disabled' });
       }
     }
     await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 1440, height: 1000 });
     // ---- AFTER: stopping binds the result to the note the host knows ----
-    await panel.getByRole('button', { name: 'Stop recording', exact: true }).click();
+    await panel.getByRole('button', { name: ui('mainToolbar.stopRecording'), exact: true }).click();
     const tab = page.getByTestId('tab-checklist');
     await expect(tab).toHaveText('Eigen synthetische leidraad 1/3');
     await expect(page.getByTestId('tab-summary')).toBeVisible();
@@ -312,7 +313,7 @@ test('a failed live check names its content-free reason and advice in the always
   await createOwn(page, 'Foutproef', ['Synthetisch punt']);
   const session = 'Synthetic failing conversation';
   await page.evaluate(async name => { await window.stenoai.recording.start(name); }, session);
-  await page.getByRole('button', { name: 'Open recording in progress', exact: true }).click();
+  await page.getByRole('button', { name: ui('mainToolbar.openRecording'), exact: true }).click();
   const sidebar = page.locator('[data-checklist-runtime]');
   await emitLiveSegments(app, session, [{ text: 'Synthetische uitleg.', start: 0, end: 2, isFinal: true, speaker: 'You' }]);
   const status = sidebar.getByRole('status', { name: 'Status AI-controle', exact: true });

@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 // Templated preset prompts surfaced two ways:
 //   1. Chip row at the bottom of the /chat entry page (always visible).
 //   2. Popover triggered by typing '/' as the first character in either
@@ -9,33 +10,33 @@ export interface ChatPreset {
   description: string;
 }
 
-export const CHAT_COMPOSER_LABEL = 'Ask about your notes';
+export const CHAT_COMPOSER_LABEL = t('chatPresets.askAboutYourNotes');
 
 export const PRESETS: ChatPreset[] = [
   {
-    label: 'Chart my notes',
-    prompt: 'Create a bar chart of action item counts by meeting from my recent notes. Explain which notes are included and any missing information.',
-    description: 'Visualizes numbers supported by your meeting notes',
+    label: t('chatPresets.chartMyNotes'),
+    prompt: t('chatPresets.createABarChartOf'),
+    description: t('chatPresets.visualizesNumbersSupportedByYour'),
   },
   {
-    label: 'List recent todos',
-    prompt: 'List my action items from the last week.',
-    description: 'Pulls outstanding to-dos from recent meeting notes',
+    label: t('chatPresets.listRecentTodos'),
+    prompt: t('chatPresets.listMyActionItemsFrom'),
+    description: t('chatPresets.pullsOutstandingToDosFrom'),
   },
   {
-    label: 'Coach me',
-    prompt: 'Coach me on my recent meetings — patterns, blind spots, things to work on.',
-    description: 'Looks for patterns and suggests areas to improve',
+    label: t('chatPresets.coachMe'),
+    prompt: t('chatPresets.coachMeOnMyRecent'),
+    description: t('chatPresets.looksForPatternsAndSuggests'),
   },
   {
-    label: 'Write weekly recap',
-    prompt: 'Write a recap of this week based on my notes.',
-    description: 'Summary of the week across every meeting',
+    label: t('chatPresets.writeWeeklyRecap'),
+    prompt: t('chatPresets.writeARecapOfThis'),
+    description: t('chatPresets.summaryOfTheWeekAcross'),
   },
   {
-    label: 'Blind spots',
-    prompt: 'What blind spots have come up across my recent meetings?',
-    description: 'Surfaces themes you may have missed',
+    label: t('chatPresets.blindSpots'),
+    prompt: t('chatPresets.whatBlindSpotsHaveCome'),
+    description: t('chatPresets.surfacesThemesYouMayHave'),
   },
 ];
 

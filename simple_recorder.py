@@ -168,6 +168,30 @@ def resolve_persisted_output_language(
     )
 
 
+def apply_summary_language(output_language: str, summary_language: Optional[str]) -> str:
+    """Pick the language a newly generated summary, title or report is written in.
+
+    ``output_language`` is the meeting's language (``resolve_output_language``
+    or a note's trusted persisted value). The user's separate summary-language
+    setting replaces it when it names a language; "auto" (the default outside
+    the Veneta build) keeps the meeting's language, so nothing changes for
+    users who never chose one. Only new generations call this: existing notes
+    are not rewritten when the setting changes.
+    """
+    if isinstance(summary_language, str) and summary_language and summary_language != "auto":
+        return summary_language
+    return output_language
+
+
+def configured_summary_language() -> str:
+    """The summary-language setting, or "auto" when the config is unreadable."""
+    try:
+        from src.config import get_config
+        return get_config().get_summary_language()
+    except Exception:
+        return "auto"
+
+
 # Session names that should trigger AI title regeneration after summarization.
 # Covers manual placeholders (Meeting / Note / Meeting-ABC123 / Note-ABC123) and
 # the auto-detect-meetings shape "<AppName> — YYYY-MM-DD HH:MM" produced by
@@ -1006,10 +1030,13 @@ Summary output language: {config.get_language_name(output_language)}
         from src.config import get_config
         config = get_config()
         configured_language = config.get_language()
-        output_language = self._resolve_output_language(
-            configured_language,
-            transcript_data.get("detected_language"),
-            transcript_text=text_for_summary,
+        output_language = apply_summary_language(
+            self._resolve_output_language(
+                configured_language,
+                transcript_data.get("detected_language"),
+                transcript_text=text_for_summary,
+            ),
+            config.get_summary_language(),
         )
 
         meeting_context = _meeting_context_for_note(self.output_dir / f"{audio_path.stem}_summary.md")
@@ -1709,10 +1736,13 @@ def process_streaming(audio_file, name, notes, live_transcript, append_to):
         from src.config import get_config
         config = get_config()
         configured_language = config.get_language()
-        output_language = recorder._resolve_output_language(
-            configured_language,
-            transcript_data.get("detected_language"),
-            transcript_text=text_for_summary,
+        output_language = apply_summary_language(
+            recorder._resolve_output_language(
+                configured_language,
+                transcript_data.get("detected_language"),
+                transcript_text=text_for_summary,
+            ),
+            config.get_summary_language(),
         )
 
         import base64
@@ -3767,8 +3797,11 @@ def reprocess(summary_file, regenerate_title, retranscribe, summary_detail=None)
         # #283) is re-detected from the transcript instead of re-pinning English.
         from src.config import get_config
         existing_session_info = existing_data.get("session_info", {})
-        output_language = resolve_persisted_output_language(
-            existing_session_info, transcript, get_config().get_language()
+        output_language = apply_summary_language(
+            resolve_persisted_output_language(
+                existing_session_info, transcript, get_config().get_language()
+            ),
+            configured_summary_language(),
         )
 
         # Use streaming summarization (same as new recordings)
@@ -4265,8 +4298,11 @@ def generate_report(summary_file, template_id, summary_detail=None):
             "configured_language": meeting.get("configured_language"),
             "detected_language": meeting.get("detected_language"),
         }
-        output_language = resolve_persisted_output_language(
-            persisted_info, transcript, config.get_language()
+        output_language = apply_summary_language(
+            resolve_persisted_output_language(
+                persisted_info, transcript, config.get_language()
+            ),
+            config.get_summary_language(),
         )
 
     if recorder.summarizer is None:
@@ -4364,8 +4400,11 @@ def regen_title(summary_file):
         # English title. Fall back to the summary text when there's no
         # transcript (summary is already in the note's language).
         from src.config import get_config
-        output_language = resolve_persisted_output_language(
-            session_info, transcript or summary, get_config().get_language()
+        output_language = apply_summary_language(
+            resolve_persisted_output_language(
+                session_info, transcript or summary, get_config().get_language()
+            ),
+            configured_summary_language(),
         )
 
         if recorder.summarizer is None:
@@ -9540,6 +9579,38 @@ def set_summary_detail_cmd(value):
     except Exception:
         print(json.dumps({"error": "Samenvattingsinstelling kon niet worden opgeslagen."}))
         raise SystemExit(1) from None
+
+
+@cli.command(name='get-summary-language')
+def get_summary_language_cmd():
+    """Get the language used for newly generated summaries."""
+    from src.config import get_config
+    config = get_config()
+    code = config.get_summary_language()
+    print(json.dumps({
+        "summary_language": code,
+        "summary_language_name": config.get_language_name(code),
+        "is_default": config.summary_language_is_default(),
+    }))
+
+
+@cli.command(name='set-summary-language')
+@click.argument('language_code')
+def set_summary_language_cmd(language_code):
+    """Set the language for newly generated summaries ("auto" follows the meeting)."""
+    from src.config import get_config
+    config = get_config()
+    if language_code not in config.SUPPORTED_LANGUAGES:
+        print(json.dumps({"success": False, "error": f"Unsupported language: {language_code}"}))
+        return
+    if not config.set_summary_language(language_code):
+        print(json.dumps({"success": False, "error": "Failed to save summary language setting"}))
+        return
+    print(json.dumps({
+        "success": True,
+        "summary_language": language_code,
+        "summary_language_name": config.get_language_name(language_code),
+    }))
 
 
 @cli.command()

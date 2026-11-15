@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/electron";
+import { ui, uiPart, uiSource } from '../fixtures/ui-copy';
 
 test("Agents exposes both install prompts and opens the selected setup guide", async ({
   launchApp,
@@ -19,13 +20,13 @@ test("Agents exposes both install prompts and opens the selected setup guide", a
   });
   await page.getByRole("button", { name: "Agents", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Your notes, in your agent." }),
+    page.getByRole("heading", { name: uiPart('agentSkills.yourNotesInYourAgent') }),
   ).toBeVisible();
   for (const name of ["Claude Code", "Codex"]) {
     const card = page.getByRole("region", { name, exact: true });
-    await card.getByRole("button", { name: "Copy install prompt" }).click();
+    await card.getByRole("button", { name: uiPart('agentSkills.copyInstallPrompt') }).click();
     await expect(
-      card.getByRole("button", { name: "Copied", exact: true }),
+      card.getByRole("button", { name: ui('meetingDetail.copied'), exact: true }),
     ).toBeVisible();
     const text = await app.evaluate(({ clipboard }) => clipboard.readText());
     expect(text).toContain(
@@ -34,7 +35,7 @@ test("Agents exposes both install prompts and opens the selected setup guide", a
     expect(text).toContain(
       name === "Codex" ? "$skill-installer" : "~/.claude/skills/steno",
     );
-    await card.getByRole("button", { name: "Setup instructions" }).click();
+    await card.getByRole("button", { name: uiPart('agentSkills.setupInstructions') }).click();
   }
   await expect
     .poll(() =>
@@ -58,19 +59,19 @@ test("Agents exposes both install prompts and opens the selected setup guide", a
     };
   });
   await codex
-    .getByRole("button", { name: /Copy install prompt|Copied/ })
+    .getByRole("button", { name: new RegExp(`${uiSource('agentSkills.copyInstallPrompt')}|${uiSource('meetingDetail.copied')}`) })
     .click();
   await expect(codex.locator("details")).toHaveAttribute("open", "");
-  await expect(codex.getByRole('button', { name: 'Copy install prompt', exact: true })).toBeVisible();
-  await codex.getByRole("button", { name: "Setup instructions" }).click();
+  await expect(codex.getByRole('button', { name: ui('agentSkills.copyInstallPrompt'), exact: true })).toBeVisible();
+  await codex.getByRole("button", { name: uiPart('agentSkills.setupInstructions') }).click();
   await expect(codex.getByRole("status")).toHaveText(
-    "Could not open the instructions. Try again.",
+    ui('agentSkills.couldNotOpenTheInstructions'),
   );
   await expect(codex.locator("details")).toHaveAttribute("open", "");
   await page.screenshot({ path: testInfo.outputPath("agents.png") });
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.getByRole("textbox").press("/");
   await expect(
-    page.getByRole("button", { name: /Chart my notes/ }).first(),
+    page.getByRole("button", { name: new RegExp(uiSource('chatPresets.chartMyNotes')) }).first(),
   ).toBeVisible();
 });

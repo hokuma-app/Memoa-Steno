@@ -14,6 +14,8 @@
 
 import { OVO_FONT_WOFF2_BASE64, STENO_LOGO_SVG_BASE64 } from '@/lib/brandAssets';
 import type { StructuredNoteSections } from '@/lib/notesCopy';
+import { t } from '@/i18n';
+import { UI_LOCALE } from '@/lib/locale';
 
 // The PDF builder consumes the same decomposed Standard-note shape as the
 // clipboard export (one source of truth — see notesCopy.ts). `meta` is a
@@ -76,7 +78,7 @@ export function buildNotesHtml(input: NotesPdfInput, activeReport?: NotesPdfRepo
   const reportHtml = activeReport?.contentHtml?.trim();
   if (!reportHtml && !hasNotesContent(input)) return '';
 
-  const title = (input.name ?? '').trim() || 'Untitled note';
+  const title = (input.name ?? '').trim() || t('notesPdf.untitledNote');
   const summary = input.summary?.trim();
 
   const sections: string[] = [];
@@ -84,7 +86,7 @@ export function buildNotesHtml(input: NotesPdfInput, activeReport?: NotesPdfRepo
   // When a report is open it REPLACES the Standard sections — the PDF must show
   // what's on screen, not both (matches buildNotesCopyText's short-circuit).
   if (reportHtml) {
-    const label = escapeHtml((activeReport?.templateName || 'Report').trim());
+    const label = escapeHtml((activeReport?.templateName || t('notesPdf.report')).trim());
     return renderDocument(title, input.meta, [
       `  <section>
     <h2>${label}</h2>
@@ -97,7 +99,7 @@ ${reportHtml}
 
   if (summary) {
     sections.push(`  <section>
-    <h2>Summary</h2>
+    <h2>${t('notesPdf.heading.summary')}</h2>
     <p class="summary">${escapeHtml(summary)}</p>
   </section>`);
   }
@@ -105,15 +107,15 @@ ${reportHtml}
   if (input.discussionAreas.length) {
     const rows = input.discussionAreas
       .map((a) => {
-        const t = escapeHtml((a.title || 'Discussion topic').trim());
+        const lead = escapeHtml((a.title || t('notesPdf.discussionTopic')).trim());
         const analysis = a.analysis?.trim();
         return analysis
-          ? `      <li><span class="lead">${t}:</span> ${escapeHtml(analysis)}</li>`
-          : `      <li><span class="lead">${t}</span></li>`;
+          ? `      <li><span class="lead">${lead}:</span> ${escapeHtml(analysis)}</li>`
+          : `      <li><span class="lead">${lead}</span></li>`;
       })
       .join('\n');
     sections.push(`  <section>
-    <h2>Key Topics</h2>
+    <h2>${t('notesPdf.heading.keyTopics')}</h2>
     <ul>
 ${rows}
     </ul>
@@ -122,7 +124,7 @@ ${rows}
 
   if (input.keyPoints.length) {
     sections.push(`  <section>
-    <h2>Key Points</h2>
+    <h2>${t('notesPdf.heading.keyPoints')}</h2>
     <ul>
 ${listItems(input.keyPoints)}
     </ul>
@@ -131,7 +133,7 @@ ${listItems(input.keyPoints)}
 
   if (input.actionItems.length) {
     sections.push(`  <section class="actions">
-    <h2>Action Items</h2>
+    <h2>${t('notesPdf.heading.actionItems')}</h2>
     <ul>
 ${listItems(input.actionItems)}
     </ul>
@@ -140,7 +142,7 @@ ${listItems(input.actionItems)}
 
   if (input.participants.length) {
     sections.push(`  <section>
-    <h2>Participants</h2>
+    <h2>${t('notesPdf.heading.participants')}</h2>
     <p>${escapeHtml(input.participants.join(', '))}</p>
   </section>`);
   }
@@ -159,7 +161,7 @@ function renderDocument(title: string, meta: string | undefined, sections: strin
     : '';
 
   return `<!doctype html>
-<html lang="en">
+<html lang="${UI_LOCALE}">
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'">
@@ -295,7 +297,7 @@ function renderDocument(title: string, meta: string | undefined, sections: strin
       <span class="wordmark">steno</span>
     </div>
     <div class="masthead-meta">
-      <div class="kicker">Meeting Notes</div>
+      <div class="kicker">${escapeHtml(t('notesPdf.kicker'))}</div>
       <div class="site">www.stenoai.co</div>
     </div>
   </div>
@@ -305,7 +307,7 @@ ${metaLine}
   </div>
 ${sections.join('\n')}
   <footer>
-    <span>Steno is the privacy-first AI notepad for highly sensitive conversations.</span>
+    <span>${escapeHtml(t('notesPdf.footer'))}</span>
   </footer>
 </body>
 </html>`;

@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/electron';
 import type { Page } from '@playwright/test';
+import { uiPart, uiText } from '../fixtures/ui-copy';
 
 /**
  * T1 (0.10.2) — a speaker linked to a name AFTER the summary was made shows that name everywhere in the note:
@@ -36,7 +37,7 @@ const lastCopy = async (page: Page) =>
   (await page.evaluate(() => (window as unknown as { __clipboardWrites: string[] }).__clipboardWrites)).slice(-1)[0];
 const copyNotes = async (page: Page) => {
   const before = await page.evaluate(() => (window as unknown as { __clipboardWrites: string[] }).__clipboardWrites.length);
-  await page.getByRole('button', { name: 'Copy notes' }).click();
+  await page.getByRole('button', { name: uiPart('meetingDetail.copyNotes') }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __clipboardWrites: string[] }).__clipboardWrites.length)).toBe(before + 1);
   return lastCopy(page);
 };
@@ -65,10 +66,10 @@ test('a name linked after the summary shows in the note, the detail levels and t
 
   // Link a name to the speaker, in the app (the real panel), no reload.
   const row = page.getByTestId('speaker-row-mic:SPEAKER_2');
-  await row.getByRole('button', { name: 'New person' }).click();
+  await row.getByRole('button', { name: uiPart('speakerReviewPanel.newPerson') }).click();
   await page.getByTestId('speaker-new-person-input').fill('Anna de Vries');
   await page.getByTestId('speaker-new-person-input').press('Enter');
-  await expect(row).toContainText('✓ Confirmed as Anna de Vries');
+  await expect(row).toContainText(uiPart('speakerReviewPanel.confirmedAs', { confirmed_by_user: 'Anna de Vries' }));
 
   // After: the owner, the summary, the topics and key points in the reader, all show the name; Speaker 20 stays.
   await expect(actions).toContainText('Anna de Vries: plan de demo in');
@@ -90,9 +91,9 @@ test('a name linked after the summary shows in the note, the detail levels and t
   expect(brief).toContain('Anna de Vries');
 
   // Another person for the same speaker: the note follows at once, still at Beknopt.
-  await row.getByRole('button', { name: 'Change' }).click();
+  await row.getByRole('button', { name: uiPart('speakerReviewPanel.change') }).click();
   await page.getByTestId('speaker-pick-person-p-beta').click();
-  await expect(row).toContainText('Confirmed as Person Beta');
+  await expect(row).toContainText(uiText('speakerReviewPanel.confirmedAs', { confirmed_by_user: 'Person Beta' }).replace(/^✓ /, ''));
   await expect(actions).toContainText('Person Beta: plan de demo in');
   await expect(pressed(page)).toHaveText('Beknopt');
   const changed = await copyNotes(page);
@@ -100,7 +101,7 @@ test('a name linked after the summary shows in the note, the detail levels and t
   expect(changed).not.toContain('Anna de Vries');
 
   // The full-note copy from the menu has the name as well.
-  await page.getByRole('button', { name: 'More options' }).click();
+  await page.getByRole('button', { name: uiPart('meetingDetail.moreOptions') }).click();
   await page.getByTestId('copy-full-notes').click();
   const menuCopy = await lastCopy(page);
   expect(menuCopy).toContain('Person Beta: plan de demo in');
@@ -113,7 +114,7 @@ test('a name linked after the summary shows in the note, the detail levels and t
   // Unlink in the app: marking the speaker as "more than one person" withdraws the name (the host restores the label
   // in the transcript), and the note shows the label again at once.
   await row.getByTestId('speaker-mark-multi-mic:SPEAKER_2').click();
-  await expect(row).toContainText('More than one person');
+  await expect(row).toContainText(uiPart('speakerReviewPanel.moreThanOnePerson'));
   await expect(actions).toContainText('Speaker 2: plan de demo in');
   await expect(actions).not.toContainText('Person Beta');
   await expect(panel(page)).toContainText('Speaker 2 wil de demo plannen');

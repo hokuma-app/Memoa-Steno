@@ -1561,7 +1561,8 @@ TRANSCRIPT:
             from .config import get_config
             language_name = get_config().get_language_name(language)
             language_instruction = (
-                f"\n\nCRITICAL: Write the report in {language_name}."
+                f"\n\nCRITICAL: Write the report in {language_name}, including its headings "
+                f"and action items, even if the instructions above ask for the language of the meeting."
                 if language_name != "Unknown" else ""
             )
         else:

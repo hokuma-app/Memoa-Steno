@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { t } from '@/i18n';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -28,8 +29,8 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel = t('confirmDialog.confirm'),
+  cancelLabel = t('confirmDialog.cancel'),
   destructive,
   onConfirm,
   isPending,
@@ -77,7 +78,7 @@ export function ConfirmDialog({
             onClick={() => void handleConfirm()}
             disabled={pending}
           >
-            {pending ? 'Working...' : confirmLabel}
+            {pending ? t('confirmDialog.working') : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

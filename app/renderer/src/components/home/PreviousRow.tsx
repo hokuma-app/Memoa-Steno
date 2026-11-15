@@ -4,6 +4,7 @@ import { navigate } from '@/lib/router';
 import { useMeetingsList } from '@/lib/meetingsListContext';
 import { stripReasoning } from '@/lib/markdown';
 import { ChecklistScoreBadge } from '@/modules/conversation-checklist/ChecklistScoreBadge';
+import { t } from '@/i18n';
 
 interface PreviousRowProps {
   meeting: Meeting;
@@ -32,7 +33,7 @@ export function PreviousRow({ meeting, folderName }: PreviousRowProps) {
       ? '/meetings/processing'
       : `/meetings/${encodeURIComponent(info.summary_file)}`;
 
-  const title = info.name || 'Untitled note';
+  const title = info.name || t('previousRow.untitledNote');
 
   return (
     <div
@@ -100,7 +101,7 @@ export function PreviousRow({ meeting, folderName }: PreviousRowProps) {
               {participants > 0 && (
                 <>
                   <span>
-                    {participants} {participants === 1 ? 'person' : 'people'}
+                    {participants} {participants === 1 ? t('previousRow.person') : t('previousRow.people')}
                   </span>
                   {showPreview && <span className="opacity-40">·</span>}
                 </>
@@ -117,7 +118,7 @@ export function PreviousRow({ meeting, folderName }: PreviousRowProps) {
         className="flex flex-col items-end gap-1.5 pl-4 text-[12.5px] tabular-nums"
         style={{ color: 'var(--fg-2)' }}
       >
-        <span>{isSynthetic ? 'Now' : (when ?? '')}</span>
+        <span>{isSynthetic ? t('previousRow.now') : (when ?? '')}</span>
         {/* Original audio still on disk. Shown only when present, never as a
             crossed-out "missing" marker: keep_recordings defaults off, so
             absence is the normal case and flagging it on most rows would be
@@ -131,10 +132,10 @@ export function PreviousRow({ meeting, folderName }: PreviousRowProps) {
             {!isSynthetic && meeting.has_audio && (
               <AudioLines
                 className="size-3"
-                aria-label="Original audio still available"
+                aria-label={t('previousRow.originalAudioStillAvailable')}
                 data-testid="previous-row-has-audio"
               >
-                <title>Original audio still available</title>
+                <title>{t('previousRow.originalAudioStillAvailable')}</title>
               </AudioLines>
             )}
             {duration}
@@ -159,7 +160,7 @@ function LiveBadge() {
         className="inline-block size-1.5 rounded-full bg-white"
         style={{ animation: 'pulse 1.4s ease-in-out infinite' }}
       />
-      Recording
+      {t('previousRow.recording')}
     </span>
   );
 }
@@ -175,7 +176,7 @@ export function ProcessingBadge() {
       }}
     >
       <Loader2 className="size-[10px] animate-spin" aria-hidden />
-      Processing
+      {t('previousRow.processing')}
     </span>
   );
 }
@@ -193,9 +194,9 @@ function formatDuration(seconds?: number): string | undefined {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m`;
-  return `${s}s`;
+  if (h > 0) return t('previousRow.duration.hoursMinutes', { h, m });
+  if (m > 0) return t('previousRow.duration.minutes', { m });
+  return t('previousRow.duration.seconds', { s });
 }
 
 function previewText(meeting: Meeting): string | undefined {

@@ -1637,6 +1637,7 @@ function install({ ipcMain, bindChecklistNote }) {
     // MOCKS so STENOAI_E2E_MOCK_ENGINE can override it; default parakeet keeps
     // the language picker enabled — parakeet-language-picker.t1.)
     'get-language': { success: true, language: 'auto' },
+    'get-summary-language': { success: true, summary_language: 'auto', is_default: true },
     // Real production catalog (src/whisper_models.py / src/parakeet_models.py)
     // rather than empty — so the Settings UI's model list actually renders
     // cards to look at (manual/dev use) instead of always erroring "Could not

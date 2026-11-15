@@ -3,12 +3,13 @@ import type { ElectronApplication } from "@playwright/test";
 import { writeFileSync } from "fs";
 import path from "path";
 import { version } from "../../app/package.json";
+import { ui, uiPart, uiText } from '../fixtures/ui-copy';
 
 const env = {
   STENOAI_E2E_APP_VERSION: version,
   STENOAI_E2E_MOCK_PARAKEET_INSTALLED: "1",
 };
-const title = "What’s new in Steno";
+const title = uiText('releaseHighlights.whatSNewInSteno');
 const seenKey = "steno-last-seen-release";
 
 async function foreground(app: ElectronApplication) {
@@ -43,9 +44,9 @@ test("an acknowledged release leaves Settings interactive and can be reopened", 
   await foreground(app);
   await page.evaluate(() => { location.hash = "#/settings?tab=about"; });
   await expect(page.getByRole("dialog", { name: title })).toHaveCount(0);
-  await page.getByRole("button", { name: "View highlights" }).click();
+  await page.getByRole("button", { name: uiPart('releaseHighlights.viewHighlights') }).click();
   await expect(page.getByRole("dialog", { name: title })).toBeVisible();
-  await page.getByRole("button", { name: "Full release notes" }).click();
+  await page.getByRole("button", { name: uiPart('releaseHighlights.fullReleaseNotes') }).click();
   await expect(page.getByRole("dialog", { name: title })).toHaveCount(0);
   await expect.poll(() => app.evaluate(
     () => (globalThis as unknown as { openedUrls: string[] }).openedUrls,
@@ -74,9 +75,9 @@ test("upgrade waits for foreground, dismisses across restarts, and reopens from 
   const dialog = first.page.getByRole("dialog", { name: title });
   await expect(dialog).toBeVisible();
   await expect(
-    dialog.getByRole("button", { name: "Try Agents" }),
+    dialog.getByRole("button", { name: uiPart('releaseHighlights.tryAgents') }),
   ).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Open Chat" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: uiPart('releaseHighlights.openChat') })).toBeVisible();
   await dialog.evaluate((node) =>
     node.setAttribute("data-persistence-probe", "retained"),
   );
@@ -95,7 +96,7 @@ test("upgrade waits for foreground, dismisses across restarts, and reopens from 
     path: testInfo.outputPath("whats-new-light.png"),
     animations: "disabled",
   });
-  await dialog.getByRole("button", { name: "Done", exact: true }).click();
+  await dialog.getByRole("button", { name: ui('releaseHighlights.done'), exact: true }).click();
   expect(
     await first.page.evaluate((key) => localStorage.getItem(key), seenKey),
   ).toBe(version);
@@ -107,7 +108,7 @@ test("upgrade waits for foreground, dismisses across restarts, and reopens from 
   await second.page.evaluate(() => {
     location.hash = "#/settings?tab=about";
   });
-  await second.page.getByRole("button", { name: "View highlights" }).click();
+  await second.page.getByRole("button", { name: uiPart('releaseHighlights.viewHighlights') }).click();
   const reopened = second.page.getByRole("dialog", { name: title });
   await expect(reopened).toBeVisible();
   await second.page.evaluate(() =>
@@ -117,9 +118,9 @@ test("upgrade waits for foreground, dismisses across restarts, and reopens from 
     path: testInfo.outputPath("whats-new-dark.png"),
     animations: "disabled",
   });
-  await reopened.getByRole("button", { name: "Try Agents" }).click();
+  await reopened.getByRole("button", { name: uiPart('releaseHighlights.tryAgents') }).click();
   await expect(
-    second.page.getByRole("heading", { name: "Your notes, in your agent." }),
+    second.page.getByRole("heading", { name: uiPart('agentSkills.yourNotesInYourAgent') }),
   ).toBeVisible();
   await expect(reopened).toHaveCount(0);
 });
@@ -141,7 +142,7 @@ test("fresh setup establishes a baseline without an announcement", async ({
     location.hash = "#/chat";
   });
   await expect(
-    page.getByRole("heading", { name: "Ask anything" }),
+    page.getByRole("heading", { name: uiPart('chat.askAnything') }),
   ).toBeVisible();
   await expect(page.getByRole("dialog", { name: title })).toHaveCount(0);
 });
@@ -214,7 +215,7 @@ test("an explicit About request opens highlights immediately during recording", 
   await page.evaluate(() => {
     location.hash = "#/settings?tab=about";
   });
-  await page.getByRole("button", { name: "View highlights" }).click();
+  await page.getByRole("button", { name: uiPart('releaseHighlights.viewHighlights') }).click();
   await expect(page.getByRole("dialog", { name: title })).toBeVisible();
 });
 
@@ -249,7 +250,7 @@ test("a manual request waits for privacy disclosure without stacking dialogs", a
     location.hash = "#/settings?tab=about";
   });
   await foreground(app);
-  await page.getByRole("button", { name: "View highlights" }).click();
+  await page.getByRole("button", { name: uiPart('releaseHighlights.viewHighlights') }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await app.evaluate(() => {
     (
@@ -258,10 +259,10 @@ test("a manual request waits for privacy disclosure without stacking dialogs", a
       }
     ).__resolvePrivacyNotice(false);
   });
-  const privacy = page.getByRole("dialog", { name: "A quick note on privacy" });
+  const privacy = page.getByRole("dialog", { name: uiPart('privacyConsentModal.aQuickNoteOnPrivacy') });
   await expect(privacy).toBeVisible();
   await expect(page.getByRole("dialog", { name: title })).toHaveCount(0);
-  await privacy.getByRole("button", { name: "Got it" }).click();
+  await privacy.getByRole("button", { name: uiPart('privacyConsentModal.gotIt') }).click();
   await expect(page.getByRole("dialog", { name: title })).toBeVisible();
   await expect(privacy).toHaveCount(0);
 });
@@ -302,7 +303,7 @@ test("installing a model in Settings prevents a stale setup redirect on Home", a
     )
     .toBeGreaterThan(reads);
   await expect(
-    page.getByRole("button", { name: "New note", exact: true }).first(),
+    page.getByRole("button", { name: ui('mainToolbar.newNote'), exact: true }).first(),
   ).toBeVisible();
   expect(await page.evaluate(() => location.hash)).toBe("#/");
 });

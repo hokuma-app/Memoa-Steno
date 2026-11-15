@@ -14,6 +14,14 @@ import { PARAKEET_LANGUAGES } from '@/lib/transcription-languages';
 import { useLiveTranscriptOpen } from '@/hooks/liveTranscriptOpenStore';
 import { formatElapsed } from '@/lib/utils';
 
+/** Stable React key per lane; the speaker part is an identifier, not copy. */
+function segmentRowKey(lane: string, start: number, index: number, isYou: boolean): string {
+  const speaker = isYou ? 'You' : 'Others';
+  if (lane === 'p') return `p:${speaker}`;
+  if (lane === 'q' || lane === 'e') return `${lane}:${index}`;
+  return `f:${start}:${speaker}`;
+}
+
 // Format a segment's start offset (seconds since recording start): MM:SS under
 // an hour, H:MM:SS beyond it. The live pipeline already emits per-segment
 // `start` on every LIVE_SEG, so this is a pure render of data we already have.
@@ -150,7 +158,7 @@ export function LiveTranscriptBar() {
             action button, not nested. (Nesting `<button>` inside `<button>`
             is invalid HTML and breaks both keyboard navigation and
             assistive-tech focus order.) */}
-        <div className="mv-transcript-head" role="group" aria-label="Transcript header">
+        <div className="mv-transcript-head" role="group" aria-label={t('liveTranscriptBar.transcriptHeader')}>
           {/* Static (non-animated) wave for the header — the "is anything
               happening?" cue lives in the footer's recording indicator. */}
           <span className="mv-transcript-wave mv-transcript-wave-static" aria-hidden="true">
@@ -164,7 +172,7 @@ export function LiveTranscriptBar() {
           </span>
           {IS_VENETA_MEMOAI
             ? <h2 className="mv-transcript-label">{t('recording.transcriptHeading')}</h2>
-            : <span className="mv-transcript-label">Transcript</span>}
+            : <span className="mv-transcript-label">{t('liveTranscriptBar.transcript')}</span>}
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -172,19 +180,19 @@ export function LiveTranscriptBar() {
                 type="button"
                 className="mv-chat-tool"
                 onClick={() => void copyAll()}
-                aria-label="Copy transcript"
+                aria-label={t('liveTranscriptBar.copyTranscript')}
               >
                 {copied ? <Check size={13} /> : <Copy size={13} />}
               </button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{copied ? 'Copied!' : 'Copy transcript'}</TooltipContent>
+            <TooltipContent side="bottom">{copied ? t('liveTranscriptBar.copied') : t('liveTranscriptBar.copyTranscript')}</TooltipContent>
           </Tooltip>
           <button
             type="button"
             className="mv-chat-tool"
             onClick={() => setOpen(false)}
-            aria-label="Minimize transcript"
-            title="Minimize transcript"
+            aria-label={t('liveTranscriptBar.minimizeTranscript')}
+            title={t('liveTranscriptBar.minimizeTranscript')}
           >
             <ChevronDown size={13} />
           </button>
@@ -199,7 +207,7 @@ export function LiveTranscriptBar() {
             variant="sunken"
             size="sm"
             iconStart={<SearchIcon className="size-3.5" />}
-            placeholder="Search transcript"
+            placeholder={t('liveTranscriptBar.searchTranscript')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="flex-1"
@@ -243,8 +251,8 @@ export function LiveTranscriptBar() {
               <button
                 type="button"
                 onClick={onPauseToggle}
-                aria-label="Resume recording"
-                title="Resume recording"
+                aria-label={t('liveTranscriptBar.resumeRecording')}
+                title={t('liveTranscriptBar.resumeRecording')}
                 className="inline-flex size-8 cursor-pointer items-center justify-center rounded-full border-0 transition-colors hover:bg-[color:var(--surface-hover)]"
                 style={{ background: 'transparent', color: 'var(--fg-1)' }}
               >
@@ -254,13 +262,13 @@ export function LiveTranscriptBar() {
             <button
               type="button"
               onClick={onStop}
-              aria-label="Stop recording"
-              title="Stop recording"
+              aria-label={t('liveTranscriptBar.stopRecording')}
+              title={t('liveTranscriptBar.stopRecording')}
               className="veneta-recording-stop inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border-0 px-3 text-[13px] font-medium transition-opacity hover:opacity-90"
               style={{ background: 'var(--recording)', color: '#FFFFFF' }}
             >
               <Square size={12} fill="currentColor" stroke="currentColor" />
-              Stop
+              {t('liveTranscriptBar.stop')}
             </button>
           </div>
           <LanguageSelector />
@@ -305,19 +313,19 @@ function LiveTranscriptBodyState({
   if (status === 'error' && error) {
     return (
       <EmptyState
-        title="Live transcription unavailable"
-        subtitle={error.message ? `${error.stage}: ${error.message}` : `Stage: ${error.stage}`}
+        title={t('liveTranscriptBar.liveTranscriptionUnavailable')}
+        subtitle={error.message ? `${error.stage}: ${error.message}` : t('liveTranscriptBar.stage', { stage: error.stage })}
       />
     );
   }
   if (status === 'loading') {
     return (
       <EmptyState
-        title="Preparing transcription…"
+        title={t('liveTranscriptBar.preparingTranscription')}
         subtitle={
           slow
-            ? 'Still warming up — first launch can take a moment. Audio is being captured.'
-            : 'Parakeet is warming up. Audio is being captured.'
+            ? t('liveTranscriptBar.stillWarmingUpFirstLaunch')
+            : t('liveTranscriptBar.parakeetIsWarmingUpAudio')
         }
       />
     );
@@ -326,11 +334,11 @@ function LiveTranscriptBodyState({
   if (filtering ? filtered.length === 0 : priorSegments.length + liveCount === 0) {
     return (
       <EmptyState
-        title={filtering ? 'No matches' : 'Listening…'}
+        title={filtering ? t('liveTranscriptBar.noMatches') : t('liveTranscriptBar.listening')}
         subtitle={
           filtering
-            ? 'Nothing matches your filter yet.'
-            : 'Start speaking — finalised sentences will appear here.'
+            ? t('liveTranscriptBar.nothingMatchesYourFilterYet')
+            : t('liveTranscriptBar.startSpeakingFinalisedSentencesWill')
         }
       />
     );
@@ -360,7 +368,7 @@ function LiveTranscriptBodyState({
                 className="text-[10px] font-medium uppercase tracking-wide"
                 style={{ color: 'var(--fg-2)' }}
               >
-                Resumed
+                {t('liveTranscriptBar.resumed')}
               </span>
               <span className="h-px flex-1" style={{ background: 'var(--border-subtle)' }} />
             </li>
@@ -421,12 +429,7 @@ const SegmentRows = React.memo(function SegmentRows({
     <>
       {segments.map((seg, i) => {
         const isYou = seg.speaker !== 'Others';
-        const key =
-          lane === 'p'
-            ? `p:${isYou ? 'You' : 'Others'}`
-            : lane === 'q' || lane === 'e'
-              ? `${lane}:${i}`
-              : `f:${seg.start}:${isYou ? 'You' : 'Others'}`;
+        const key = segmentRowKey(lane, seg.start, i, isYou);
         return (
           <li
             key={key}
@@ -497,7 +500,7 @@ function LanguageSelector() {
   // Concrete pins show their name; 'auto' shows the compact "Multi". An
   // out-of-list pin (e.g. a Whisper-only language set in Settings) shows its
   // code rather than being mislabelled "Multi" and silently reset.
-  const display = current === 'auto' ? 'Multi' : (selected?.label ?? current.toUpperCase());
+  const display = current === 'auto' ? t('liveTranscriptBar.multi') : (selected?.label ?? current.toUpperCase());
 
   const pick = (code: string) => {
     setLanguage.mutate(code);
@@ -516,7 +519,7 @@ function LanguageSelector() {
                 'cursor-pointer transition-colors hover:bg-[color:var(--surface-hover)]'
               )}
               style={{ color: 'var(--fg-2)' }}
-              aria-label={`Language: ${display}`}
+              aria-label={t('liveTranscriptBar.language', { display })}
             >
               <Languages size={12} />
               <span style={{ color: 'var(--fg-1)' }}>{display}</span>
@@ -524,7 +527,7 @@ function LanguageSelector() {
             </button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent side="top">Transcript language</TooltipContent>
+        <TooltipContent side="top">{t('liveTranscriptBar.transcriptLanguage')}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" sideOffset={8} className="w-56 p-1">
         {LANGUAGE_OPTIONS.map((opt) => {
@@ -568,7 +571,7 @@ function RecordingStatusChip({
   paused: boolean;
   elapsedSeconds: number;
 }) {
-  const label = paused ? 'Paused' : 'Recording';
+  const label = paused ? t('liveTranscriptBar.paused') : t('liveTranscriptBar.recording');
   return (
     <span
       className="inline-flex items-center gap-2 px-2 text-[13px]"

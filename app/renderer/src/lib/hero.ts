@@ -1,5 +1,6 @@
 import { type CalendarEvent } from '@/lib/ipc';
 import { shortcut } from '@/lib/utils';
+import { t } from '@/i18n';
 
 // Pure copy logic for the Home hero. Extracted from Home.tsx so the
 // headline/subtitle string-building can be unit-tested without mounting the
@@ -8,10 +9,10 @@ import { shortcut } from '@/lib/utils';
 // Default subtitle — also used as the empty/idle fallback. Cached so it
 // renders the same string each call without rebuilding the shortcut.
 const RECORD_SHORTCUT = shortcut('⌘⇧R', 'Ctrl+Shift+R');
-const RECORDING_HINT = `Start recording from the top-right, or from anywhere with ${RECORD_SHORTCUT}.`;
+const RECORDING_HINT = t('hero.startRecordingFromTheTop', { shortcut: RECORD_SHORTCUT });
 // When the global record shortcut is turned off (Settings), the hero must not
 // advertise it — drop the "or from anywhere with ⌘⇧R" clause.
-const RECORDING_HINT_NO_HOTKEY = 'Start recording from the top-right.';
+const RECORDING_HINT_NO_HOTKEY = t('hero.startRecordingFromTheTop2');
 
 // Cached at module load to avoid rebuilding on every render. We don't
 // react to system-locale changes mid-session — that would require a full
@@ -58,17 +59,17 @@ function eventIsNow(e: CalendarEvent, nowMs: number): boolean {
 export function heroHeadline(s: HeroState): string {
   switch (s.status) {
     case 'recording':
-      return 'Recording';
+      return t('hero.recording');
     case 'paused':
-      return 'Recording paused';
+      return t('hero.recordingPaused');
     case 'processing':
-      return 'Processing your note';
+      return t('hero.processingYourNote');
   }
   // Only present-tense when the meeting has truly started — not during the
   // early-join grace, which would tell the user they're "in" a meeting that
   // hasn't begun. The pre-start case falls through to "Next meeting in N min".
   if (s.inProgressEvent && eventIsNow(s.inProgressEvent, s.now)) {
-    return 'In a meeting now';
+    return t('hero.inAMeetingNow');
   }
   if (s.nextSoonEvent) {
     const startMs = new Date(s.nextSoonEvent.start).getTime();
@@ -80,16 +81,16 @@ export function heroHeadline(s: HeroState): string {
       // Math.max(1) keeps the headline non-zero in the last 30 seconds
       // before start.
       const mins = Math.max(1, Math.ceil(deltaMs / MIN_MS));
-      if (mins < 60) return `Next meeting in ${mins} min${mins === 1 ? '' : 's'}`;
+      if (mins < 60) return mins === 1 ? t('hero.nextMeetingMinutes.one', { count: mins }) : t('hero.nextMeetingMinutes.other', { count: mins });
       const hrs = Math.max(1, Math.round(deltaMs / HOUR_MS));
-      return `Next meeting in ${hrs} hr${hrs === 1 ? '' : 's'}`;
+      return hrs === 1 ? t('hero.nextMeetingHours.one', { count: hrs }) : t('hero.nextMeetingHours.other', { count: hrs });
     }
   }
   // Reaching here means nothing is live or upcoming today. Only call the day
   // "clear" when the calendar is actually connected — otherwise we don't know,
   // so keep the neutral invitation.
-  if (s.calendarConnected) return 'Clear day ahead';
-  return 'Ready to capture beautiful notes';
+  if (s.calendarConnected) return t('hero.clearDayAhead');
+  return t('hero.readyToCaptureBeautifulNotes');
 }
 
 // Subtitle. Mirrors the headline cases. Keeps the recording shortcut hint
@@ -105,26 +106,26 @@ export function heroSubtitle(s: HeroState): string {
     // record on. ⌘⇧R is a record-toggle per main.js's global shortcut
     // so "to stop" is accurate when already recording.
     const title =
-      s.sessionName?.trim() || s.inProgressEvent?.title?.trim() || 'In progress';
+      s.sessionName?.trim() || s.inProgressEvent?.title?.trim() || t('hero.inProgress');
     // Drop the "· ⌘⇧R to stop" tail when the global shortcut is off — stopping
     // is then a click-only action on the bottom bar.
-    return s.hotkeyEnabled ? `${title} · ${RECORD_SHORTCUT} to stop` : title;
+    return s.hotkeyEnabled ? t('hero.toStop', { title, shortcut: RECORD_SHORTCUT }) : title;
   }
   if (s.status === 'paused') {
     // ⌘⇧R is a record-toggle: while paused it STOPS (finalizes) the recording
     // rather than resuming. Resume is a click-only action on the bottom bar,
     // so point there instead of advertising a shortcut that would end the note.
-    return 'Recording paused. Tap resume on the bar below to continue.';
+    return t('hero.recordingPausedTapResumeOn');
   }
   if (s.status === 'processing') {
-    return `We'll have your note ready in a moment.`;
+    return t('hero.weLlHaveYourNote');
   }
   // Only when the meeting has truly started (mirrors the headline gate) — the
   // pre-start grace falls through to the timed "starts at …" line below.
   if (s.inProgressEvent && eventIsNow(s.inProgressEvent, s.now)) {
     return s.hotkeyEnabled
-      ? `Press ${RECORD_SHORTCUT} to start recording — or tap a meeting card below.`
-      : 'Tap a meeting card below to start recording.';
+      ? t('hero.pressToStartRecordingOr', { shortcut: RECORD_SHORTCUT })
+      : t('hero.tapAMeetingCardBelow');
   }
   if (s.nextSoonEvent) {
     const startMs = new Date(s.nextSoonEvent.start).getTime();
@@ -136,8 +137,8 @@ export function heroSubtitle(s: HeroState): string {
       if (mins < 60) {
         const at = HERO_TIME_FMT.format(new Date(startMs));
         return s.hotkeyEnabled
-          ? `${s.nextSoonEvent.title} at ${at} — ${RECORD_SHORTCUT} when you're ready.`
-          : `${s.nextSoonEvent.title} at ${at}.`;
+          ? t('hero.atWhenYouReReady', { title: s.nextSoonEvent.title, at, shortcut: RECORD_SHORTCUT })
+          : t('hero.at', { title: s.nextSoonEvent.title, at });
       }
     }
     return idleHint;
@@ -146,7 +147,7 @@ export function heroSubtitle(s: HeroState): string {
     const startMs = new Date(s.tomorrowPreview.start).getTime();
     if (!Number.isNaN(startMs)) {
       const at = HERO_TIME_FMT.format(new Date(startMs));
-      return `Next up: ${s.tomorrowPreview.title} tomorrow at ${at}.`;
+      return t('hero.nextUpTomorrowAt', { title: s.tomorrowPreview.title, at });
     }
   }
   return idleHint;

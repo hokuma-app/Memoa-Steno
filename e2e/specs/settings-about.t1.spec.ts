@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { uiPart, uiSource } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC, no backend. Proves the new About tab (added
@@ -18,13 +19,13 @@ test('About tab shows the version and resolves a Check for Updates click', async
 
   const aboutSection = page.locator('[data-settings-tab="about"]');
   await expect(aboutSection).toBeVisible();
-  await expect(aboutSection.getByText('Version 0.0.0-e2e')).toBeVisible();
+  await expect(aboutSection.getByText(new RegExp(uiSource('settingsAboutTab.version', { value: '0\\.0\\.0-e2e', value2: '' })))).toBeVisible();
 
   // The check outcome narrates on the button itself (Checking for Updates ->
   // You're on the latest version), rather than a separate status line.
-  await aboutSection.getByRole('button', { name: 'Check for Updates' }).click();
+  await aboutSection.getByRole('button', { name: uiPart('settingsAboutTab.checkForUpdates') }).click();
   await expect(
-    aboutSection.getByRole('button', { name: "You're on the latest version" }),
+    aboutSection.getByRole('button', { name: uiPart('settingsAboutTab.youReOnTheLatest') }),
   ).toBeVisible();
 });
 
@@ -46,12 +47,12 @@ test('About tab explains an update that this macOS is too old to install', async
   const aboutSection = page.locator('[data-settings-tab="about"]');
   await expect(aboutSection).toBeVisible();
 
-  await aboutSection.getByRole('button', { name: 'Check for Updates' }).click();
+  await aboutSection.getByRole('button', { name: uiPart('settingsAboutTab.checkForUpdates') }).click();
   await expect(
-    aboutSection.getByText(/v9\.9\.9 requires a newer version of macOS/),
+    aboutSection.getByText(new RegExp(uiSource('settingsAboutTab.vRequiresANewerVersion', { versionLabel: '', version: '9\\.9\\.9' }))),
   ).toBeVisible();
   // No download nudge on an OS that can't run the build.
-  await expect(aboutSection.getByRole('button', { name: 'View release' })).toHaveCount(0);
+  await expect(aboutSection.getByRole('button', { name: uiPart('settingsAboutTab.viewRelease') })).toHaveCount(0);
 });
 
 test('About tab rehydrates a persisted failed background update on mount', async ({
@@ -96,9 +97,9 @@ test('a successful check clears a stale update failure', async ({ launchApp }) =
   const failure = aboutSection.getByText(/Steno couldn't reach the update server/);
   await expect(failure).toBeVisible();
 
-  await aboutSection.getByRole('button', { name: 'Check for Updates' }).click();
+  await aboutSection.getByRole('button', { name: uiPart('settingsAboutTab.checkForUpdates') }).click();
   await expect(
-    aboutSection.getByRole('button', { name: "You're on the latest version" }),
+    aboutSection.getByRole('button', { name: uiPart('settingsAboutTab.youReOnTheLatest') }),
   ).toBeVisible();
   await expect(failure).toHaveCount(0);
 
@@ -141,9 +142,9 @@ test('a stale status reply cannot restore a failure the check just settled', asy
 
   // Click while the mount request is still in flight — the banner has not even
   // appeared yet, which is the point.
-  await aboutSection.getByRole('button', { name: 'Check for Updates' }).click();
+  await aboutSection.getByRole('button', { name: uiPart('settingsAboutTab.checkForUpdates') }).click();
   await expect(
-    aboutSection.getByRole('button', { name: "You're on the latest version" }),
+    aboutSection.getByRole('button', { name: uiPart('settingsAboutTab.youReOnTheLatest') }),
   ).toBeVisible();
 
   // Outlast the delayed reply, then assert it changed nothing.

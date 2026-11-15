@@ -3,6 +3,7 @@ import type {
   ChatSessionsBlob,
   StenoaiBridge,
 } from "../../app/renderer/src/lib/ipc";
+import { ui } from '../fixtures/ui-copy';
 
 for (const type of ["bar", "line"]) {
   test(`${type} chart reopens from saved chat and shows its data; invalid chart stays readable`, async ({
@@ -51,7 +52,7 @@ for (const type of ["bar", "line"]) {
     const chart = page.getByRole("figure", { name: "Actions by meeting" });
     await expect(chart).toBeVisible();
     await expect(chart.locator(".recharts-surface")).toBeVisible();
-    await chart.getByText("View data", { exact: true }).click();
+    await chart.getByText(ui('chatChart.viewData'), { exact: true }).click();
     await expect(
       chart.getByRole("cell", { name: "Planning", exact: true }),
     ).toBeVisible();

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { productText as productT } from '@/i18n/product';
+import { t } from '@/i18n';
 
 // The full set of nav rail destinations. Distinct from Settings.tsx's
 // deep-linkable TabId, which additionally accepts the legacy 'transcription'
@@ -44,24 +45,24 @@ interface NavGroup {
 const NAV_GROUPS: NavGroup[] = [
   {
     items: [
-      { id: 'general', label: 'Preferences', icon: Settings2 },
+      { id: 'general', label: t('settingsSettingsNav.preferences'), icon: Settings2 },
       { id: 'product', label: productT('product.title'), icon: LayoutTemplate },
-      { id: 'ai', label: 'AI', icon: Sparkles },
-      { id: 'templates', label: 'Templates', icon: LayoutTemplate },
-      { id: 'people', label: 'People', icon: Users },
+      { id: 'ai', label: t('settingsSettingsNav.ai'), icon: Sparkles },
+      { id: 'templates', label: t('settingsSettingsNav.templates'), icon: LayoutTemplate },
+      { id: 'people', label: t('settingsSettingsNav.people'), icon: Users },
     ],
   },
   {
-    header: 'Workspace',
-    items: [{ id: 'organisation', label: 'Organisation', icon: Building2 }],
+    header: t('settingsSettingsNav.workspace'),
+    items: [{ id: 'organisation', label: t('settingsSettingsNav.organisation'), icon: Building2 }],
   },
   {
-    header: 'System',
+    header: t('settingsSettingsNav.system'),
     items: [
-      { id: 'integrations', label: 'Integrations', icon: Plug },
-      { id: 'advanced', label: 'Advanced', icon: Wrench },
-      { id: 'developer', label: 'Developer', icon: Code2 },
-      { id: 'about', label: 'About', icon: Info },
+      { id: 'integrations', label: t('settingsSettingsNav.integrations'), icon: Plug },
+      { id: 'advanced', label: t('settingsSettingsNav.advanced'), icon: Wrench },
+      { id: 'developer', label: t('settingsSettingsNav.developer'), icon: Code2 },
+      { id: 'about', label: t('settingsSettingsNav.about'), icon: Info },
     ],
   },
 ];
@@ -114,7 +115,7 @@ export function SettingsNav({ activeTab, onSelect, onBack, version }: SettingsNa
         <button
           type="button"
           onClick={onBack}
-          aria-label="Back"
+          aria-label={t('settingsSettingsNav.back')}
           className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent transition-colors hover:bg-[color:var(--surface-active)] hover:text-[color:var(--fg-1)]"
           style={{ color: 'var(--fg-2)' }}
         >
@@ -124,14 +125,14 @@ export function SettingsNav({ activeTab, onSelect, onBack, version }: SettingsNa
           className="text-[13px] font-medium"
           style={{ color: 'var(--fg-1)' }}
         >
-          Settings
+          {t('settingsSettingsNav.settings')}
         </span>
       </div>
 
       <div
         className="flex min-h-0 flex-1 flex-col gap-px overflow-auto px-2 pb-2"
         role="group"
-        aria-label="Settings sections"
+        aria-label={t('settingsSettingsNav.settingsSections')}
       >
         {NAV_GROUPS.map((group, i) => (
           <div key={group.header ?? `group-${i}`}>

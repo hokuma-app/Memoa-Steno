@@ -65,7 +65,7 @@ export function FolderScopePicker({ value, onChange, includeMeeting = false, dis
   }, [value, folders.data, folder, orgSessionSettled, orgSignedIn, onChange]);
 
   const isOrg = value === ORG_SHARED_SCOPE;
-  const label = value === GENERAL_SCOPE ? t('chat.scope.general') : value === MEETING_SCOPE ? t('chat.scope.meeting') : isOrg ? 'Shared notes' : folder ? folder.name : 'All notes';
+  const label = value === GENERAL_SCOPE ? t('chat.scope.general') : value === MEETING_SCOPE ? t('chat.scope.meeting') : isOrg ? t('folderScopePicker.sharedNotes') : folder ? folder.name : t('folderScopePicker.allNotes');
 
   return (
     <Popover open={open && !disabled} onOpenChange={setOpen}>
@@ -107,7 +107,7 @@ export function FolderScopePicker({ value, onChange, includeMeeting = false, dis
           }}
         >
           <Inbox className="size-[13px]" style={{ color: 'var(--fg-2)' }} />
-          All notes
+          {t('folderScopePicker.allNotes')}
         </button>
         {[GENERAL_SCOPE, ...(includeMeeting ? [MEETING_SCOPE] : [])].map((scope) => (
           <button
@@ -132,10 +132,10 @@ export function FolderScopePicker({ value, onChange, includeMeeting = false, dis
               color: 'var(--fg-1)',
               background: isOrg ? 'var(--surface-active)' : undefined,
             }}
-            title={`Cross-note chat against ${orgSession.data?.orgId ?? 'your org'}'s shared notes`}
+            title={t('folderScopePicker.crossNoteChatAgainstS', { value: orgSession.data?.orgId ?? t('folderScopePicker.yourOrg') })}
           >
             <Globe className="size-[13px]" style={{ color: 'var(--fg-2)' }} />
-            <span className="truncate">Shared notes</span>
+            <span className="truncate">{t('folderScopePicker.sharedNotes')}</span>
           </button>
         )}
         {(folders.data ?? []).length > 0 && (

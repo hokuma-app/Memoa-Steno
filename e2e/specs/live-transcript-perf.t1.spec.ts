@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/electron';
 import { emitLiveSegments, type LiveSegmentInput } from '../fixtures/live-transcript';
 import type { CDPSession, ElectronApplication, Page } from '@playwright/test';
+import { uiPart } from '../fixtures/ui-copy';
 
 /**
  * T1 `@perf` - measurement harness for the live transcript panel's steady-state
@@ -211,7 +212,7 @@ async function sweep(
 ): Promise<string[]> {
   const pill = page.getByTestId('transcription-pill');
   if (open) {
-    await pill.getByRole('button', { name: 'Show transcript' }).click();
+    await pill.getByRole('button', { name: uiPart('askBar.showTranscript') }).click();
     await expect(page.getByTestId('live-transcript-panel')).toBeVisible();
   } else {
     await expect(page.getByTestId('live-transcript-panel')).toHaveCount(0);
@@ -262,7 +263,7 @@ async function sweep(
     expect(final.rows).toBeGreaterThanOrEqual(LIST_SIZES[LIST_SIZES.length - 1]);
     await page
       .getByTestId('live-transcript-panel')
-      .getByRole('button', { name: 'Minimize transcript' })
+      .getByRole('button', { name: uiPart('liveTranscriptBar.minimizeTranscript') })
       .click();
     await expect(page.getByTestId('live-transcript-panel')).toHaveCount(0);
   }
@@ -313,7 +314,7 @@ test('@perf live transcript: sustained partial churn does not retain memory', as
   await cdp.send('Performance.enable');
 
   await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
-  await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
+  await page.getByTestId('transcription-pill').getByRole('button', { name: uiPart('askBar.showTranscript') }).click();
   await expect(page.getByTestId('live-transcript-panel')).toBeVisible();
 
   // A fixed backlog, so anything the churn adds is growth and not the list.

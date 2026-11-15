@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { ui, uiPart, uiText } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC. Pins WS3's renderer surface: cross-note chat is
@@ -7,8 +8,8 @@ import { test, expect } from '../fixtures/electron';
  * Wire shapes stubbed in app/e2e-mock-ipc.js; readiness logic in routes/Chat.tsx.
  */
 
-const COMPOSER_LABEL = 'Ask about your notes';
-const NOT_READY_PLACEHOLDER = 'Set up an AI provider in Settings to ask across notes';
+const COMPOSER_LABEL = uiPart('chatPresets.askAboutYourNotes');
+const NOT_READY_PLACEHOLDER = uiPart('chat.setUpAnAiProvider');
 const hint = '[data-testid="chat-local-scope-hint"]';
 
 test('local provider enables chat and discloses the recent-notes scope', async ({ launchApp }) => {
@@ -31,20 +32,20 @@ test('chat suggestion and native placeholder never overlap', async ({ launchApp 
   await page.evaluate(() => { window.location.hash = '#/chat'; });
 
   const input = page.getByRole('textbox', { name: COMPOSER_LABEL });
-  const suggestion = page.getByText('Chart my notes', { exact: true });
+  const suggestion = page.getByText(ui('chatPresets.chartMyNotes'), { exact: true });
   await expect(suggestion).toBeVisible();
   await expect(input).toHaveAttribute('placeholder', '');
 
   await input.focus();
   await expect(suggestion).toHaveCount(0);
-  await expect(input).toHaveAttribute('placeholder', '/ Chart my notes');
+  await expect(input).toHaveAttribute('placeholder', `/ ${uiText('chatPresets.chartMyNotes')}`);
 
   await input.fill('What did we decide?');
   await expect(input).toHaveAttribute('placeholder', '');
   await expect(suggestion).toHaveCount(0);
 
   await input.clear();
-  await page.getByRole('heading', { name: 'Ask anything' }).click();
+  await page.getByRole('heading', { name: uiPart('chat.askAnything') }).click();
   await expect(suggestion).toBeVisible();
   await expect(input).toHaveAttribute('placeholder', '');
 });

@@ -12,6 +12,15 @@ Dit bestand beschrijft de eigen Veneta-releases, niet de releases van StenoAI up
 - Opgeleverde pakketten krijgen niet achteraf een ander nummer of andere inhoud. Een wijziging levert een nieuwe kandidaat of release op.
 - Versienummers wijzigen niet de interne appnaam, bundle-ID, gegevensmap, modelcache of aanmeldingen. Publiceren, installeren, committen en pushen blijven afzonderlijke acties.
 
+## Ongepubliceerd: Nederlandse interface en samenvattingstaal
+
+Nog niet gebouwd, ondertekend of vrijgegeven; geen nieuw versienummer.
+
+- De Veneta-build toont de interface volledig in het Nederlands: navigatie, instellingen, knoppen, dialogen, meldingen en foutteksten. Alle renderer-teksten lopen via `t()`; de Engelse catalogus groeide van 268 naar 1.310 sleutels en de Nederlandse van 92 naar 1.310. De lint-baseline van hardgecodeerde teksten ging van 711 naar 0. De Default-build blijft Engels met dezelfde tekst, aangetoond met de kopij-inventaris.
+- Ook het hoofdproces is in de Veneta-build Nederlands: menubalkmenu en tooltip, appmenu, bestandsfilters, systeemmeldingen, updaterteksten en de foutteksten die de app toont. Bundle-ID, interne naam, gegevensmap, logregels en foutcodes zijn ongewijzigd.
+- Wachtredenen van de Obsidian-sync worden in de app vertaald; de backend schrijft ze ongewijzigd.
+- Nieuwe instelling Samenvattingstaal, los van interfacetaal en transcriptietaal. In de Veneta-build is Nederlands de standaard voor nieuwe samenvattingen, titels en rapporten zolang je zelf niets kiest. Een eigen keuze, ook 'Zelfde taal als het gesprek', blijft staan. Bestaande samenvattingen worden niet opnieuw gemaakt.
+
 ## 0.10.7, testkandidaat, 2026-11-06
 
 Opgelost: het privacyvenster en de algemene instellingen noemen in de Veneta-build bij automatisch starten, microfoon en menubalk weer Veneta MemoAi; de generieke build blijft Steno tonen. Bij automatische taalkeuze kiest de notitie voor een kort, eenduidig Nederlands transcript nu `language: nl` in plaats van de Engelse terugval. `detected_language: null` blijft correct: Parakeet meldt geen onafhankelijk gedetecteerde audiotaal. Voor ambigue tekst blijft de veilige terugval gelden. Bestaande notities en gebruikersprofielen zijn niet gemigreerd.

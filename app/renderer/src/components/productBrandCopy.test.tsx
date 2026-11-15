@@ -7,9 +7,10 @@ vi.mock('@/lib/productBrand', () => ({
   get APP_NAME() {
     return state.appName;
   },
+  get IS_VENETA_MEMOAI() {
+    return state.appName === 'Veneta MemoAi';
+  },
 }));
-
-vi.mock('@/i18n', () => ({ t: (key: string) => key }));
 
 vi.mock('@/hooks/useSettings', () => {
   const query = (data: unknown) => ({ data });
@@ -64,17 +65,18 @@ afterEach(() => {
 });
 
 describe('product-branded launch-on-login copy', () => {
-  it('uses the Veneta product name in both privacy and General settings', () => {
+  it('uses the Veneta product name in Dutch in both privacy and General settings', () => {
     render(<><PrivacyConsentModal open /><GeneralTab /></>);
 
-    const descriptions = screen.getAllByText(/Start .* automatically when you log in/);
+    const descriptions = screen.getAllByText(/Start .* automatisch wanneer je inlogt/);
     expect(descriptions).toHaveLength(2);
     for (const description of descriptions) {
       expect(description.textContent).toContain('Veneta MemoAi');
       expect(description.textContent).not.toContain('Steno');
     }
-    expect(screen.getByText(/Which input device Veneta MemoAi records from/)).toBeTruthy();
-    expect(screen.getByText(/Show a Veneta MemoAi icon in the (menu bar|system tray)/)).toBeTruthy();
+    expect(screen.getByText(/Van welk invoerapparaat Veneta MemoAi opneemt/)).toBeTruthy();
+    expect(screen.getByText(/Toon een Veneta MemoAi-symbool in (de menubalk|het systeemvak)/)).toBeTruthy();
+    expect(screen.queryByText(/automatically when you log in/)).toBeNull();
   });
 
   it('keeps the generic build copy as Steno', () => {

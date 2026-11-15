@@ -2,6 +2,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { test, expect } from '../fixtures/electron';
+import { ui, uiPart } from '../fixtures/ui-copy';
 
 /**
  * T1 — the processing-screen watchdog (issue #343). Stopping a recording
@@ -61,13 +62,13 @@ test('idle+empty that persists past the handoff trips the watchdog', async ({ la
   // The watchdog needs 8 consecutive idle ticks (~12s) plus poll latency, so
   // give the assertion generous room. exact:true pins the heading — the body
   // copy also contains "nothing to process".
-  await expect(page.getByText('Nothing to process', { exact: true })).toBeVisible({
+  await expect(page.getByText(ui('processing.nothingToProcess'), { exact: true })).toBeVisible({
     timeout: 22_000,
   });
 
   // "Try again" stays disabled (no backing job) and the animated header
   // "Processing" chip is gone — nothing is actually processing.
-  await expect(page.getByRole('button', { name: 'Try again' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: uiPart('settings.ai.speakers.retry') })).toBeDisabled();
   await expect(page.getByTestId('processing-chip')).toHaveCount(0);
 
   rmSync(path.dirname(stateFile), { recursive: true, force: true });
@@ -87,7 +88,7 @@ test('a new session after "Nothing to process" recovers without a remount', asyn
     window.location.hash = '#/meetings/processing';
   });
   writeFileSync(stateFile, JSON.stringify(IDLE_EMPTY), 'utf-8');
-  await expect(page.getByText('Nothing to process', { exact: true })).toBeVisible({
+  await expect(page.getByText(ui('processing.nothingToProcess'), { exact: true })).toBeVisible({
     timeout: 22_000,
   });
 
@@ -96,10 +97,10 @@ test('a new session after "Nothing to process" recovers without a remount', asyn
   // the "Nothing to process" panel and show the spinner for the new session
   // rather than staying stuck.
   writeFileSync(stateFile, JSON.stringify(PROCESSING_2), 'utf-8');
-  await expect(page.getByText('Nothing to process', { exact: true })).toHaveCount(0, {
+  await expect(page.getByText(ui('processing.nothingToProcess'), { exact: true })).toHaveCount(0, {
     timeout: 10_000,
   });
-  await expect(page.getByText('Analyzing transcript')).toBeVisible();
+  await expect(page.getByText(uiPart('processing.analyzingTranscript'))).toBeVisible();
   await expect(page.getByTestId('processing-chip')).toBeVisible();
 
   rmSync(path.dirname(stateFile), { recursive: true, force: true });
@@ -120,23 +121,23 @@ test('a SAME-name new recording after "Nothing to process" recovers', async ({ l
     window.location.hash = '#/meetings/processing';
   });
   writeFileSync(stateFile, JSON.stringify(IDLE_EMPTY), 'utf-8');
-  await expect(page.getByText('Nothing to process', { exact: true })).toBeVisible({
+  await expect(page.getByText(ui('processing.nothingToProcess'), { exact: true })).toBeVisible({
     timeout: 22_000,
   });
 
   // Same-name recording begins (status → 'recording', identical name)…
   writeFileSync(stateFile, JSON.stringify(RECORDING_SAME), 'utf-8');
-  await expect(page.getByText('Nothing to process', { exact: true })).toHaveCount(0, {
+  await expect(page.getByText(ui('processing.nothingToProcess'), { exact: true })).toHaveCount(0, {
     timeout: 10_000,
   });
-  await expect(page.getByText('Analyzing transcript')).toBeVisible();
+  await expect(page.getByText(uiPart('processing.analyzingTranscript'))).toBeVisible();
   await expect(page.getByTestId('processing-chip')).toBeVisible();
 
   // …and then it stops into processing (same name) — still recovered, no relapse.
   writeFileSync(stateFile, JSON.stringify(PROCESSING), 'utf-8');
   await page.waitForTimeout(2000);
-  await expect(page.getByText('Nothing to process', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('Analyzing transcript')).toBeVisible();
+  await expect(page.getByText(ui('processing.nothingToProcess'), { exact: true })).toHaveCount(0);
+  await expect(page.getByText(uiPart('processing.analyzingTranscript'))).toBeVisible();
 
   rmSync(path.dirname(stateFile), { recursive: true, force: true });
 });
@@ -160,8 +161,8 @@ test('a late enqueue during the handoff does NOT trip the watchdog', async ({ la
   writeFileSync(stateFile, JSON.stringify(IDLE_EMPTY), 'utf-8');
   await page.waitForTimeout(7000);
   // The spinner is still up mid-handoff — no premature "nothing to process".
-  await expect(page.getByText('Nothing to process', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('Analyzing transcript')).toBeVisible();
+  await expect(page.getByText(ui('processing.nothingToProcess'), { exact: true })).toHaveCount(0);
+  await expect(page.getByText(uiPart('processing.analyzingTranscript'))).toBeVisible();
 
   // The job is finally enqueued (a real recording's speech is now processing).
   writeFileSync(stateFile, JSON.stringify(PROCESSING), 'utf-8');
@@ -169,8 +170,8 @@ test('a late enqueue during the handoff does NOT trip the watchdog', async ({ la
   // Well past the point the old 4.5s watchdog would have fired: still no false
   // "nothing to process", spinner intact.
   await page.waitForTimeout(9000);
-  await expect(page.getByText('Nothing to process', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('Analyzing transcript')).toBeVisible();
+  await expect(page.getByText(ui('processing.nothingToProcess'), { exact: true })).toHaveCount(0);
+  await expect(page.getByText(uiPart('processing.analyzingTranscript'))).toBeVisible();
 
   rmSync(path.dirname(stateFile), { recursive: true, force: true });
 });
@@ -188,17 +189,17 @@ test('an active processing job never trips the watchdog', async ({ launchApp }) 
   await page.evaluate(() => window.stenoai.recording.start('Watchdog Note'));
   const pill = page.getByTestId('transcription-pill');
   await expect(pill).toBeVisible();
-  await pill.getByRole('button', { name: 'Stop recording' }).click();
+  await pill.getByRole('button', { name: uiPart('mainToolbar.stopRecording') }).click();
 
   await expect
     .poll(() => page.evaluate(() => window.location.hash), { timeout: 10_000 })
     .toBe('#/meetings/processing');
 
   // The normal processing spinner is up…
-  await expect(page.getByText('Analyzing transcript')).toBeVisible();
+  await expect(page.getByText(uiPart('processing.analyzingTranscript'))).toBeVisible();
 
   // …and stays up well past the watchdog window — no false "nothing to process".
   await page.waitForTimeout(15_000);
-  await expect(page.getByText('Nothing to process', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('Analyzing transcript')).toBeVisible();
+  await expect(page.getByText(ui('processing.nothingToProcess'), { exact: true })).toHaveCount(0);
+  await expect(page.getByText(uiPart('processing.analyzingTranscript'))).toBeVisible();
 });

@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/electron';
 import { emitBufferedLiveSegments as emitLiveSegments } from '../fixtures/buffered-live-transcript';
+import { ui, uiSource } from '../fixtures/ui-copy';
 
 // Read the painted foreground against the first opaque background, including transparent controls.
 function paintedContrast(element: Element) {
@@ -44,20 +45,20 @@ test('Veneta live notes stay uncovered beside the real transcript at supported d
   await page.evaluate(async (name) => {
     await window.stenoai.recording.start(name);
   }, session);
-  await page.getByRole('button', { name: 'Open recording in progress' }).click();
+  await page.getByRole('button', { name: ui('mainToolbar.openRecording') }).click();
   const panel = page.getByTestId('live-transcript-panel');
   const notes = page.locator('textarea[aria-labelledby="veneta-notes-heading"]');
   const column = page.locator('#veneta-live-transcript-slot');
   await expect(panel).toHaveCount(0);
-  await page.getByRole('button', { name: 'Show transcript' }).click();
+  await page.getByRole('button', { name: ui('liveDock.showTranscript') }).click();
   await expect(panel).toBeVisible();
   await expect(page.locator('[data-dock-fade]')).toHaveCount(2);
   await expect.poll(() => page.locator('[data-dock-fade]').evaluateAll((nodes: Element[]) =>
     nodes.every((node) => getComputedStyle(node).display === 'none'))).toBe(true);
   await expect(column.getByTestId('live-transcript-panel')).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Stop recording', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: ui('mainToolbar.stopRecording'), exact: true })).toHaveCount(1);
   await expect(page.getByTestId('transcription-pill')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Live transcript' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: ui('recording.transcriptHeading') })).toBeVisible();
   await notes.fill('Decisions remain editable while speech arrives.');
   await emitLiveSegments(app, session, [
     { text: 'Approved decision', start: 0, end: 2, isFinal: true, speaker: 'You' },
@@ -74,7 +75,7 @@ test('Veneta live notes stay uncovered beside the real transcript at supported d
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   // Fast-forward theme transitions before inspecting their settled colors.
   await page.screenshot({ path: testInfo.outputPath('veneta-e2e-dark.png'), animations: 'disabled' });
-  const searchStyle = await panel.getByPlaceholder('Search transcript').evaluate((input: Element) => ({
+  const searchStyle = await panel.getByPlaceholder(ui('liveTranscriptBar.searchTranscript')).evaluate((input: Element) => ({
     background: getComputedStyle(input).backgroundColor,
     foreground: getComputedStyle(input).color,
     rootClass: document.documentElement.className,
@@ -82,7 +83,7 @@ test('Veneta live notes stay uncovered beside the real transcript at supported d
   }));
   await testInfo.attach('dark-search-style', { body: JSON.stringify(searchStyle), contentType: 'application/json' });
   expect(searchStyle.background.match(/\d+/g)!.slice(0, 3).map(Number).every((channel: number) => channel < 64)).toBe(true);
-  const filledStop = panel.getByRole('button', { name: 'Stop recording', exact: true });
+  const filledStop = panel.getByRole('button', { name: ui('mainToolbar.stopRecording'), exact: true });
   const filledStopContrast = await filledStop.evaluate(paintedContrast);
   console.log('dark-filled-stop-text', JSON.stringify(filledStopContrast));
   await testInfo.attach('dark-filled-stop-text', { body: JSON.stringify(filledStopContrast), contentType: 'application/json' });
@@ -90,12 +91,12 @@ test('Veneta live notes stay uncovered beside the real transcript at supported d
 
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await panel.getByPlaceholder('Search transcript').fill('Approved');
+  await panel.getByPlaceholder(ui('liveTranscriptBar.searchTranscript')).fill('Approved');
   await expect(panel.getByText('A developing thought')).toHaveCount(0);
-  await panel.getByPlaceholder('Search transcript').clear();
-  await panel.getByRole('button', { name: 'Copy transcript' }).click();
+  await panel.getByPlaceholder(ui('liveTranscriptBar.searchTranscript')).clear();
+  await panel.getByRole('button', { name: ui('liveTranscriptBar.copyTranscript') }).click();
   await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toBe('Approved decision');
-  await panel.getByRole('button', { name: /Language:/ }).click();
+  await panel.getByRole('button', { name: new RegExp(`^${uiSource('liveTranscriptBar.language', { display: '' })}`) }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
@@ -104,10 +105,10 @@ test('Veneta live notes stay uncovered beside the real transcript at supported d
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.screenshot({ path: testInfo.outputPath('veneta-e2e-dark-before-collapse.png'), animations: 'disabled' });
   // Keep the actual dark theme while closing: the transparent pill Stop must not inherit filled-button ink.
-  await panel.getByRole('button', { name: 'Minimize transcript' }).click();
+  await panel.getByRole('button', { name: ui('liveTranscriptBar.minimizeTranscript') }).click();
   await expect(panel).toHaveCount(0);
   const pill = page.getByTestId('transcription-pill');
-  const collapsedStop = pill.getByRole('button', { name: 'Stop recording', exact: true });
+  const collapsedStop = pill.getByRole('button', { name: ui('mainToolbar.stopRecording'), exact: true });
   await expect(collapsedStop).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.screenshot({ path: testInfo.outputPath('veneta-e2e-dark-collapsed.png'), animations: 'disabled' });
@@ -115,7 +116,7 @@ test('Veneta live notes stay uncovered beside the real transcript at supported d
   console.log('dark-collapsed-stop-icon', JSON.stringify(collapsedStopContrast));
   await testInfo.attach('dark-collapsed-stop-icon', { body: JSON.stringify(collapsedStopContrast), contentType: 'application/json' });
   expect(collapsedStopContrast.ratio).toBeGreaterThanOrEqual(3);
-  await pill.getByRole('button', { name: 'Show transcript' }).click();
+  await pill.getByRole('button', { name: ui('liveDock.showTranscript') }).click();
   await expect(panel).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.screenshot({ path: testInfo.outputPath('veneta-e2e-dark-reopened.png'), animations: 'disabled' });
@@ -129,17 +130,17 @@ test('Veneta live notes stay uncovered beside the real transcript at supported d
     return !!n && !!p && n.x + n.width <= p.x + 1;
   }).toBe(true);
   await expect(notes).toBeVisible();
-  await expect(panel.getByRole('button', { name: 'Stop recording', exact: true })).toBeInViewport();
+  await expect(panel.getByRole('button', { name: ui('mainToolbar.stopRecording'), exact: true })).toBeInViewport();
   await expect(notes).toHaveValue('Decisions remain editable while speech arrives.');
   await page.screenshot({ path: testInfo.outputPath('veneta-e2e-narrow.png') });
   await page.evaluate(() => window.stenoai.recording.pause());
-  await panel.getByRole('button', { name: 'Resume recording' }).click();
-  await expect(panel.getByRole('button', { name: 'Resume recording' })).toHaveCount(0);
-  await panel.getByRole('button', { name: 'Minimize transcript' }).click();
+  await panel.getByRole('button', { name: ui('liveTranscriptBar.resumeRecording') }).click();
+  await expect(panel.getByRole('button', { name: ui('liveTranscriptBar.resumeRecording') })).toHaveCount(0);
+  await panel.getByRole('button', { name: ui('liveTranscriptBar.minimizeTranscript') }).click();
   await expect(panel).toHaveCount(0);
-  await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
+  await page.getByTestId('transcription-pill').getByRole('button', { name: ui('liveDock.showTranscript') }).click();
   await expect(panel).toHaveCount(1);
   await expect(notes).toHaveValue('Decisions remain editable while speech arrives.');
-  await panel.getByRole('button', { name: 'Stop recording', exact: true }).click();
+  await panel.getByRole('button', { name: ui('mainToolbar.stopRecording'), exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.location.hash)).toContain('/meetings/processing');
 });

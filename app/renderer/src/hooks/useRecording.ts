@@ -17,6 +17,7 @@ import {
   completionActions,
 } from '@/lib/completionNotification';
 import type { Meeting, QueueStatus, RecordingTrigger } from '@/lib/ipc';
+import { t } from '@/i18n';
 
 export type RecordingStatus = 'idle' | 'recording' | 'paused' | 'processing';
 
@@ -199,7 +200,7 @@ export function useRecording() {
         // flashes out with no explanation. Route it through the same native
         // notification the renderer-capture failure path uses.
         ipc().recording.reportCaptureError(
-          err instanceof Error ? err.message : 'Recording could not start',
+          err instanceof Error ? err.message : t('useRecording.recordingCouldNotStart'),
           undefined,
           'start'
         );
@@ -415,7 +416,7 @@ export function useRecordingEvents() {
           // capture-error notification the start path uses.
           void stopRecording({ navigateToNote: false }).catch((err) => {
             ipc().recording.reportCaptureError(
-              err instanceof Error ? err.message : 'Recording could not stop',
+              err instanceof Error ? err.message : t('useRecording.recordingCouldNotStop'),
               undefined,
               'stop'
             );
@@ -469,7 +470,7 @@ export function useRecordingProcessingEffects() {
         // silent — the manual Share button is the user-visible recovery
         // path. We invalidate the org meetings list on success so the
         // sidebar Shared Notes view updates without a refresh.
-        const title = newMeeting.session_info.name || 'Untitled note';
+        const title = newMeeting.session_info.name || t('useRecording.untitledNote');
         const body = composeShareBody(newMeeting);
         const transcript = pickTranscriptForShare(newMeeting);
         // Never auto-backup a transcription failure — it has no real notes,
@@ -520,7 +521,7 @@ export function useRecordingProcessingEffects() {
       if (!data.success) {
         void ipc()
           .settings.showNoteReadyNotification({
-            title: data.sessionName?.trim() || 'your note',
+            title: data.sessionName?.trim() || t('useRecording.yourNote'),
             failed: true,
             hardFailure: true,
           })
@@ -597,7 +598,7 @@ export function useRecordingProcessingEffects() {
           const title =
             data.meetingData?.session_info.name?.trim() ||
             data.sessionName?.trim() ||
-            'Your note has finished processing';
+            t('useRecording.yourNoteHasFinishedProcessing');
           const isFailed =
             Boolean(data.transcriptionFailed) ||
             Boolean(data.meetingData?.session_info.transcription_failed);

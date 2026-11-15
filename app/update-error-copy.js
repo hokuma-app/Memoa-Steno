@@ -32,6 +32,8 @@
  *    condition that is still true (`sticky`).
  */
 
+const { mainText } = require('./main-copy');
+
 const PHASE_CHECK = 'check';
 const PHASE_DOWNLOAD = 'download';
 const PHASE_INSTALL = 'install';
@@ -99,7 +101,8 @@ function updateErrorPhase({ downloadInFlight = false, installing = false } = {})
  */
 function describeUpdateError(
   rawMessage,
-  { phase = PHASE_CHECK, platform = process.platform } = {}
+  { phase = PHASE_CHECK, platform = process.platform } = {},
+  text = mainText
 ) {
   const msg = typeof rawMessage === 'string' ? rawMessage : String(rawMessage || '');
 
@@ -118,42 +121,42 @@ function describeUpdateError(
     // Naming the wrong phase is the exact failure this module exists to stop,
     // so all three get their own verb: nothing is installed when a check or a
     // download fails.
-    const what =
+    const sentence =
       phase === PHASE_DOWNLOAD
-        ? 'save the update'
+        ? 'update.permissionDownload'
         : phase === PHASE_CHECK
-          ? 'check for updates'
-          : 'install the update';
+          ? 'update.permissionCheck'
+          : 'update.permissionInstall';
     // The hint is about where the app itself lives, which is what a check or an
     // install trips over. A download writes to the cache, so it would be advice
     // that cannot help.
     const hint =
       platform === 'darwin' && phase !== PHASE_DOWNLOAD
-        ? ' Try moving Steno to your Applications folder.'
+        ? text('update.permissionHintMac')
         : '';
     return {
-      message: `Steno doesn't have permission to ${what}.${hint}`,
+      message: text(sentence, { hint }),
       sticky: true,
     };
   }
   if (INTEGRITY_RE.test(msg)) {
     return {
-      message: "The update couldn't be verified, so it wasn't installed. Steno will try again later.",
+      message: text('update.integrity'),
       sticky: false,
     };
   }
   if (DISK_RE.test(msg)) {
     return {
-      message: 'There is not enough disk space to download the update.',
+      message: text('update.disk'),
       sticky: true,
     };
   }
   if (NOT_CONFIGURED_RE.test(msg)) {
-    return { message: 'This build is not set up for automatic updates.', sticky: true };
+    return { message: text('update.notConfigured'), sticky: true };
   }
   if (HTTP_STATUS_RE.test(msg)) {
     return {
-      message: "The update server didn't respond as expected. Steno will try again later.",
+      message: text('update.httpStatus'),
       sticky: false,
     };
   }
@@ -165,30 +168,30 @@ function describeUpdateError(
     // one would be wrong.
     if (phase === PHASE_INSTALL) {
       return {
-        message: "The update couldn't be installed. Restart Steno to try again.",
+        message: text('update.installFailed'),
         sticky: true,
       };
     }
     return {
       message:
         phase === PHASE_CHECK
-          ? "Steno couldn't reach the update server. Check your connection — it will try again later."
-          : 'The update download was interrupted. Steno will try again later.',
+          ? text('update.networkCheck')
+          : text('update.networkDownload'),
       sticky: false,
     };
   }
 
   if (phase === PHASE_INSTALL) {
     return {
-      message: "The update couldn't be installed. Restart Steno to try again.",
+      message: text('update.installFailed'),
       sticky: true,
     };
   }
   return {
     message:
       phase === PHASE_DOWNLOAD
-        ? "The update didn't finish downloading. Steno will try again later."
-        : "Steno couldn't check for updates. It will try again later.",
+        ? text('update.downloadIncomplete')
+        : text('update.checkFailed'),
     sticky: false,
   };
 }

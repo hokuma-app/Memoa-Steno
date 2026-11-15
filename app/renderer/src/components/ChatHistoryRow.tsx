@@ -8,6 +8,7 @@ import {
 import { cn } from '@/lib/utils';
 import { relativeTime } from '@/lib/chat';
 import { navigate } from '@/lib/router';
+import { t } from '@/i18n';
 
 export interface ChatHistoryRowSession {
   id: string;
@@ -121,7 +122,7 @@ export function ChatHistoryRow({
           onClick={navigateToChat}
           className="flex-1 truncate text-left"
         >
-          {session.name || 'Untitled chat'}
+          {session.name || t('chatHistoryRow.untitledChat')}
         </button>
       )}
       {showTime && !renaming && (
@@ -138,8 +139,8 @@ export function ChatHistoryRow({
           <button
             type="button"
             onClick={(e) => e.stopPropagation()}
-            aria-label="Chat actions"
-            title="Actions"
+            aria-label={t('chatHistoryRow.chatActions')}
+            title={t('chatHistoryRow.actions')}
             className={cn(
               'inline-flex size-6 shrink-0 items-center justify-center rounded transition-opacity hover:bg-[color:var(--surface-active)]',
               menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100',
@@ -168,7 +169,7 @@ export function ChatHistoryRow({
             style={{ color: 'var(--fg-1)' }}
           >
             <Pencil className="size-[13px]" style={{ color: 'var(--fg-2)' }} />
-            Rename
+            {t('chatHistoryRow.rename')}
           </button>
           <button
             type="button"
@@ -181,7 +182,7 @@ export function ChatHistoryRow({
             style={{ color: 'var(--danger)' }}
           >
             <Trash2 className="size-[13px]" />
-            Delete
+            {t('chatHistoryRow.delete')}
           </button>
         </PopoverContent>
       </Popover>

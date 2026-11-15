@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { uiPart } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC, no backend. Proves the "May exceed memory"
@@ -27,9 +28,9 @@ test('flags local models that may exceed this Mac\'s memory', async ({ launchApp
   await expect(card('gemma4:e2b-it-qat')).toBeVisible();
 
   // Large models warn.
-  await expect(card('gemma4:12b-it-qat').getByText('May exceed memory')).toBeVisible();
-  await expect(card('gpt-oss:20b').getByText('May exceed memory')).toBeVisible();
+  await expect(card('gemma4:12b-it-qat').getByText(uiPart('models.mayExceedMemory'))).toBeVisible();
+  await expect(card('gpt-oss:20b').getByText(uiPart('models.mayExceedMemory'))).toBeVisible();
 
   // The small default does not.
-  await expect(card('gemma4:e2b-it-qat').getByText('May exceed memory')).toHaveCount(0);
+  await expect(card('gemma4:e2b-it-qat').getByText(uiPart('models.mayExceedMemory'))).toHaveCount(0);
 });

@@ -88,6 +88,12 @@ const { registerAppleCalendar } = require('./apple-calendar');
 const { registerObsidianIpc } = require('./obsidian-ipc');
 const { isSafeToAutoInstall } = require('./update-idle-gate');
 const { describeUpdateError, updateErrorPhase, isMissingUpdateFeedError } = require('./update-error-copy');
+const { mainText, menuRoles } = require('./main-copy');
+const { applySummaryLanguageDefault } = require('./summary-language');
+
+// Before any backend spawn: every child inherits process.env.
+applySummaryLanguageDefault(process.env, require('./package.json'));
+
 const { isOSUpdateEligible, MIN_MACOS_FOR_AUTOUPDATE } = require('./update-os-gate');
 const processingLog = require('./processing-log');
 const { isMeetingApp, allowsDeviceLevelFallback, isMacos14Plus } = require('./meeting-detect');
@@ -201,7 +207,7 @@ const os = require('os');
 const { URL, URLSearchParams } = require('url');
 const crypto = require('crypto');
 const { EXPORT_CANCELED } = require('./ipc-sentinels');
-const { mayExposeMainWindow } = require('./e2e-window-visibility');
+const { mayExposeMainWindow, mayExposeWindow, e2eActivationPolicy } = require('./e2e-window-visibility');
 const { PostHog } = require('posthog-node');
 const { initMain } = require('electron-audio-loopback');
 const { autoUpdater } = require('electron-updater');
@@ -219,6 +225,38 @@ if (process.env.STENOAI_USER_DATA_DIR) {
 const IS_E2E = process.env.STENOAI_E2E === '1';
 const IS_E2E_MOCK_IPC = process.env.STENOAI_E2E_MOCK_IPC === '1';
 const IS_E2E_HEADLESS = IS_E2E && process.env.STENOAI_E2E_HEADLESS === '1';
+// Headless E2E on macOS: become an accessory app before anything else can
+// activate the app, so a test launch shows no dock icon and never comes to the
+// front over the user's other apps. Production keeps the normal policy.
+const E2E_ACTIVATION_POLICY = e2eActivationPolicy({ isE2EHeadless: IS_E2E_HEADLESS });
+if (E2E_ACTIVATION_POLICY) {
+  try { app.setActivationPolicy(E2E_ACTIVATION_POLICY); } catch (_) { /* re-applied in whenReady */ }
+}
+// A native dialog would surface over the host desktop. Headless E2E answers
+// the real Electron dialog as if the user cancelled; a spec that stubs
+// dialog.* through app.evaluate still gets its stub, and every other run shows
+// the real dialog. Modules receive `guardedDialog` instead of `dialog`.
+const NATIVE_DIALOG = {
+  showOpenDialog: dialog.showOpenDialog,
+  showSaveDialog: dialog.showSaveDialog,
+  showMessageBox: dialog.showMessageBox,
+};
+function showNativeDialog(kind, ...args) {
+  const fn = dialog[kind];
+  if (fn === NATIVE_DIALOG[kind] && !mayExposeWindow({ isE2EHeadless: IS_E2E_HEADLESS })) {
+    if (kind === 'showMessageBox') {
+      const options = args.find((arg) => arg && typeof arg === 'object' && 'message' in arg) || {};
+      return Promise.resolve({ response: typeof options.cancelId === 'number' ? options.cancelId : 0, checkboxChecked: false });
+    }
+    return Promise.resolve({ canceled: true, filePaths: [], filePath: undefined });
+  }
+  return fn.apply(dialog, args);
+}
+const guardedDialog = {
+  showOpenDialog: (...args) => showNativeDialog('showOpenDialog', ...args),
+  showSaveDialog: (...args) => showNativeDialog('showSaveDialog', ...args),
+  showMessageBox: (...args) => showNativeDialog('showMessageBox', ...args),
+};
 
 // Global (system-wide) accelerator to toggle recording. CommandOrControl
 // resolves to Cmd on macOS and Ctrl on Windows/Linux, so no manual
@@ -539,9 +577,14 @@ class Notification extends EventEmitter {
     });
 
     win.once('ready-to-show', () => {
-      win.showInactive();
-      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-      win.setAlwaysOnTop(true, 'screen-saver', 1);
+      // Headless E2E: the toast renders and Playwright can drive it, but it
+      // never reaches the screen (no showInactive, no all-workspaces, no
+      // screen-saver level above the user's apps).
+      if (mayExposeWindow({ isE2EHeadless: IS_E2E_HEADLESS })) {
+        win.showInactive();
+        win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        win.setAlwaysOnTop(true, 'screen-saver', 1);
+      }
 
       // Keep the 15s auto-close (matches the pre-existing pre-meeting toast).
       autoCloseTimer = setTimeout(() => {
@@ -766,7 +809,7 @@ async function showShortcutNotification(body) {
     }
 
     const notif = new Notification({
-      title: 'Steno Shortcuts',
+      title: mainText('notify.shortcutsTitle'),
       body
     });
     trackNotificationLifecycle(notif, 'shortcut');
@@ -816,7 +859,7 @@ async function handleShortcutUrl(incomingUrl) {
 
   if (parsedAction.type === 'invalid') {
     sendDebugLog(`Ignored invalid shortcut URL (${parsedAction.reason}): ${safeShortcutUrl}`);
-    await showShortcutNotification('Invalid shortcut URL');
+    await showShortcutNotification(mainText('notify.shortcutInvalid'));
     launchedByShortcut = false;
     return;
   }
@@ -826,7 +869,7 @@ async function handleShortcutUrl(incomingUrl) {
 
   if (parsedAction.type === 'start') {
     if (recording) {
-      await showShortcutNotification('Recording already in progress');
+      await showShortcutNotification(mainText('notify.shortcutAlreadyRecording'));
       launchedByShortcut = false;
       return;
     }
@@ -837,12 +880,12 @@ async function handleShortcutUrl(incomingUrl) {
       return;
     }
     enqueueShortcutAction(parsedAction);
-    await showShortcutNotification('Start recording requested');
+    await showShortcutNotification(mainText('notify.shortcutStartRequested'));
     return;
   }
 
   if (!recording) {
-    await showShortcutNotification('Recording already stopped');
+    await showShortcutNotification(mainText('notify.shortcutAlreadyStopped'));
     launchedByShortcut = false;
     return;
   }
@@ -853,7 +896,7 @@ async function handleShortcutUrl(incomingUrl) {
     return;
   }
   enqueueShortcutAction(parsedAction);
-  await showShortcutNotification('Stop recording requested');
+  await showShortcutNotification(mainText('notify.shortcutStopRequested'));
 }
 
 // Telemetry state
@@ -1883,7 +1926,7 @@ function createTray() {
   const icon = nativeImage.createFromPath(getTrayIconPath(false));
   icon.setTemplateImage(require('./package.json').venetaMemoAi !== true);
   tray = new Tray(icon);
-  tray.setToolTip('StenoAI');
+  tray.setToolTip(mainText('tray.tooltip'));
 
   updateTrayMenu();
 }
@@ -1893,7 +1936,7 @@ function updateTrayIcon(recording) {
   const icon = nativeImage.createFromPath(getTrayIconPath(recording));
   icon.setTemplateImage(require('./package.json').venetaMemoAi !== true);
   tray.setImage(icon);
-  tray.setToolTip(recording ? 'StenoAI - Recording' : 'StenoAI');
+  tray.setToolTip(recording ? mainText('tray.tooltipRecording') : mainText('tray.tooltip'));
   updateTrayMenu();
 }
 
@@ -1909,11 +1952,11 @@ function updateTrayMenu() {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Open StenoAI',
+      label: mainText('tray.open'),
       click: showAndFocusWindow
     },
     {
-      label: isRecording ? 'Stop Recording' : 'Start Recording',
+      label: isRecording ? mainText('tray.stopRecording') : mainText('tray.startRecording'),
       click: () => {
         if (mainWindow) {
           mainWindow.webContents.send(isRecording ? 'tray-stop-recording' : 'tray-start-recording');
@@ -1921,7 +1964,7 @@ function updateTrayMenu() {
       }
     },
     {
-      label: 'Settings',
+      label: mainText('tray.settings'),
       click: () => {
         showAndFocusWindow();
         if (mainWindow) {
@@ -1930,25 +1973,25 @@ function updateTrayMenu() {
       }
     },
     {
-      label: 'Hide StenoAI',
+      label: mainText('tray.hide'),
       click: () => {
         if (mainWindow) mainWindow.hide();
       }
     },
     { type: 'separator' },
     {
-      label: `StenoAI v${appVersion}`,
+      label: mainText('tray.version', { version: appVersion }),
       enabled: false
     },
     {
-      label: 'Report a Bug',
+      label: mainText('tray.reportBug'),
       click: () => {
         shell.openExternal('https://discord.gg/DZ6vcQnxxu');
       }
     },
     { type: 'separator' },
     {
-      label: 'Quit StenoAI',
+      label: mainText('tray.quit'),
       click: () => {
         app.quit();
       }
@@ -2008,7 +2051,7 @@ if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   const meetingTransfer = registerMeetingTransferIpc({
-    app, ipcMain, dialog, getMainWindow: () => mainWindow, exposeMainWindow,
+    app, ipcMain, dialog: guardedDialog, getMainWindow: () => mainWindow, exposeMainWindow,
     getOutputDir, getUserDataDir,
     isBusy: () => currentRecordingProcess !== null || systemAudioRecordingActive || isProcessing || activeReprocessJobs.size > 0,
     readMeeting: readMeetingForTransfer,
@@ -2118,6 +2161,9 @@ if (!gotSingleInstanceLock) {
   });
 
   app.whenReady().then(async () => {
+    if (E2E_ACTIVATION_POLICY) {
+      try { app.setActivationPolicy(E2E_ACTIVATION_POLICY); } catch (_) { /* best effort */ }
+    }
     // Resolve whether this launch was an OS login-item auto-launch BEFORE the
     // app_opened event and the first window show below. macOS reports it via
     // wasOpenedAtLogin (the deprecated openAsHidden no longer works on 13+);
@@ -2202,7 +2248,7 @@ if (!gotSingleInstanceLock) {
     // via autoHideMenuBar so it doesn't clash with the app's custom toolbar;
     // Alt reveals it (standard Windows behaviour).
     const settingsItem = {
-      label: 'Settings…',
+      label: mainText('menu.settings'),
       accelerator: 'CmdOrCtrl+,',
       click: () => {
         showAndFocusWindow();
@@ -2213,9 +2259,10 @@ if (!gotSingleInstanceLock) {
     };
     const helpSubmenu = {
       role: 'help',
+      ...(menuRoles.helpLabel ? { label: menuRoles.helpLabel } : {}),
       submenu: [
-        { label: 'Learn More', click: () => shell.openExternal('https://github.com/stenolabs/stenoai') },
-        { label: 'Report a Bug', click: () => shell.openExternal('https://discord.gg/DZ6vcQnxxu') }
+        { label: mainText('menu.learnMore'), click: () => shell.openExternal('https://github.com/stenolabs/stenoai') },
+        { label: mainText('menu.reportBug'), click: () => shell.openExternal('https://discord.gg/DZ6vcQnxxu') }
       ]
     };
     const appMenu = Menu.buildFromTemplate(
@@ -2226,30 +2273,30 @@ if (!gotSingleInstanceLock) {
               // shortcut (the default `{ role: 'appMenu' }` omits Settings).
               label: require('./package.json').venetaMemoAi === true ? 'Veneta MemoAi' : app.name,
               submenu: [
-                { role: 'about' },
+                menuRoles.item('about'),
                 { type: 'separator' },
                 settingsItem,
                 { type: 'separator' },
-                { role: 'services' },
+                menuRoles.item('services'),
                 { type: 'separator' },
-                { role: 'hide' },
-                { role: 'hideOthers' },
-                { role: 'unhide' },
+                menuRoles.item('hide'),
+                menuRoles.item('hideOthers'),
+                menuRoles.item('unhide'),
                 { type: 'separator' },
-                { role: 'quit' }
+                menuRoles.item('quit')
               ]
             },
-            { role: 'fileMenu' },
-            { role: 'editMenu' },
-            { role: 'viewMenu' },
-            { role: 'windowMenu' },
+            menuRoles.fileMenu,
+            menuRoles.editMenu,
+            menuRoles.viewMenu,
+            menuRoles.windowMenu,
             helpSubmenu
           ]
         : [
-            { label: '&File', submenu: [settingsItem, { type: 'separator' }, { role: 'quit' }] },
-            { role: 'editMenu' },
-            { role: 'viewMenu' },
-            { role: 'windowMenu' },
+            { label: mainText('menu.file'), submenu: [settingsItem, { type: 'separator' }, menuRoles.item('quit')] },
+            menuRoles.editMenu,
+            menuRoles.viewMenu,
+            menuRoles.windowMenu,
             helpSubmenu
           ]
     );
@@ -2268,7 +2315,7 @@ if (!gotSingleInstanceLock) {
 
     // Dev runs otherwise show the default Electron dock icon. Packaged builds
     // already get this icon via electron-builder's `mac.icon` setting.
-    if (!app.isPackaged && process.platform === 'darwin' && app.dock) {
+    if (!app.isPackaged && !IS_E2E_HEADLESS && process.platform === 'darwin' && app.dock) {
       try {
         app.dock.setIcon(path.join(__dirname, 'build', 'icon-dragonfly.icns'));
       } catch (e) {
@@ -2828,10 +2875,10 @@ const IMPORT_AUDIO_EXTENSIONS = [
 ];
 
 ipcMain.handle('select-audio-file', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
+  const result = await showNativeDialog('showOpenDialog', mainWindow, {
     properties: ['openFile'],
     filters: [
-      { name: 'Audio Files', extensions: IMPORT_AUDIO_EXTENSIONS }
+      { name: mainText('dialog.audioFiles'), extensions: IMPORT_AUDIO_EXTENSIONS }
     ]
   });
 
@@ -3783,7 +3830,7 @@ ipcMain.on('chat-context-stream', async (event, queryId, request) => {
   if (!mainWindow || sender !== mainWindow.webContents || event.senderFrame !== sender.mainFrame) return;
   if (typeof queryId !== 'string' || !queryId || queryId.length > 256 || contextQueries.has(queryId)) return;
   if (contextQueries.size >= 4) {
-    send('query-done', { success: false, error: 'Wait for another answer to finish.' });
+    send('query-done', { success: false, error: mainText('error.waitForAnswer') });
     return;
   }
   let cancelled = false;
@@ -4262,7 +4309,7 @@ ipcMain.handle('save-meeting-notes', async (event, sessionName, notes) => {
 ipcMain.handle('export-transcript', async (event, defaultFilename, content) => {
   try {
     if (typeof content !== 'string' || content.length === 0) {
-      return { success: false, error: 'No transcript content to export.' };
+      return { success: false, error: mainText('error.noTranscriptToExport') };
     }
 
     // Test-only seam: only honor it under e2e, so a stray env var in a real
@@ -4278,11 +4325,11 @@ ipcMain.handle('export-transcript', async (event, defaultFilename, content) => {
         typeof defaultFilename === 'string' && defaultFilename.trim()
           ? path.basename(defaultFilename).slice(0, 200)
           : 'transcript.md';
-      const result = await dialog.showSaveDialog(mainWindow, {
+      const result = await showNativeDialog('showSaveDialog', mainWindow, {
         defaultPath: suggested,
         filters: [
-          { name: 'Markdown', extensions: ['md'] },
-          { name: 'Text', extensions: ['txt'] },
+          { name: mainText('dialog.markdown'), extensions: ['md'] },
+          { name: mainText('dialog.text'), extensions: ['txt'] },
         ],
       });
       if (result.canceled || !result.filePath) {
@@ -4386,7 +4433,7 @@ async function renderHtmlToPdf(html) {
 ipcMain.handle('export-note-pdf', async (event, defaultFilename, html) => {
   try {
     if (typeof html !== 'string' || html.length === 0) {
-      return { success: false, error: 'No notes content to export.' };
+      return { success: false, error: mainText('error.noNotesToExport') };
     }
 
     // Test-only seam: only honor it under e2e, so a stray env var in a real
@@ -4401,9 +4448,9 @@ ipcMain.handle('export-note-pdf', async (event, defaultFilename, html) => {
         typeof defaultFilename === 'string' && defaultFilename.trim()
           ? path.basename(defaultFilename).slice(0, 200)
           : 'notes.pdf';
-      const result = await dialog.showSaveDialog(mainWindow, {
+      const result = await showNativeDialog('showSaveDialog', mainWindow, {
         defaultPath: suggested,
-        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        filters: [{ name: mainText('dialog.pdf'), extensions: ['pdf'] }],
       });
       if (result.canceled || !result.filePath) {
         return { success: false, error: EXPORT_CANCELED };
@@ -4440,7 +4487,7 @@ ipcMain.handle('export-note-pdf', async (event, defaultFilename, html) => {
 ipcMain.handle('save-diagnostics', async (event, defaultFilename, content) => {
   try {
     if (typeof content !== 'string' || content.length === 0) {
-      return { success: false, error: 'No diagnostics content to save.' };
+      return { success: false, error: mainText('error.noDiagnosticsToSave') };
     }
 
     // Test-only seam: only honor it under e2e, so a stray env var in a real
@@ -4456,9 +4503,9 @@ ipcMain.handle('save-diagnostics', async (event, defaultFilename, content) => {
         typeof defaultFilename === 'string' && defaultFilename.trim()
           ? path.basename(defaultFilename).slice(0, 200)
           : 'stenoai-diagnostics.txt';
-      const result = await dialog.showSaveDialog(mainWindow, {
+      const result = await showNativeDialog('showSaveDialog', mainWindow, {
         defaultPath: suggested,
-        filters: [{ name: 'Text', extensions: ['txt'] }],
+        filters: [{ name: mainText('dialog.text'), extensions: ['txt'] }],
       });
       if (result.canceled || !result.filePath) {
         return { success: false, error: EXPORT_CANCELED };
@@ -6603,10 +6650,10 @@ ipcMain.handle('set-note-language', async (_event, summaryFile, code) => {
 ipcMain.handle('start-recording-ui', async (_, sessionName, trigger, appendTo) => {
   try {
     if (currentRecordingProcess) {
-      return { success: false, error: 'Recording already in progress' };
+      return { success: false, error: mainText('error.recordingInProgress') };
     }
     if (systemAudioRecordingActive) {
-      return { success: false, error: 'Recording already in progress' };
+      return { success: false, error: mainText('error.recordingInProgress') };
     }
     // A new meeting starts with the Settings default language.
     pendingRecordingLanguage = null;
@@ -6809,12 +6856,12 @@ function showSleepPausedNotification() {
   // convenience notifications (meeting detected, note ready), this one is
   // state-critical — the user believes they're capturing and they are not.
   const notif = new Notification({
-    title: 'Recording paused',
-    body: 'Paused while your computer was asleep. Resume to keep capturing.',
+    title: mainText('notify.sleepPausedTitle'),
+    body: mainText('notify.sleepPausedBody'),
     iconType: 'alert',
     // The Resume action button is always rendered by the custom toast (both
     // platforms); the click handler below covers a body tap as well.
-    actions: [{ type: 'button', text: 'Resume' }],
+    actions: [{ type: 'button', text: mainText('notify.resume') }],
   });
   const resume = () => {
     sleepPausedNotif = null;
@@ -6841,7 +6888,7 @@ ipcMain.handle('pause-recording-ui', async () => {
       return { success: true, message: 'Recording paused' };
     }
     sendDebugLog('Pause failed: No recording in progress');
-    return { success: false, error: 'No recording in progress' };
+    return { success: false, error: mainText('error.noRecordingInProgress') };
   } catch (error) {
     console.error('Pause recording UI error:', error.message);
     sendDebugLog(`Pause error: ${error.message}`);
@@ -6860,7 +6907,7 @@ ipcMain.handle('resume-recording-ui', async () => {
       return { success: true, message: 'Recording resumed' };
     }
     sendDebugLog('Resume failed: No recording in progress');
-    return { success: false, error: 'No recording in progress' };
+    return { success: false, error: mainText('error.noRecordingInProgress') };
   } catch (error) {
     console.error('Resume recording UI error:', error.message);
     sendDebugLog(`Resume error: ${error.message}`);
@@ -7236,7 +7283,7 @@ ipcMain.handle('cancel-processing', async (_event, summaryFile) => {
       ? currentProcessingJob
       : null);
   if (!target || !target.proc || target.proc.exitCode !== null) {
-    return { success: false, error: 'Nothing is processing for this note' };
+    return { success: false, error: mainText('error.nothingProcessing') };
   }
   sendDebugLog('Processing cancelled by user');
   target.cancelled = true;
@@ -7746,9 +7793,9 @@ function showMeetingDetectedNotification(appName, originatingEvt, calEvent) {
   // dropdown instead of showing the action inline. Leaving closeButtonText
   // unset gives us Granola's layout — single inline button to the right.
   const notif = new Notification({
-    title: 'Meeting detected',
+    title: mainText('notify.meetingDetectedTitle'),
     body: calEvent?.title || appName,
-    actions: [{ type: 'button', text: 'Take Notes' }],
+    actions: [{ type: 'button', text: mainText('notify.takeNotes') }],
   });
   // Both the "Take Notes" button and the notification body start recording — one
   // action, so a single tap anywhere works.
@@ -7811,9 +7858,9 @@ async function showMeetingEndedNotification(appName) {
   try {
     if (!(await notificationsEnabled())) return;
     const notif = new Notification({
-      title: 'Call ended',
-      body: `${appName} closed the call. Finishing your note in ${MEETING_END_AUTOSTOP_GRACE_MS / 1000} seconds.`,
-      actions: [{ type: 'button', text: 'Keep recording' }],
+      title: mainText('notify.callEndedTitle'),
+      body: mainText('notify.callEndedBody', { appName, seconds: MEETING_END_AUTOSTOP_GRACE_MS / 1000 }),
+      actions: [{ type: 'button', text: mainText('notify.keepRecording') }],
     });
     notif.on('action', () => keepRecordingAfterCallEnd());
     trackNotificationLifecycle(notif, 'meeting_ended');
@@ -8034,7 +8081,7 @@ ipcMain.handle('setup-ollama-and-model', async () => {
       if (darwinMajor < 23) {
         const macosVersion = darwinMajor >= 22 ? '13 (Ventura)' : darwinMajor >= 21 ? '12 (Monterey)' : `(Darwin ${darwinMajor})`;
         sendDebugLog(`macOS ${macosVersion} detected — Ollama requires macOS 14 (Sonoma) or later`);
-        return { success: false, error: 'Steno requires macOS 14 (Sonoma) or later for local AI summarization. Please update your macOS or use a remote Ollama server in Settings.' };
+        return { success: false, error: mainText('error.macosTooOldForLocalAi') };
       }
     }
 
@@ -8042,7 +8089,7 @@ ipcMain.handle('setup-ollama-and-model', async () => {
     const finalOllamaPath = await findOllamaExecutable();
     if (!finalOllamaPath) {
       sendDebugLog('Error: Bundled Ollama not found');
-      return { success: false, error: 'Bundled Ollama not found. Please reinstall Steno.' };
+      return { success: false, error: mainText('error.bundledOllamaMissing') };
     }
     sendDebugLog(`Found bundled Ollama at: ${finalOllamaPath}`);
 
@@ -8123,9 +8170,9 @@ ipcMain.handle('setup-ollama-and-model', async () => {
     if (!ready) {
       if (ollamaExited) {
         if (ollamaDyldError) {
-          return { success: false, error: 'Ollama crashed due to incompatible macOS version. Steno requires macOS 14 (Sonoma) or later for local AI. Please update macOS or use a remote Ollama server in Settings.' };
+          return { success: false, error: mainText('error.ollamaIncompatibleMacos') };
         }
-        return { success: false, error: `Ollama failed to start (exit code: ${ollamaExitCode}). Check debug logs for details.` };
+        return { success: false, error: mainText('error.ollamaFailedToStart', { code: ollamaExitCode }) };
       }
       sendDebugLog('Warning: Ollama may not be fully ready, attempting pull anyway...');
     }
@@ -8230,7 +8277,7 @@ ipcMain.handle('setup-ollama-and-model', async () => {
             sendDebugLog(`Pull error: ${json.error}`);
             trackEvent('setup_failed', { step: 'ollama_and_model' });
             req.destroy();
-            settle({ success: false, error: 'Failed to download AI model', details: json.error });
+            settle({ success: false, error: mainText('error.modelDownloadFailed'), details: json.error });
             return true;
           }
           const status = json.status || '';
@@ -8311,7 +8358,7 @@ ipcMain.handle('setup-ollama-and-model', async () => {
             if (json && json.error) {
               sendDebugLog(`Pull error: ${json.error}`);
               trackEvent('setup_failed', { step: 'ollama_and_model' });
-              settle({ success: false, error: 'Failed to download AI model', details: json.error });
+              settle({ success: false, error: mainText('error.modelDownloadFailed'), details: json.error });
               return;
             }
           }
@@ -8327,20 +8374,20 @@ ipcMain.handle('setup-ollama-and-model', async () => {
           } else {
             sendDebugLog(`AI model download failed with status: ${res.statusCode}`);
             trackEvent('setup_failed', { step: 'ollama_and_model' });
-            settle({ success: false, error: 'Failed to download AI model', details: `HTTP ${res.statusCode}` });
+            settle({ success: false, error: mainText('error.modelDownloadFailed'), details: `HTTP ${res.statusCode}` });
           }
         });
       });
 
       req.on('error', (error) => {
         sendDebugLog(`Pull request error: ${error.message}`);
-        settle({ success: false, error: 'Failed to download AI model', details: error.message });
+        settle({ success: false, error: mainText('error.modelDownloadFailed'), details: error.message });
       });
 
       req.on('timeout', () => {
         req.destroy();
         sendDebugLog('Model pull timed out after 10 minutes');
-        settle({ success: false, error: 'Model download timed out' });
+        settle({ success: false, error: mainText('error.modelDownloadTimedOut') });
       });
 
       req.write(postData);
@@ -8489,7 +8536,7 @@ ipcMain.handle('get-app-version', async () => {
 registerFoldersIpc({
   ipcMain,
   runPythonScript,
-  dialog,
+  dialog: guardedDialog,
   getMainWindow: () => mainWindow,
   getUserDataDir,
   validateMeetingFilePath,
@@ -8533,14 +8580,14 @@ const watchedFolders = require('./watched-folders').createWatchedFolders({
   onLog: (message) => sendDebugLog(message),
 });
 require('./watched-folders-ipc').registerWatchedFoldersIpc({
-  ipcMain, watchedFolders, dialog, getMainWindow: () => mainWindow, allowPathArg: IS_E2E,
+  ipcMain, watchedFolders, dialog: guardedDialog, getMainWindow: () => mainWindow, allowPathArg: IS_E2E,
 });
 
 // Obsidian vault sync IPC (#413): config toggle + vault picker + conflicts read.
 registerObsidianIpc({
   ipcMain,
   runPythonScript,
-  dialog,
+  dialog: guardedDialog,
   getMainWindow: () => mainWindow,
   obsidianSync,
   sendDebugLog,
@@ -8921,8 +8968,8 @@ ipcMain.handle('pull-whisper-model', async (event, modelName) => {
         forceSettleTimer = setTimeout(() => {
           sendDebugLog('Force-settling pull-whisper-model Promise after kill grace');
           finishOnce(
-            { success: false, error: 'Download timed out after 30 minutes' },
-            { model: modelName, success: false, error: 'Download timed out after 30 minutes' },
+            { success: false, error: mainText('error.downloadTimedOut30') },
+            { model: modelName, success: false, error: mainText('error.downloadTimedOut30') },
           );
         }, 15000);
       }, 30 * 60 * 1000);
@@ -9015,8 +9062,8 @@ ipcMain.handle('pull-parakeet-model', async (event, modelId) => {
         forceSettleTimer = setTimeout(() => {
           sendDebugLog('Force-settling pull-parakeet-model Promise after kill grace');
           finishOnce(
-            { success: false, error: 'Download timed out after 30 minutes' },
-            { model: modelId, success: false, error: 'Download timed out after 30 minutes' },
+            { success: false, error: mainText('error.downloadTimedOut30') },
+            { model: modelId, success: false, error: mainText('error.downloadTimedOut30') },
           );
         }, 15000);
       }, 30 * 60 * 1000);
@@ -9175,10 +9222,10 @@ ipcMain.handle('show-silence-auto-stop-notification', async (_event, payload) =>
     const minutes = typeof payload === 'number' ? payload : payload?.minutes;
     const sessionName = typeof payload === 'object' ? payload?.sessionName : null;
     const body = sessionName
-      ? `${sessionName} — ${minutes} minutes of silence`
-      : `${minutes} minutes of silence — your note is being processed.`;
+      ? mainText('notify.silenceStoppedNamed', { sessionName, minutes })
+      : mainText('notify.silenceStopped', { minutes });
     const notif = new Notification({
-      title: 'Recording stopped',
+      title: mainText('notify.silenceStoppedTitle'),
       body,
       iconType: 'recording',
     });
@@ -9205,12 +9252,12 @@ ipcMain.handle('show-system-audio-mic-only-notification', async () => {
   try {
     if (!(await notificationsEnabled())) return { success: true, shown: false };
     const notif = new Notification({
-      title: 'Recording mic-only',
+      title: mainText('notify.micOnlyTitle'),
       // The permissions hint is macOS-only; elsewhere there is no such setting
       // to send the user to.
       body: process.platform === 'darwin'
-        ? 'System audio could not be captured. Check Steno’s Screen & System Audio Recording access in System Settings.'
-        : 'System audio could not be captured. Continuing with the microphone only.',
+        ? mainText('notify.micOnlyMac')
+        : mainText('notify.micOnly'),
       iconType: 'alert',
     });
     notif.on('click', () => {
@@ -9275,9 +9322,9 @@ async function showTranscriptReadyNotification(payload) {
   if (!(await notificationsEnabled())) return { success: true, shown: false };
   const { title, summaryFile, name } = payload || {};
   const notif = new Notification({
-    title: 'Transcript ready',
+    title: mainText('notify.transcriptReadyTitle'),
     body: buildTranscriptReadyBody(title),
-    actions: [{ type: 'button', text: 'Summarise' }],
+    actions: [{ type: 'button', text: mainText('notify.summarise') }],
     iconType: 'success',
   });
   // The whole notification means "yes, summarise": a body tap AND the "Summarise"
@@ -9463,7 +9510,9 @@ ipcMain.handle('set-dock-icon', async (event, hidden) => {
     const result = await runPythonScript('simple_recorder.py', ['set-dock-icon', hidden ? 'True' : 'False']);
 
     // Apply immediately
-    if (process.platform === 'darwin' && app.dock) {
+    // Headless E2E stays an accessory app: dock.show() would turn it back into
+    // a regular, activatable app with a dock icon.
+    if (process.platform === 'darwin' && app.dock && mayExposeWindow({ isE2EHeadless: IS_E2E_HEADLESS })) {
       if (hidden) {
         app.dock.hide();
       } else {
@@ -10254,7 +10303,7 @@ ipcMain.handle('set-ai-provider', async (event, provider) => {
           return {
             success: false,
             managedByOrg: true,
-            error: 'AI provider is managed by your organisation while you are signed in.',
+            error: mainText('error.aiProviderManagedByOrg'),
           };
         }
         // A manual switch away from 'adapter' invalidates the pre-adapter
@@ -10543,7 +10592,7 @@ ipcMain.handle('close-system-audio-file', async () => {
       try { fs.unlinkSync(filePath); } catch (_) { /* */ }
       recordingJournal.forget(recordingJournal.idFor(filePath));
       sendDebugLog('[sysaudio] closed empty recording and removed file');
-      return { success: false, error: 'Empty recording (no audio captured)' };
+      return { success: false, error: mainText('error.emptyRecording') };
     }
     sendDebugLog(`[sysaudio] closed recording (${bytesWritten} bytes)`);
     return { success: true, filePath };
@@ -10623,8 +10672,8 @@ function showRecordingFailedNotification(body) {
   try {
     if (!Notification.isSupported()) return;
     new Notification({
-      title: 'StenoAI',
-      body: body || "Recording couldn't start.",
+      title: mainText('notify.recordingFailedTitle'),
+      body: body || mainText('notify.recordingFailedFallback'),
       iconType: 'alert',
     }).show();
   } catch (error) {
@@ -10775,7 +10824,7 @@ ipcMain.handle('pull-model', async (event, modelName) => {
   // this, two subprocesses would run concurrently and the first one's close
   // handler would delete activePulls' entry out from under the second.
   if (activePulls.has(modelName)) {
-    return { success: false, error: `A pull for ${modelName} is already in progress.` };
+    return { success: false, error: mainText('error.pullInProgress', { model: modelName }) };
   }
   try {
     sendDebugLog(`Pulling model: ${modelName}`);
@@ -10918,7 +10967,7 @@ ipcMain.handle('pull-model', async (event, modelName) => {
 ipcMain.handle('cancel-pull', (event, modelName) => {
   const proc = activeProcs.get(modelName);
   if (!proc) {
-    return { success: false, error: 'No active pull for this model.' };
+    return { success: false, error: mainText('error.noActivePull') };
   }
   cancelledPulls.add(modelName);
   proc.kill();
@@ -12720,7 +12769,7 @@ async function firePreMeetingNotification(event) {
     return false;
   }
 
-  const notif = new Notification({ title: event.title || 'Meeting starting' });
+  const notif = new Notification({ title: event.title || mainText('notify.meetingStarting') });
   // The pre-meeting toast carries a richer payload (time / meeting URL /
   // attendees) and keeps its legacy renderer-side handlers (Join & take notes,
   // focus-on-body-tap) plus its own click/dismiss analytics. `premeeting: true`

@@ -3,6 +3,11 @@
 // the note's title must reach the notification body — a reprocess completion that
 // carried only the 'Note' placeholder was showing the generic fallback and the
 // title never appeared.
+//
+// Copy comes from main-copy.js: English in the default build, Dutch in the
+// Veneta build. Every builder takes an optional `text` lookup so both
+// languages are testable without changing the package metadata.
+const { mainText } = require('./main-copy');
 
 /**
  * Window options (minus the click wiring) for the note-ready / failure
@@ -14,23 +19,25 @@
  *  - failed: a graceful transcription failure DID write a marked note.
  *  - otherwise: the note is genuinely ready — the body IS the note title.
  */
-function buildNoteReadyNotificationOptions(payload) {
+function buildNoteReadyNotificationOptions(payload, text = mainText) {
   const { title, failed, hardFailure } = payload || {};
   return {
-    title: hardFailure ? 'Processing failed' : failed ? 'Transcription failed' : 'Note ready',
+    title: hardFailure
+      ? text('notify.processingFailedTitle')
+      : failed ? text('notify.transcriptionFailedTitle') : text('notify.noteReadyTitle'),
     body: hardFailure
-      ? `Steno couldn't process ${title ? `"${title}"` : 'your note'}.`
+      ? (title ? text('notify.processingFailedNamed', { title }) : text('notify.processingFailedUnnamed'))
       : failed
-        ? 'Your recording was preserved — open the note for details.'
-        : (title || 'Your note has finished processing'),
+        ? text('notify.transcriptionFailedBody')
+        : (title || text('notify.noteReadyFallback')),
     iconType: (hardFailure || failed) ? 'alert' : 'success',
     outcome: hardFailure ? 'hard_failure' : failed ? 'failed' : 'success',
   };
 }
 
 /** Body text for the transcript-ready "Summarise?" prompt. */
-function buildTranscriptReadyBody(title) {
-  return title ? `Summarise "${title}"?` : 'Summarise?';
+function buildTranscriptReadyBody(title, text = mainText) {
+  return title ? text('notify.summariseNamed', { title }) : text('notify.summariseUnnamed');
 }
 
 /**
@@ -63,16 +70,17 @@ function buildTranscriptReadyBody(title) {
  * @param {'start'|'ongoing'|'stop'} [o.phase] what the caller was doing
  * @param {string} [o.platform] defaults to the running platform; injectable so the
  *   platform-specific permission hint is testable on either OS
+ * @param {Function} [text] copy lookup, defaults to the build's language
  * @returns {string} one or two sentences, free of errno/DOMException text
  */
-function buildCaptureErrorBody({ name, phase = 'start', platform = process.platform } = {}) {
+function buildCaptureErrorBody({ name, phase = 'start', platform = process.platform } = {}, text = mainText) {
   if (phase === 'ongoing') {
     // The recording is STILL RUNNING; only the write failed. Saying anything
     // about starting would be false, and the cause is disk, not audio.
-    return 'Steno hit a problem while saving this recording, so the note may be incomplete.';
+    return text('capture.ongoing');
   }
   if (phase === 'stop') {
-    return "Steno couldn't finish the recording. Try stopping it again from the toolbar.";
+    return text('capture.stop');
   }
 
   const n = typeof name === 'string' ? name : '';
@@ -81,7 +89,7 @@ function buildCaptureErrorBody({ name, phase = 'start', platform = process.platf
   // pinned microphone's deviceId no longer matches anything, which the user
   // experiences as "my microphone is gone", not as a constraint problem.
   if (n === 'NotFoundError' || n === 'OverconstrainedError') {
-    return "Steno couldn't find a microphone, so the recording didn't start. Connect one and try again.";
+    return text('capture.notFound');
   }
   // Deliberately NOT SecurityError: that means the document may not use the
   // media API at all (an insecure context, a feature-policy block), so the
@@ -93,18 +101,18 @@ function buildCaptureErrorBody({ name, phase = 'start', platform = process.platf
     // no single settings path worth naming, so it gets the sentence alone.
     const hint =
       platform === 'darwin'
-        ? ' Grant access in System Settings > Privacy & Security > Microphone.'
+        ? text('capture.notAllowedHintMac')
         : platform === 'win32'
-          ? ' Grant access in Settings > Privacy & security > Microphone.'
+          ? text('capture.notAllowedHintWindows')
           : '';
-    return `Steno doesn't have permission to use the microphone, so the recording didn't start.${hint}`;
+    return text('capture.notAllowed', { hint });
   }
   // The device exists but could not be opened — almost always another app
   // holding it exclusively.
   if (n === 'NotReadableError' || n === 'AbortError') {
-    return "Steno couldn't open the microphone — another app may be using it. Close it and try again.";
+    return text('capture.notReadable');
   }
-  return "Steno couldn't start the recording. Try again in a moment.";
+  return text('capture.generic');
 }
 
 module.exports = {
