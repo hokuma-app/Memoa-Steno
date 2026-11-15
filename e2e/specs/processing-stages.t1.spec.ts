@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/electron';
 import type { ElectronApplication, Page } from '@playwright/test';
+import { ui, uiPart, uiSource, uiText } from '../fixtures/ui-copy';
 
 /**
  * T1 -- renderer-only, mock IPC, no backend. Processing.tsx had zero test
@@ -50,7 +51,7 @@ test('walks transcribing -> diarizing (with embedding sub-progress) -> summarizi
   await openProcessing(page);
 
   const label = page.getByTestId('processing-stage-label');
-  await expect(label).toHaveText('Analyzing transcript');
+  await expect(label).toHaveText(ui('processing.analyzingTranscript'));
   await expect(label).toHaveAttribute('data-stage', 'transcribing');
 
   // done/total here are raw ASR sample counts, not chunk counts -- real
@@ -58,37 +59,37 @@ test('walks transcribing -> diarizing (with embedding sub-progress) -> summarizi
   // "18960000/20480372"), which is exactly why only a percentage is
   // useful, not "part X of Y".
   await emit(app, 'processing-progress', { line: 'PROGRESS:transcribe:18960000/20480372' });
-  await expect(label).toHaveText('Transcribing… 93%');
+  await expect(label).toHaveText(ui('processing.transcribing', { p: '93' }));
   await expect(label).toHaveAttribute('data-stage', 'transcribing');
 
   await emit(app, 'processing-progress', { line: 'PROGRESS:diarize:You:start' });
-  await expect(label).toHaveText('Diarizing You channel…');
+  await expect(label).toHaveText(uiText('processing.diarizingChannel', { label: 'You' }));
   await expect(label).toHaveAttribute('data-stage', 'diarizing');
 
   // The real gap this feature was built to close: on a multi-hour
   // recording, embedding extraction alone can take ~18 minutes per channel
   // -- this sub-progress is what keeps that stretch from looking hung.
   await emit(app, 'processing-progress', { line: 'PROGRESS:diarize:You:embedding:340/1300' });
-  await expect(label).toHaveText('Diarizing You channel… 26%');
+  await expect(label).toHaveText(ui('processing.diarizingChannel3', { label: 'You', p: '26' }));
   await expect(label).toHaveAttribute('data-stage', 'diarizing');
 
   await emit(app, 'processing-progress', { line: 'PROGRESS:diarize:You:done' });
   await emit(app, 'processing-progress', { line: 'PROGRESS:diarize:Others:start' });
-  await expect(label).toHaveText('Diarizing Others channel…');
+  await expect(label).toHaveText(ui('processing.diarizingChannel', { label: 'Others' }));
   await emit(app, 'processing-progress', { line: 'PROGRESS:diarize:Others:done' });
 
   await emit(app, 'processing-progress', { line: 'PROGRESS:summarize:1/3' });
-  await expect(label).toHaveText('Summarizing… 33%');
+  await expect(label).toHaveText(ui('processing.summarizing', { p: '33' }));
   await expect(label).toHaveAttribute('data-stage', 'summarizing');
 
   await emit(app, 'processing-progress', { line: 'PROGRESS:summarize:reducing' });
-  await expect(label).toHaveText('Merging summaries…');
+  await expect(label).toHaveText(ui('processing.mergingSummaries'));
 
   // The bug this spec exists to catch: chunkProgress used to persist
   // Finalizing always renders its own fixed label. The retry-path test below
   // covers stale dynamic sub-label cleanup where it is observable.
   await emit(app, 'summary-complete', { success: true, sessionName: 'test-session' });
-  await expect(label).toHaveText('Almost done…');
+  await expect(label).toHaveText(ui('processing.almostDone'));
   await expect(label).toHaveAttribute('data-stage', 'finalizing');
 });
 
@@ -98,13 +99,13 @@ test('a new processing generation cannot inherit the previous diarization timer'
 
   const label = page.getByTestId('processing-stage-label');
   await emit(app, 'processing-progress', { line: 'PROGRESS:diarize:You:start' });
-  await expect(label).toHaveText('Diarizing You channel…');
+  await expect(label).toHaveText(uiText('processing.diarizingChannel', { label: 'You' }));
 
   await page.evaluate(() => window.stenoai.recording.start('second-session'));
   await expect(page.getByRole('heading', { name: 'second-session' })).toBeVisible();
-  await expect(label).toHaveText('Analyzing transcript');
+  await expect(label).toHaveText(ui('processing.analyzingTranscript'));
   await page.waitForTimeout(1_200);
-  await expect(label).toHaveText('Analyzing transcript');
+  await expect(label).toHaveText(ui('processing.analyzingTranscript'));
 });
 
 test('shows a ticking elapsed-time counter during segmentation, before any embedding percentage arrives', async ({ launchApp }) => {
@@ -119,16 +120,16 @@ test('shows a ticking elapsed-time counter during segmentation, before any embed
 
   const label = page.getByTestId('processing-stage-label');
   await emit(app, 'processing-progress', { line: 'PROGRESS:diarize:You:start' });
-  await expect(label).toHaveText('Diarizing You channel…');
+  await expect(label).toHaveText(uiText('processing.diarizingChannel', { label: 'You' }));
 
-  await expect(label).toHaveText(/Diarizing You channel… \(\d+s\)/, { timeout: 3000 });
+  await expect(label).toHaveText(new RegExp(uiSource('processing.diarizingChannel2', { label: 'You', elapsedSeconds: '\\d+s' })), { timeout: 3000 });
 
   // Once a real percentage arrives, it must win over the ticker -- and the
   // ticker must actually stop, not race back in a second later.
   await emit(app, 'processing-progress', { line: 'PROGRESS:diarize:You:embedding:1/129' });
-  await expect(label).toHaveText('Diarizing You channel… 1%');
+  await expect(label).toHaveText(ui('processing.diarizingChannel3', { label: 'You', p: '1' }));
   await page.waitForTimeout(1500);
-  await expect(label).toHaveText('Diarizing You channel… 1%');
+  await expect(label).toHaveText(ui('processing.diarizingChannel3', { label: 'You', p: '1' }));
 });
 
 test('a processing failure swaps to the error panel, and retrying does not leak the stale sub-label back', async ({ launchApp }) => {
@@ -137,7 +138,7 @@ test('a processing failure swaps to the error panel, and retrying does not leak 
 
   const label = page.getByTestId('processing-stage-label');
   await emit(app, 'processing-progress', { line: 'PROGRESS:diarize:You:start' });
-  await expect(label).toHaveText('Diarizing You channel…');
+  await expect(label).toHaveText(uiText('processing.diarizingChannel', { label: 'You' }));
 
   // On failure, the stage card is replaced entirely by a distinct error
   // panel (retry button, no processing-stage-label) rather than the label
@@ -149,14 +150,14 @@ test('a processing failure swaps to the error panel, and retrying does not leak 
     message: 'boom',
   });
   await expect(label).toHaveCount(0);
-  await expect(page.getByText('Couldn’t process this recording.')).toBeVisible();
+  await expect(page.getByText(uiPart('processing.couldnTProcessThisRecording'))).toBeVisible();
 
   // The bug this half of the spec exists to catch: without clearing
   // chunkProgress on the failure transition, clicking "Try again" (which
   // resets the stage back to 'transcribing') would remount the stage card
   // still showing the stale "Diarizing You channel…" sub-label instead of
   // the correct fresh-start label.
-  await page.getByRole('button', { name: 'Try again' }).click();
-  await expect(label).toHaveText('Analyzing transcript');
+  await page.getByRole('button', { name: uiPart('settings.ai.speakers.retry') }).click();
+  await expect(label).toHaveText(ui('processing.analyzingTranscript'));
   await expect(label).toHaveAttribute('data-stage', 'transcribing');
 });

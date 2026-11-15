@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { ui, uiPart, uiText } from '../fixtures/ui-copy';
 
 for (const unavailable of [false, true]) {
   test(`a local meeting with ${unavailable ? 'unavailable' : 'silent'} system audio`, async ({ launchApp }) => {
@@ -6,7 +7,7 @@ for (const unavailable of [false, true]) {
       STENOAI_E2E_RENDERER_PLATFORM: 'darwin',
       STENOAI_E2E_MOCK_PARAKEET_INSTALLED: '1',
     } });
-    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('button', { name: ui('sidebar.home'), exact: true }).click();
     // Keep the real capture graph and timers, with deterministic device input.
     // Hidden Chromium windows may suspend Web Audio, so sample values are supplied
     // at the browser analyser boundary rather than relying on a playing oscillator.
@@ -36,10 +37,10 @@ for (const unavailable of [false, true]) {
       };
     }, unavailable);
     await page.evaluate(() => window.stenoai.recording.start('In-person meeting'));
-    await page.getByRole('button', { name: 'Open recording in progress' }).click();
+    await page.getByRole('button', { name: uiPart('mainToolbar.openRecording') }).click();
     await expect(page.getByTestId('capture-check')).toBeVisible();
     if (!unavailable) {
-      await expect(page.getByRole('meter', { name: 'Microphone level' }))
+      await expect(page.getByRole('meter', { name: uiPart('recording.label_level', { label: uiText('recording.microphone') }) }))
         .toHaveAttribute('aria-valuenow', /[1-9][0-9]*/);
     }
     // Advance just Date, leaving media and sampling timers running normally.
@@ -49,7 +50,7 @@ for (const unavailable of [false, true]) {
     });
     if (unavailable) {
       await expect(page.getByTestId('capture-check-warning'))
-        .toContainText('System audio is not being recorded');
+        .toContainText(uiPart('recording.systemAudioIsNotBeing'));
     } else {
       await expect(page.getByTestId('capture-check')).toBeHidden();
       await expect(page.getByTestId('capture-check-warning')).toHaveCount(0);

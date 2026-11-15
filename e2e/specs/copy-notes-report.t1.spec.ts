@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/electron';
 import type { Page } from '@playwright/test';
+import { uiPart, uiText } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC, no backend. "Copy notes" must copy whichever
@@ -47,7 +48,7 @@ test('Copy notes copies the open report, and the Standard note when none is open
   await page.evaluate((f) => {
     window.location.hash = `#/meetings/${encodeURIComponent(f)}`;
   }, SUMMARY_FILE);
-  await expect(page.getByRole('button', { name: 'Copy notes' })).toBeVisible();
+  await expect(page.getByRole('button', { name: uiPart('meetingDetail.copyNotes') })).toBeVisible();
 
   // The seeded report lives in the view-toggle's template dropdown (opened
   // from the right side of the split pill).
@@ -58,11 +59,11 @@ test('Copy notes copies the open report, and the Standard note when none is open
   await page.keyboard.press('Escape');
 
   // Standard note open (active_report is null) → the structured-note copy.
-  await page.getByRole('button', { name: 'Copy notes' }).click();
+  await page.getByRole('button', { name: uiPart('meetingDetail.copyNotes') }).click();
   let writes = await clipboardWrites(page);
   expect(writes).toHaveLength(1);
   expect(writes[0]).toContain('Epsilon Planning');
-  expect(writes[0]).toContain('PARTICIPANTS');
+  expect(writes[0]).toContain(uiText('notesCopy.participants'));
   expect(writes[0]).toContain('Alice, Bob');
   expect(writes[0]).not.toContain('## Status Report');
 
@@ -70,23 +71,23 @@ test('Copy notes copies the open report, and the Standard note when none is open
   await page.getByTestId('note-view-menu-trigger').click();
   await menu.getByRole('button', { name: /^Status Report/ }).click();
   await expect(page.getByTestId('meeting-detail')).toContainText('Pipeline healthy');
-  await page.getByRole('button', { name: 'Copy notes' }).click();
+  await page.getByRole('button', { name: uiPart('meetingDetail.copyNotes') }).click();
   writes = await clipboardWrites(page);
   expect(writes).toHaveLength(2);
   expect(writes[1]).toContain('Epsilon Planning');
   expect(writes[1]).toContain('- Pipeline healthy');
   expect(writes[1]).toContain('- Next: open the reqs');
-  expect(writes[1]).not.toContain('PARTICIPANTS');
+  expect(writes[1]).not.toContain(uiText('notesCopy.participants'));
   // The seeded report starts with a <think> block; the copy must strip
   // reasoning like the rendered view does.
   expect(writes[1]).not.toContain('secret chain of thought');
 
   // Switching back to Summary (Standard) restores the structured-note copy.
   await page.getByTestId('note-view-menu-trigger').click();
-  await menu.getByRole('button', { name: 'Summary' }).click();
-  await page.getByRole('button', { name: 'Copy notes' }).click();
+  await menu.getByRole('button', { name: uiPart('models.fn.summary') }).click();
+  await page.getByRole('button', { name: uiPart('meetingDetail.copyNotes') }).click();
   writes = await clipboardWrites(page);
   expect(writes).toHaveLength(3);
-  expect(writes[2]).toContain('PARTICIPANTS');
+  expect(writes[2]).toContain(uiText('notesCopy.participants'));
   expect(writes[2]).not.toContain('Pipeline healthy');
 });

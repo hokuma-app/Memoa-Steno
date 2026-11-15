@@ -2,6 +2,7 @@ import { mkdirSync } from 'fs';
 import path from 'path';
 import { test, expect } from '../fixtures/electron';
 import type { Page } from '@playwright/test';
+import { uiPart } from '../fixtures/ui-copy';
 
 // Model-free: the mock IPC layer stands in for the backend (documents in the host's schema 2). Screenshots and short
 // frame series go to SUMMARY_FOLD_SHOTS (or the Playwright output dir) for a visual review.
@@ -47,7 +48,7 @@ test('all five levels work at once from local levels, morph word by word, then m
   const { app, page } = await launchApp({ mockIpc: true, releaseHighlightsSeen: true, env: { ...ENV, STENOAI_E2E_FOLD_STEP_MS: '1500' } });
   await page.setViewportSize({ width: 1440, height: 900 });
   await openNote(page);
-  await expect(page.getByRole('button', { name: 'Copy transcript' })).toBeVisible();
+  await expect(page.getByRole('button', { name: uiPart('askBar.copyTranscript') })).toBeVisible();
   // The levels are there without a button and without waiting for the model: local levels, marked as provisional.
   await expect(panel(page)).toHaveAttribute('data-provenance', 'local');
   await expect(bar(page)).toBeVisible();

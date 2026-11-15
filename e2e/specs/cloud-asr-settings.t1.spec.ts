@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { uiPart, uiText } from '../fixtures/ui-copy';
 
 async function openAiSettings(page: import('@playwright/test').Page) {
   await page.evaluate(() => {
@@ -9,7 +10,7 @@ async function openAiSettings(page: import('@playwright/test').Page) {
 
 async function chooseCloudApi(page: import('@playwright/test').Page) {
   await page.getByTestId('transcription-model-select').click();
-  await page.getByRole('option', { name: /cloud api/i }).click();
+  await page.getByRole('option', { name: uiPart('settings.ai.cloudAsr.providerLabel') }).click();
 }
 
 test('cloud ASR requires confirmation and honours cancellation', async ({ launchApp }) => {
@@ -18,14 +19,14 @@ test('cloud ASR requires confirmation and honours cancellation', async ({ launch
 
   await chooseCloudApi(page);
   const dialog = page.locator('[data-confirm-dialog]');
-  await expect(dialog).toContainText('Send audio to a cloud service?');
-  await expect(dialog).toContainText('audio leaves your computer');
-  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toContainText(uiPart('settings.ai.cloudAsr.confirmTitle'));
+  await expect(dialog).toContainText(uiText('settings.ai.cloudAsr.confirmDescription'));
+  await dialog.getByRole('button', { name: uiPart('models.cancel') }).click();
 
   await expect(page.getByTestId('openai-asr-config')).toHaveCount(0);
 
   await chooseCloudApi(page);
-  await dialog.getByRole('button', { name: 'Use cloud ASR' }).click();
+  await dialog.getByRole('button', { name: uiPart('settings.ai.cloudAsr.confirmAction') }).click();
   await expect(page.getByTestId('openai-asr-config')).toBeVisible();
 });
 
@@ -36,14 +37,14 @@ test('cloud ASR save failures stay visible and restore the committed endpoint', 
   });
   await openAiSettings(page);
   await chooseCloudApi(page);
-  await page.locator('[data-confirm-dialog]').getByRole('button', { name: 'Use cloud ASR' }).click();
+  await page.locator('[data-confirm-dialog]').getByRole('button', { name: uiPart('settings.ai.cloudAsr.confirmAction') }).click();
 
   const config = page.getByTestId('openai-asr-config');
-  const endpoint = config.getByLabel('API base URL');
+  const endpoint = config.getByLabel(uiPart('settings.ai.cloudAsr.apiBaseUrlLabel'));
   await endpoint.fill('https://rejected.example/v1');
   await endpoint.blur();
 
-  await expect(config.getByRole('alert')).toContainText('previous value is still active');
+  await expect(config.getByRole('alert')).toContainText(uiText('settings.ai.cloudAsr.saveSettingError'));
   await expect(endpoint).toHaveValue('https://api.openai.com/v1');
 });
 
@@ -57,12 +58,12 @@ test('clearing a saved key wins over the replacement queued by input blur', asyn
   });
   await openAiSettings(page);
   await chooseCloudApi(page);
-  await page.locator('[data-confirm-dialog]').getByRole('button', { name: 'Use cloud ASR' }).click();
+  await page.locator('[data-confirm-dialog]').getByRole('button', { name: uiPart('settings.ai.cloudAsr.confirmAction') }).click();
 
   const config = page.getByTestId('openai-asr-config');
-  await config.getByLabel('API key').fill('replacement-key');
-  await config.getByRole('button', { name: 'Clear' }).click();
+  await config.getByLabel(uiPart('settings.ai.cloudAsr.apiKeyLabel')).fill('replacement-key');
+  await config.getByRole('button', { name: uiPart('settings.ai.cloudAsr.clearAction') }).click();
 
-  await expect(config).toContainText('Stored encrypted on your device');
-  await expect(config.getByRole('button', { name: 'Clear' })).toHaveCount(0);
+  await expect(config).toContainText(uiText('settings.ai.cloudAsr.keyEmptyDescription'));
+  await expect(config.getByRole('button', { name: uiPart('settings.ai.cloudAsr.clearAction') })).toHaveCount(0);
 });

@@ -10,7 +10,7 @@
   "transcript.languageUnavailable": "Niet vastgelegd",
   "transcript.selectedLanguageHint": "De transcriptiemotor meldt mogelijk de gekozen taal in plaats van die zelf te herkennen.",
   "transcript.unknownLanguageHint": "De transcriptiemotor heeft geen herkende taal gemeld. De taal van de notities kan uit het transcript worden afgeleid.",
-  "transcript.retryLanguageHint": "Wil je een andere taal proberen, kies dan Opnieuw transcriberen in het menu van de notitie. Daarvoor is de originele opname nodig; het transcript wordt vervangen en de notities worden opnieuw gemaakt.",
+  "transcript.retryLanguageHint": "Wil je een andere taal proberen, kies dan Opname opnieuw transcriberen in het menu van de notitie. Daarvoor is de originele opname nodig; het transcript wordt vervangen en de notities worden opnieuw gemaakt.",
   "settings.ai.localParakeetHint": "Aanbevolen lokale optie · audio blijft op dit apparaat",
   "meeting.transcriptionProgress": "Audio transcriberen: {{done}}/{{total}} delen klaar",
   "settings.ai.cloudAsr.disclosure": "Spraak-naar-tekst gaat naar een OpenAI-compatibel cloudadres. Anders dan bij de lokale motoren verlaat je audio je computer.",

@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { ui, uiPart, uiText } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC. Pins the Chat composer's model indicator
@@ -55,7 +56,7 @@ test('remote provider shows "Remote Ollama · <model>"', async ({ launchApp }) =
   });
 
   const label = page.locator(indicator).first();
-  await expect(label).toHaveText('Remote Ollama · gemma4:e2b-it-qat');
+  await expect(label).toHaveText(uiText('chat.remoteOllama', { model: 'gemma4:e2b-it-qat' }));
 });
 
 test('org/adapter provider shows "Organisation", never a cloud model id', async ({ launchApp }) => {
@@ -67,9 +68,9 @@ test('org/adapter provider shows "Organisation", never a cloud model id', async 
   });
   await expect(page.getByTestId('org-sign-in-card')).toBeVisible();
   await page.getByPlaceholder('https://steno-adapter.yourcompany.com').fill('https://e2e.example.com');
-  await page.getByPlaceholder('you@yourcompany.com').fill('e2e@example.com');
+  await page.getByPlaceholder(uiPart('settingsOrganisationTab.youYourcompanyCom')).fill('e2e@example.com');
   await page.getByPlaceholder('••••••').fill('hunter2');
-  await page.getByRole('button', { name: /sign in with password/i }).click();
+  await page.getByRole('button', { name: uiPart('settingsOrganisationTab.signInWithPassword') }).click();
   await expect(page.getByTestId('org-signed-in-card')).toBeVisible();
 
   await page.evaluate(() => {
@@ -78,5 +79,5 @@ test('org/adapter provider shows "Organisation", never a cloud model id', async 
 
   const label = page.locator(indicator).first();
   await expect(label).toBeVisible();
-  await expect(label).toHaveText('Organisation');
+  await expect(label).toHaveText(ui('settingsAiTab.organisation'));
 });

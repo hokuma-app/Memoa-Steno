@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { uiPart } from '../fixtures/ui-copy';
 
 /**
  * T1 — instant stop, renderer behaviour (mock IPC). On stop, main returns the
@@ -39,7 +40,7 @@ test('stopping navigates straight to the note (no /meetings/processing takeover)
   await page.evaluate(() => window.stenoai.recording.start('Instant Note'));
   const pill = page.getByTestId('transcription-pill');
   await expect(pill).toBeVisible();
-  await pill.getByRole('button', { name: 'Stop recording' }).click();
+  await pill.getByRole('button', { name: uiPart('mainToolbar.stopRecording') }).click();
 
   // Instant stop: land on the note, never the processing dock.
   await expect

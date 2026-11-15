@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/electron';
 import { emitLiveSegments, type LiveSegmentInput } from '../fixtures/live-transcript';
 import type { ElectronApplication, Page } from '@playwright/test';
+import { ui, uiText } from '../fixtures/ui-copy';
 
 type LaneLauncher = (options: { mockIpc: boolean; fakeAudio: boolean; env: Record<string, string> }) => Promise<{ app: ElectronApplication; page: Page }>;
 async function launchLaneApp(launchApp: LaneLauncher, extraEnv: Record<string, string> = {}) {
@@ -55,7 +56,7 @@ async function bubbles(page: import('@playwright/test').Page) {
 test('a partial is replaced in place, then retired by its final', async ({ launchApp }) => {
   const { app, page } = await launchLaneApp(launchApp);
   await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
-  await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
+  await page.getByTestId('transcription-pill').getByRole('button', { name: ui('liveDock.showTranscript') }).click();
   const panel = page.getByTestId('live-transcript-panel');
   await expect(panel).toBeVisible();
 
@@ -81,7 +82,7 @@ test('both channels can have an in-progress bubble at once, below the finalised 
 }) => {
   const { app, page } = await launchLaneApp(launchApp);
   await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
-  await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
+  await page.getByTestId('transcription-pill').getByRole('button', { name: ui('liveDock.showTranscript') }).click();
   const panel = page.getByTestId('live-transcript-panel');
   await expect(panel).toBeVisible();
 
@@ -114,7 +115,7 @@ test('a late final sorts into place instead of landing at the end', async ({ lau
   // out of order.
   const { app, page } = await launchLaneApp(launchApp);
   await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
-  await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
+  await page.getByTestId('transcription-pill').getByRole('button', { name: ui('liveDock.showTranscript') }).click();
   const panel = page.getByTestId('live-transcript-panel');
   await expect(panel).toBeVisible();
 
@@ -148,7 +149,7 @@ test('a note continued twice renders every carried-over line, in order', async (
   const { app, page } = await launchLaneApp(launchApp, { STENOAI_E2E_SEED_PRIOR_SEGMENTS: 'twice' });
 
   await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
-  await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
+  await page.getByTestId('transcription-pill').getByRole('button', { name: ui('liveDock.showTranscript') }).click();
   const panel = page.getByTestId('live-transcript-panel');
   await expect(panel).toBeVisible();
   await expect(panel.getByText('second session bit two')).toBeVisible();
@@ -161,7 +162,7 @@ test('a note continued twice renders every carried-over line, in order', async (
     'earlier bit two',
     'second session bit one',
     'second session bit two',
-    'Resumed',
+    uiText('liveTranscriptBar.resumed'),
     'and the third session starts here',
   ]);
 });
@@ -173,7 +174,7 @@ test('resumed note: the divider sits between the carried-over text and the new t
   // get-live-transcript-state backfill (see pill-dock.t1).
   const { app, page } = await launchLaneApp(launchApp, { STENOAI_E2E_SEED_PRIOR_SEGMENTS: '1' });
   await page.evaluate((name) => window.stenoai.recording.start(name), SESSION);
-  await page.getByTestId('transcription-pill').getByRole('button', { name: 'Show transcript' }).click();
+  await page.getByTestId('transcription-pill').getByRole('button', { name: ui('liveDock.showTranscript') }).click();
   const panel = page.getByTestId('live-transcript-panel');
   await expect(panel).toBeVisible();
   await expect(panel.getByText('earlier bit one')).toBeVisible();
@@ -187,7 +188,7 @@ test('resumed note: the divider sits between the carried-over text and the new t
   expect(await bubbles(page)).toEqual([
     'earlier bit one',
     'earlier bit two',
-    'Resumed',
+    uiText('liveTranscriptBar.resumed'),
     'and now the new bit',
   ]);
 });

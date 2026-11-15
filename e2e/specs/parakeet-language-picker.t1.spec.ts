@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/electron';
 import type { Page } from '@playwright/test';
+import { uiPart, uiText } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC, no backend. Proves the Settings → Transcribe
@@ -15,9 +16,12 @@ import type { Page } from '@playwright/test';
  * app/e2e-mock-ipc.js) so the picker renders enabled on first paint.
  */
 
-const EUROPEAN = ['English', 'Spanish', 'French', 'German', 'Dutch', 'Portuguese', 'Russian'];
+const EUROPEAN = ['english', 'spanish', 'french', 'german', 'dutch', 'portuguese', 'russian']
+  .map((language) => uiText(`transcriptionLanguages.${language}`));
 // Non-European: Whisper-only, must NOT appear on Parakeet (it can't transcribe them).
-const NON_EUROPEAN = ['Japanese', 'Chinese', 'Korean', 'Hindi', 'Arabic'];
+const NON_EUROPEAN = ['japanese', 'korean', 'hindi', 'arabic']
+  .map((language) => uiText(`settingsLanguages.${language}`))
+  .concat(['Chinese']);
 
 async function openTranscribeLanguagePicker(page: Page) {
   await page.evaluate(() => {
@@ -39,7 +43,7 @@ test('Parakeet language picker offers European languages and hides non-European 
   await openTranscribeLanguagePicker(page);
 
   // Auto + the seven European languages are pinnable on Parakeet.
-  await expect(page.getByRole('option', { name: 'Auto (detect)' })).toBeVisible();
+  await expect(page.getByRole('option', { name: uiPart('settingsLanguages.autoDetect') })).toBeVisible();
   for (const lang of EUROPEAN) {
     await expect(page.getByRole('option', { name: lang, exact: true })).toBeVisible();
   }

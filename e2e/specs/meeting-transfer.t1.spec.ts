@@ -1,6 +1,7 @@
 import { test, expect } from "../fixtures/electron";
 import { writeFileSync } from "fs";
 import path from "path";
+import { uiPart } from '../fixtures/ui-copy';
 
 const TRANSFER_ENV = {
   STENOAI_E2E_MEETING_TRANSFER: "1",
@@ -18,8 +19,8 @@ test("Import Steno package opens the imported Swift note on My notes", async ({
 }) => {
   const { app, page } = await launchApp({ mockIpc: true, env: TRANSFER_ENV });
 
-  await page.getByRole("button", { name: "Recording options" }).click();
-  await page.getByRole("button", { name: "Import Steno package…" }).click();
+  await page.getByRole("button", { name: uiPart('mainToolbar.recordingOptions') }).click();
+  await page.getByRole("button", { name: uiPart('useMeetingTransfer.importStenoPackage') }).click();
 
   await expect(page).toHaveURL(/#\/meetings\/imported-swift-note_summary\.md/);
   await expect(page.getByTestId("tab-notes")).toHaveAttribute(
@@ -85,18 +86,18 @@ test("meeting-transfer actions stay hidden on Windows", async ({
     env: { ...TRANSFER_ENV, STENOAI_E2E_RENDERER_PLATFORM: "win32" },
   });
 
-  await page.getByRole("button", { name: "Recording options" }).click();
+  await page.getByRole("button", { name: uiPart('mainToolbar.recordingOptions') }).click();
   await expect(
-    page.getByRole("button", { name: "Import Steno package…" }),
+    page.getByRole("button", { name: uiPart('useMeetingTransfer.importStenoPackage') }),
   ).toHaveCount(0);
 
   await page.evaluate(() => {
     window.location.hash = "#/meetings/imported-swift-note_summary.md";
   });
   await expect(page.getByTestId("meeting-detail")).toBeVisible();
-  await page.getByRole("button", { name: "More options" }).click();
+  await page.getByRole("button", { name: uiPart('meetingDetail.moreOptions') }).click();
   await expect(
-    page.getByRole("button", { name: "Share Steno package…" }),
+    page.getByRole("button", { name: uiPart('useMeetingTransfer.shareStenoPackage') }),
   ).toHaveCount(0);
 });
 
@@ -116,9 +117,9 @@ test("Share Steno package is disabled while the note is processing", async ({
     window.location.hash = "#/meetings/processing_summary.md";
   });
   await expect(page.getByTestId("meeting-detail")).toBeVisible();
-  await page.getByRole("button", { name: "More options" }).click();
+  await page.getByRole("button", { name: uiPart('meetingDetail.moreOptions') }).click();
   await expect(
-    page.getByRole("button", { name: "Share Steno package…" }),
+    page.getByRole("button", { name: uiPart('useMeetingTransfer.shareStenoPackage') }),
   ).toBeDisabled();
 });
 
@@ -128,15 +129,15 @@ test("package actions are disabled while another meeting is processing", async (
   const { page } = await launchApp({ mockIpc: true, env: {
     ...TRANSFER_ENV, STENOAI_E2E_QUEUE_STATE_PATH: queue,
   } });
-  await page.getByRole("button", { name: "Recording options" }).click();
-  await expect(page.getByRole("button", { name: "Import Steno package…" })).toBeDisabled();
+  await page.getByRole("button", { name: uiPart('mainToolbar.recordingOptions') }).click();
+  await expect(page.getByRole("button", { name: uiPart('useMeetingTransfer.importStenoPackage') })).toBeDisabled();
   await page.keyboard.press("Escape");
   await page.evaluate(() => { window.location.hash = "#/meetings/imported-swift-note_summary.md"; });
   await expect(page.getByTestId("meeting-detail")).toBeVisible();
-  await page.getByRole("button", { name: "More options" }).click();
-  await expect(page.getByRole("button", { name: "Share Steno package…" })).toBeDisabled();
+  await page.getByRole("button", { name: uiPart('meetingDetail.moreOptions') }).click();
+  await expect(page.getByRole("button", { name: uiPart('useMeetingTransfer.shareStenoPackage') })).toBeDisabled();
   writeFileSync(queue, JSON.stringify({ isProcessing: false }));
-  await expect(page.getByRole("button", { name: "Share Steno package…" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: uiPart('useMeetingTransfer.shareStenoPackage') })).toBeEnabled();
 });
 
 test("package actions wait for the initial recording status", async ({ launchApp, userDataDir }) => {
@@ -145,13 +146,13 @@ test("package actions wait for the initial recording status", async ({ launchApp
   const { app, page } = await launchApp({ mockIpc: true, env: {
     ...TRANSFER_ENV, STENOAI_E2E_QUEUE_STATE_PATH: queue,
   } });
-  await page.getByRole("button", { name: "Recording options" }).click();
-  await expect(page.getByRole("button", { name: "Import Steno package…" })).toBeDisabled();
+  await page.getByRole("button", { name: uiPart('mainToolbar.recordingOptions') }).click();
+  await expect(page.getByRole("button", { name: uiPart('useMeetingTransfer.importStenoPackage') })).toBeDisabled();
   await page.keyboard.press("Escape");
   await page.evaluate(() => { window.location.hash = "#/meetings/imported-swift-note_summary.md"; });
   await expect(page.getByTestId("meeting-detail")).toBeVisible();
-  await page.getByRole("button", { name: "More options" }).click();
-  await expect(page.getByRole("button", { name: "Share Steno package…" })).toBeDisabled();
+  await page.getByRole("button", { name: uiPart('meetingDetail.moreOptions') }).click();
+  await expect(page.getByRole("button", { name: uiPart('useMeetingTransfer.shareStenoPackage') })).toBeDisabled();
   await expect.poll(() => app.evaluate(() => (globalThis as any).__pendingTransferQueue?.length ?? 0)).toBeGreaterThan(0);
   writeFileSync(queue, JSON.stringify({ holdForTransferTest: false }));
   await app.evaluate(() => {
@@ -160,7 +161,7 @@ test("package actions wait for the initial recording status", async ({ launchApp
       resolve();
     }
   });
-  await expect(page.getByRole("button", { name: "Share Steno package…" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: uiPart('useMeetingTransfer.shareStenoPackage') })).toBeEnabled();
   expect((await page.evaluate(() => (window as any).stenoai.recording.getQueue())).success).toBe(true);
   expect(await app.evaluate(() => ((globalThis as any).__pendingTransferQueue ?? []).length)).toBe(0);
 });

@@ -80,6 +80,10 @@ export const test = base.extend<Fixtures>({
         //
         // Until the i18n foundation reads this variable it is inert — written down here
         // first so the contract exists before anything depends on it.
+        //
+        // The interface language follows the renderer build (Dutch in the Veneta build).
+        // Specs that run against both builds name catalogue keys through
+        // fixtures/ui-copy.ts, which returns the text of the build under test.
         STENOAI_UI_LANGUAGE: 'en',
         ...(opts.mockIpc ? { STENOAI_E2E_MOCK_IPC: '1' } : {}),
         ...(opts.env ?? {}),

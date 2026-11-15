@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/electron';
 import type { Page } from '@playwright/test';
+import { uiPart, uiSource } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC. The coexisting transcription pill dock: a
@@ -52,14 +53,14 @@ test('recording coexists: pill docks next to an enabled Ask bar, expands, stops 
   // Adjacent row: pill + Ask bar share the primary dock row, and the Ask bar
   // is visible and enabled.
   await expect(page.getByTestId('primary-dock-row')).toBeVisible();
-  const askInput = page.getByRole('textbox', { name: 'Ask anything…' });
+  const askInput = page.getByRole('textbox', { name: uiPart('chat.general.placeholder') });
   await expect(askInput).toBeVisible();
   await expect(askInput).toBeEnabled();
 
   // Compact pill = wave + elapsed + expand + stop glyph. NO pause control —
   // stop is the new pause.
-  await expect(pill.getByRole('button', { name: 'Show transcript' })).toBeVisible();
-  await expect(pill.getByRole('button', { name: 'Stop recording' })).toBeVisible();
+  await expect(pill.getByRole('button', { name: uiPart('askBar.showTranscript') })).toBeVisible();
+  await expect(pill.getByRole('button', { name: uiPart('mainToolbar.stopRecording') })).toBeVisible();
   await expect(pill.getByRole('button', { name: 'Pause recording' })).toHaveCount(0);
 
   // Collision invariant: the saved-meeting 72-band panels never render for
@@ -73,7 +74,7 @@ test('recording coexists: pill docks next to an enabled Ask bar, expands, stops 
     window.location.hash = '#/settings';
   });
   await expect(page.getByTestId('transcription-pill')).toBeVisible();
-  await expect(page.getByRole('textbox', { name: 'Ask anything…' })).toBeHidden();
+  await expect(page.getByRole('textbox', { name: uiPart('chat.general.placeholder') })).toBeHidden();
 
   // Processing route: recording wins the slot (back-to-back notes) — the
   // pill + Stop stay reachable instead of being displaced by ProcessingDock.
@@ -89,20 +90,20 @@ test('recording coexists: pill docks next to an enabled Ask bar, expands, stops 
 
   // Expand: the live transcript panel replaces the row; its footer owns Stop
   // (and language) — and has NO pause either. Collapse returns to the pill.
-  await pill.getByRole('button', { name: 'Show transcript' }).click();
+  await pill.getByRole('button', { name: uiPart('askBar.showTranscript') }).click();
   const panel = page.getByTestId('live-transcript-panel');
   await expect(panel).toBeVisible();
   await expect(page.getByTestId('primary-dock-row')).toBeHidden();
-  await expect(panel.getByRole('button', { name: 'Stop recording' })).toBeVisible();
+  await expect(panel.getByRole('button', { name: uiPart('mainToolbar.stopRecording') })).toBeVisible();
   await expect(panel.getByRole('button', { name: 'Pause recording' })).toHaveCount(0);
-  await panel.getByRole('button', { name: 'Minimize transcript' }).click();
+  await panel.getByRole('button', { name: uiPart('liveTranscriptBar.minimizeTranscript') }).click();
   await expect(page.getByTestId('transcription-pill')).toBeVisible();
 
   // Stop from the pill → the renderer transitions to the processing dock
   // (processing still owns the screen; only recording coexists).
   await page
     .getByTestId('transcription-pill')
-    .getByRole('button', { name: 'Stop recording' })
+    .getByRole('button', { name: uiPart('mainToolbar.stopRecording') })
     .click();
   await expect
     .poll(() => page.evaluate(() => window.location.hash), { timeout: 10_000 })
@@ -131,17 +132,17 @@ test('auto-pause rescue: Resume appears only when the system paused the recordin
   const pill = await startInBackground(page);
 
   // No resume while recording normally.
-  await expect(pill.getByRole('button', { name: 'Resume recording' })).toHaveCount(0);
+  await expect(pill.getByRole('button', { name: uiPart('liveDock.resumeRecording') })).toHaveCount(0);
 
   // Simulate a system auto-pause (sleep / meeting-app mic drop) via the same
   // IPC the auto-pause path calls. The pill must offer Resume so the user is
   // never stranded (there is no manual pause control to undo).
   await page.evaluate(() => window.stenoai.recording.pause());
-  const resume = pill.getByRole('button', { name: 'Resume recording' });
+  const resume = pill.getByRole('button', { name: uiPart('liveDock.resumeRecording') });
   await expect(resume).toBeVisible();
   await resume.click();
-  await expect(pill.getByRole('button', { name: 'Resume recording' })).toHaveCount(0);
-  await expect(pill.getByRole('button', { name: 'Stop recording' })).toBeVisible();
+  await expect(pill.getByRole('button', { name: uiPart('liveDock.resumeRecording') })).toHaveCount(0);
+  await expect(pill.getByRole('button', { name: uiPart('mainToolbar.stopRecording') })).toBeVisible();
 });
 
 test('resume: the live transcript panel shows the earlier bits carried over from before the stop', async ({
@@ -160,7 +161,7 @@ test('resume: the live transcript panel shows the earlier bits carried over from
   const pill = await startInBackground(page);
 
   // Expand into the live transcript panel.
-  await pill.getByRole('button', { name: 'Show transcript' }).click();
+  await pill.getByRole('button', { name: uiPart('askBar.showTranscript') }).click();
   const panel = page.getByTestId('live-transcript-panel');
   await expect(panel).toBeVisible();
 
@@ -179,9 +180,9 @@ test('whisper variant: compact pill has no expand and no pause', async ({ launch
 
   // No live transcript on Whisper: no expand affordance; and no pause —
   // stop-only, like Parakeet.
-  await expect(pill.getByRole('button', { name: 'Show transcript' })).toHaveCount(0);
+  await expect(pill.getByRole('button', { name: uiPart('askBar.showTranscript') })).toHaveCount(0);
   await expect(pill.getByRole('button', { name: 'Pause recording' })).toHaveCount(0);
-  await expect(pill.getByRole('button', { name: 'Stop recording' })).toBeVisible();
+  await expect(pill.getByRole('button', { name: uiPart('mainToolbar.stopRecording') })).toBeVisible();
 });
 
 test('continue-recording: the transcript panel footer offers Resume (Granola-style)', async ({
@@ -200,7 +201,7 @@ test('continue-recording: the transcript panel footer offers Resume (Granola-sty
   await expect(page.getByTestId('continue-recording-button')).toHaveCount(0);
 
   // Open the transcript (the Ask bar composer toggle) → the footer shows Resume.
-  await page.getByRole('button', { name: 'Show transcript' }).click();
+  await page.getByRole('button', { name: uiPart('askBar.showTranscript') }).click();
   const resume = page.getByTestId('resume-recording-button');
   await expect(resume).toBeVisible();
 
@@ -209,7 +210,7 @@ test('continue-recording: the transcript panel footer offers Resume (Granola-sty
   await resume.click();
   await expect(page.getByTestId('transcription-pill')).toBeVisible();
   await expect(page.getByTestId('resume-recording-button')).toHaveCount(0);
-  await expect(page.getByRole('textbox', { name: 'Ask anything…' })).toBeEnabled();
+  await expect(page.getByRole('textbox', { name: uiPart('chat.general.placeholder') })).toBeEnabled();
 });
 
 test('stale note (continued): floating CTA reads Generate notes', async ({ launchApp }) => {
@@ -225,5 +226,5 @@ test('stale note (continued): floating CTA reads Generate notes', async ({ launc
   });
   const cta = page.getByTestId('generate-notes-dock-button');
   await expect(cta).toBeVisible();
-  await expect(cta).toHaveText(/Generate notes/);
+  await expect(cta).toHaveText(new RegExp(uiSource('meetingDetail.generateNotes')));
 });

@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/electron';
 import type { Page } from '@playwright/test';
+import { uiPart } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC, no backend. Pins the DELETE INTERACTION itself
@@ -32,8 +33,8 @@ async function openDetail(page: Page) {
 }
 
 async function clickDeleteNote(page: Page) {
-  await page.getByRole('button', { name: 'More options' }).click();
-  await page.getByRole('button', { name: 'Delete note' }).click();
+  await page.getByRole('button', { name: uiPart('meetingDetail.moreOptions') }).click();
+  await page.getByRole('button', { name: uiPart('meetingDetail.deleteNote') }).click();
 }
 
 test('deleting a note takes one click — no confirm step, Undo is the safety net', async ({
@@ -45,7 +46,7 @@ test('deleting a note takes one click — no confirm step, Undo is the safety ne
   await clickDeleteNote(page);
 
   // The Undo toast is the proof the delete actually fired on that single click.
-  const toast = page.getByRole('status').filter({ hasText: 'Note deleted' });
+  const toast = page.getByRole('status').filter({ hasText: uiPart('undoDeleteToast.noteDeleted') });
   await expect(toast).toBeVisible();
   await expect(toast).toContainText(MEETING_NAME);
 
@@ -64,10 +65,10 @@ test('Undo restores the note and clears the toast', async ({ launchApp }) => {
 
   await clickDeleteNote(page);
 
-  const toast = page.getByRole('status').filter({ hasText: 'Note deleted' });
+  const toast = page.getByRole('status').filter({ hasText: uiPart('undoDeleteToast.noteDeleted') });
   await expect(toast).toBeVisible();
 
-  await toast.getByRole('button', { name: 'Undo' }).click();
+  await toast.getByRole('button', { name: uiPart('undoDeleteToast.undo') }).click();
 
   // Toast clears on a successful undo, and the restored row is back on Home —
   // the note survived a delete that was never confirmed.
@@ -92,8 +93,8 @@ test('deleting from the sidebar context menu also skips the confirm step', async
   await expect(row).toBeVisible();
   await row.click({ button: 'right' });
 
-  await page.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: uiPart('models.deleteConfirm') }).click();
 
-  await expect(page.getByRole('status').filter({ hasText: 'Note deleted' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: uiPart('undoDeleteToast.noteDeleted') })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });

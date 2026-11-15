@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { uiPart, uiText } from '../fixtures/ui-copy';
 
 /**
  * T1 - renderer-only, mock IPC, no backend. Regression guard for #354: the
@@ -33,7 +34,7 @@ test('summarization step renders a real progress bar + percent from setup-ollama
     window.location.hash = '#/setup';
   });
 
-  await page.getByRole('button', { name: 'Begin setup' }).click();
+  await page.getByRole('button', { name: uiPart('setup.beginSetup') }).click();
 
   const ollamaStep = page.locator('[data-setup-step="ollama"]');
   await expect(ollamaStep).toHaveAttribute('data-setup-status', 'running');
@@ -62,22 +63,25 @@ test('transcription step renders an indeterminate "preparing" bar (no fabricated
     window.location.hash = '#/setup';
   });
 
-  await page.getByRole('button', { name: 'Begin setup' }).click();
+  await page.getByRole('button', { name: uiPart('setup.beginSetup') }).click();
 
   const transcriptionStep = page.locator('[data-setup-step="transcription"]');
   await expect(transcriptionStep).toHaveAttribute('data-setup-status', 'running');
 
   const bar = transcriptionStep.locator('[data-setup-transcription-progress]');
   await expect(bar).toBeVisible();
-  await expect(bar.getByText('Downloading model…')).toBeVisible();
+  await expect(bar.getByText(uiPart('parakeetProgress.downloadingModel', { files: '', bytes: '' }))).toBeVisible();
   await expect(transcriptionStep.getByRole('progressbar')).toBeVisible();
 
   for (const [event, label] of [
-    [{ stage: 'preparing' }, 'Preparing download…'],
+    [{ stage: 'preparing' }, uiText('parakeetProgress.preparingDownload')],
     [{ stage: 'downloading', completed_files: 1, total_files: 2, file_bytes: 120000000 },
-      'Downloading model… 1 of 2 files ready. Current file: 120.0 MB available.'],
-    [{ stage: 'loading' }, 'Download complete. Preparing model…'],
-    [{ stage: 'complete' }, 'Model ready'],
+      uiText('parakeetProgress.downloadingModel', {
+        files: uiText('parakeetProgress.ofFilesReady', { completed_files: 1, total_files: 2 }),
+        bytes: uiText('parakeetProgress.currentFileMbAvailable', { value: '120.0' }),
+      })],
+    [{ stage: 'loading' }, uiText('parakeetProgress.downloadCompletePreparingModel')],
+    [{ stage: 'complete' }, uiText('parakeetProgress.modelReady')],
   ] as const) {
     await app.evaluate(({ BrowserWindow }, progress) => {
       BrowserWindow.getAllWindows()[0].webContents.send('parakeet-pull-progress', progress);
@@ -103,8 +107,8 @@ test('optional speaker model failure does not block the rest of onboarding', asy
   await page.evaluate(() => {
     window.location.hash = '#/setup';
   });
-  await page.getByRole('switch', { name: 'Separate individual speakers' }).click();
-  await page.getByRole('button', { name: 'Begin setup' }).click();
+  await page.getByRole('switch', { name: uiPart('setup.speakers.optInTitle') }).click();
+  await page.getByRole('button', { name: uiPart('setup.beginSetup') }).click();
 
   const speakerStep = page.locator('[data-setup-step="speakers"]');
   await expect(speakerStep).toHaveAttribute('data-setup-status', 'failed');
@@ -112,7 +116,7 @@ test('optional speaker model failure does not block the rest of onboarding', asy
     'data-setup-status',
     'done',
   );
-  await expect(page.getByRole('button', { name: 'Continue to app' })).toBeVisible();
+  await expect(page.getByRole('button', { name: uiPart('setup.continueToApp') })).toBeVisible();
 });
 
 test('speaker models are opt-in: onboarding skips them unless the switch is on', async ({ launchApp }) => {
@@ -127,10 +131,10 @@ test('speaker models are opt-in: onboarding skips them unless the switch is on',
   await page.evaluate(() => {
     window.location.hash = '#/setup';
   });
-  await expect(page.getByRole('switch', { name: 'Separate individual speakers' })).not.toBeChecked();
-  await page.getByRole('button', { name: 'Begin setup' }).click();
+  await expect(page.getByRole('switch', { name: uiPart('setup.speakers.optInTitle') })).not.toBeChecked();
+  await page.getByRole('button', { name: uiPart('setup.beginSetup') }).click();
 
-  await expect(page.getByRole('button', { name: 'Continue to app' })).toBeVisible();
+  await expect(page.getByRole('button', { name: uiPart('setup.continueToApp') })).toBeVisible();
   await expect(page.locator('[data-setup-step="speakers"]')).toHaveCount(0);
   const calls = await app.evaluate(() => (global as { __speakerModels?: { calls: number } }).__speakerModels?.calls ?? 0);
   expect(calls).toBe(0);
@@ -144,7 +148,7 @@ test('the speaker switch starts on when the models are already installed', async
   await page.evaluate(() => {
     window.location.hash = '#/setup';
   });
-  const toggle = page.getByRole('switch', { name: 'Separate individual speakers' });
+  const toggle = page.getByRole('switch', { name: uiPart('setup.speakers.optInTitle') });
   await expect(toggle).toBeChecked();
   // The user's own choice wins over the installed state.
   await toggle.click();
@@ -165,13 +169,13 @@ test('opted-in speaker download shows a real percent bar', async ({ launchApp })
   await page.evaluate(() => {
     window.location.hash = '#/setup';
   });
-  await page.getByRole('switch', { name: 'Separate individual speakers' }).click();
-  await page.getByRole('button', { name: 'Begin setup' }).click();
+  await page.getByRole('switch', { name: uiPart('setup.speakers.optInTitle') }).click();
+  await page.getByRole('button', { name: uiPart('setup.beginSetup') }).click();
 
   const speakerStep = page.locator('[data-setup-step="speakers"]');
   await expect(speakerStep).toHaveAttribute('data-setup-status', 'running');
   const bar = speakerStep.locator('[data-setup-speaker-progress]');
-  await expect(bar.getByText('Downloading speaker models…')).toBeVisible();
+  await expect(bar.getByText(uiPart('downloads.speakers.downloading'))).toBeVisible();
   await expect(bar.getByText('37%')).toBeVisible();
   await expect(speakerStep.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '37');
 
@@ -179,7 +183,7 @@ test('opted-in speaker download shows a real percent bar', async ({ launchApp })
     BrowserWindow.getAllWindows()[0].webContents.send('speaker-models-progress', { percent: 100, phase: 'compiling' });
   });
   // Compiling has nothing to measure: an activity bar, no percentage.
-  await expect(bar.getByText('Optimising speaker models for this Mac. This can take a minute or two…')).toBeVisible();
+  await expect(bar.getByText(uiPart('downloads.speakers.preparing'))).toBeVisible();
   await expect(bar.getByText('%')).toHaveCount(0);
   await expect(speakerStep.getByRole('progressbar')).not.toHaveAttribute('aria-valuenow');
 
@@ -195,7 +199,7 @@ test('Parakeet shows a real percent once the backend reports byte totals', async
   await page.evaluate(() => {
     window.location.hash = '#/setup';
   });
-  await page.getByRole('button', { name: 'Begin setup' }).click();
+  await page.getByRole('button', { name: uiPart('setup.beginSetup') }).click();
 
   const step = page.locator('[data-setup-step="transcription"]');
   await expect(step).toHaveAttribute('data-setup-status', 'running');
@@ -206,7 +210,7 @@ test('Parakeet shows a real percent once the backend reports byte totals', async
     });
   });
   const bar = step.locator('[data-setup-transcription-progress]');
-  await expect(bar.getByText('Downloading model… 1.3 GB of 2.5 GB', { exact: true })).toBeVisible();
+  await expect(bar.getByText(uiText('downloads.parakeet.bytes', { downloaded: '1.3 GB', total: '2.5 GB' }), { exact: true })).toBeVisible();
   await expect(bar.getByText('50%')).toBeVisible();
   await expect(step.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
 });
@@ -223,14 +227,14 @@ test('Settings downloads speaker models on demand with a percent bar', async ({ 
     window.location.hash = '#/settings?tab=ai';
   });
   const row = page.locator('[data-settings-speaker-models]');
-  await row.getByRole('button', { name: 'Download' }).click();
+  await row.getByRole('button', { name: uiPart('settings.ai.speakers.download') }).click();
   const bar = row.getByTestId('speaker-models-progress');
   await expect(bar.getByText('37%')).toBeVisible();
-  await expect(row.getByRole('progressbar', { name: 'Speaker model download progress' })).toHaveAttribute('aria-valuenow', '37');
+  await expect(row.getByRole('progressbar', { name: uiPart('downloads.speakers.ariaLabel') })).toHaveAttribute('aria-valuenow', '37');
 
   await app.evaluate(() => (global as { __speakerModels?: { finish: () => void } }).__speakerModels!.finish());
-  await expect(row.getByText('Installed')).toBeVisible();
-  await expect(row.getByRole('button', { name: 'Download' })).toHaveCount(0);
+  await expect(row.getByText(uiPart('settings.ai.speakers.installed'))).toBeVisible();
+  await expect(row.getByRole('button', { name: uiPart('settings.ai.speakers.download') })).toHaveCount(0);
 });
 
 test('speaker model setup is absent on non-macOS', async ({ launchApp }) => {
@@ -245,7 +249,7 @@ test('speaker model setup is absent on non-macOS', async ({ launchApp }) => {
   await page.evaluate(() => {
     window.location.hash = '#/setup';
   });
-  await page.getByRole('button', { name: 'Begin setup' }).click();
+  await page.getByRole('button', { name: uiPart('setup.beginSetup') }).click();
 
   await expect(page.locator('[data-setup-step="speakers"]')).toHaveCount(0);
   await expect(page.locator('[data-setup-step="ollama"]')).toHaveAttribute(
@@ -263,14 +267,14 @@ test('Settings displays Parakeet file progress next to the pending model selecti
   await page.getByTestId('transcription-model-select').click();
   await page.getByRole('option', { name: /Parakeet TDT v3/ }).click();
   await expect(page.getByTestId('transcription-model-select')).toBeDisabled();
-  await expect(page.getByRole('status').filter({ hasText: 'Current file: 120.0 MB available.' }))
+  await expect(page.getByRole('status').filter({ hasText: uiText('parakeetProgress.currentFileMbAvailable', { value: '120.0' }).trim() }))
     .toHaveCount(1);
   await app.evaluate(({ BrowserWindow }) => {
     const model = process.platform === 'darwin'
       ? 'mlx-community/parakeet-tdt-0.6b-v3' : 'istupakov/parakeet-tdt-0.6b-v3-onnx';
     BrowserWindow.getAllWindows()[0].webContents.send('parakeet-pull-progress', { model, stage: 'loading' });
   });
-  await expect(page.getByRole('status').filter({ hasText: 'Download complete. Preparing model…' }))
+  await expect(page.getByRole('status').filter({ hasText: uiPart('parakeetProgress.downloadCompletePreparingModel') }))
     .toHaveCount(1);
 });
 
@@ -280,7 +284,7 @@ for (const [platform, size] of [['darwin', '~2.5 GB'], ['win32', '~670 MB']] as 
       STENOAI_E2E_SETUP_PROGRESS: '1', STENOAI_E2E_RENDERER_PLATFORM: platform,
     } });
     await page.evaluate(() => { window.location.hash = '#/setup'; });
-    await page.getByRole('button', { name: 'Begin setup' }).click();
-    await expect(page.locator('[data-setup-step="transcription"]')).toContainText(`Downloading Parakeet TDT v3 (${size})...`);
+    await page.getByRole('button', { name: uiPart('setup.beginSetup') }).click();
+    await expect(page.locator('[data-setup-step="transcription"]')).toContainText(uiText('setup.downloadingParakeetTdtV3', { value: size }));
   });
 }

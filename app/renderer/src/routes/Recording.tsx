@@ -189,8 +189,8 @@ function CaptureCheckPanel() {
       {state.checking && (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px]" style={{ color: 'var(--fg-2)' }}>
           <span style={{ color: 'var(--fg-muted)' }}>{t('recording.checking_audio')}</span>
-          <LevelMeter icon={<Mic size={12} />} label={t('recording.microphone')} channel={state.mic} />
-          <LevelMeter icon={<Volume2 size={12} />} label={t('recording.system_audio')} channel={state.system} />
+          <LevelMeter id="mic" icon={<Mic size={12} />} label={t('recording.microphone')} channel={state.mic} />
+          <LevelMeter id="system" icon={<Volume2 size={12} />} label={t('recording.system_audio')} channel={state.system} />
         </div>
       )}
       {warnings.length > 0 && (
@@ -225,10 +225,11 @@ function CaptureCheckPanel() {
   );
 }
 
-function LevelMeter({ icon, label, channel }: { icon: React.ReactNode; label: string; channel: ChannelCheck }) {
+/** One channel of the capture check. `id` names the channel, independent of the translated label. */
+export function LevelMeter({ id, icon, label, channel }: { id: 'mic' | 'system'; icon: React.ReactNode; label: string; channel: ChannelCheck }) {
   const inactive = channel.status === 'off' || channel.status === 'unavailable';
   return (
-    <span className="inline-flex items-center gap-1.5" data-testid={`capture-meter-${label === 'Microphone' ? 'mic' : 'system'}`}>
+    <span className="inline-flex items-center gap-1.5" data-testid={`capture-meter-${id}`}>
       {icon}
       {label}
       {inactive ? (

@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electron';
+import { uiPart } from '../fixtures/ui-copy';
 
 /**
  * T1 — renderer-only, mock IPC. The overview's "original audio still exists"
@@ -42,6 +43,6 @@ test('only a note whose recording still exists shows the audio indicator', async
 
   // Named for screen readers, not a bare decorative glyph.
   await expect(
-    withAudio.getByLabel('Original audio still available'),
+    withAudio.getByLabel(uiPart('previousRow.originalAudioStillAvailable')),
   ).toBeVisible();
 });
