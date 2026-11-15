@@ -5,6 +5,10 @@ const crypto = require('node:crypto');
 const { CHECKLIST_REASONS } = require('./veneta-checklist-runner');
 
 const MODULE = 'conversation-checklist';
+// Optional modules of the Veneta profile. The checklist key is always stored; a newer module key is optional (absent = off),
+// so settings files written before that module existed stay valid and unchanged.
+const AGENDA_MODULE = 'agenda-chair';
+const MODULES = new Set([MODULE, AGENDA_MODULE]);
 const PROFILES = new Set(['default', 'veneta']);
 const STATES = new Set(['unmentioned', 'partial', 'covered', 'uncertain']);
 // Humans may also mark a point "Niet van toepassing" (with a short reason); the AI never may.
@@ -41,7 +45,8 @@ const onlyKeys = (value, keys) => object(value) && Object.keys(value).every((key
 
 function validateSettings(value) {
   if (!onlyKeys(value, ['schemaVersion', 'profile', 'modules']) || value.schemaVersion !== 1 ||
-      !PROFILES.has(value.profile) || !onlyKeys(value.modules, [MODULE]) || typeof value.modules[MODULE] !== 'boolean') {
+      !PROFILES.has(value.profile) || !onlyKeys(value.modules, [...MODULES]) || typeof value.modules[MODULE] !== 'boolean' ||
+      Object.values(value.modules).some((flag) => typeof flag !== 'boolean')) {
     throw new Error('Ongeldige productinstellingen.');
   }
   return clone(value);
@@ -104,7 +109,7 @@ function createProductSettingsStore({ userDataDir, defaultProfile = 'default' })
   const set = (patch) => {
     if (!onlyKeys(patch, ['profile', 'modules']) ||
         (Object.hasOwn(patch, 'profile') && !PROFILES.has(patch.profile)) ||
-        (Object.hasOwn(patch, 'modules') && (!onlyKeys(patch.modules, [MODULE]) ||
+        (Object.hasOwn(patch, 'modules') && (!onlyKeys(patch.modules, [...MODULES]) ||
           Object.values(patch.modules).some((value) => typeof value !== 'boolean')))) {
       throw new Error('Ongeldige wijziging van productinstellingen.');
     }
@@ -115,7 +120,7 @@ function createProductSettingsStore({ userDataDir, defaultProfile = 'default' })
   };
   return { filePath, get, set, moduleEnabled: (id) => {
     const settings = get();
-    return id === MODULE && settings.profile === 'veneta' && settings.modules[MODULE] === true;
+    return MODULES.has(id) && settings.profile === 'veneta' && settings.modules[id] === true;
   } };
 }
 
@@ -219,9 +224,11 @@ function sessionKey(sessionId) {
 
 function registerVenetaProductIpc({ ipcMain, getUserDataDir, defaultProfile = 'default', isBusy = () => false, evaluateChecklist,
   getLiveFinals = () => [], emitLiveState = () => {}, logLive = () => {}, liveTimers = {}, isOllamaBusy = () => false,
-  standardChecklistsDir = path.join(__dirname, 'veneta-standard-checklists') }) {
+  standardChecklistsDir = path.join(__dirname, 'veneta-standard-checklists'), modelSlot = { busy: false } }) {
   const store = () => createProductSettingsStore({ userDataDir: getUserDataDir(), defaultProfile });
-  let analysisBusy = false;
+  // One local model slot, shared with every Veneta module that analyses (the agenda chair passes the same object).
+  const slot = modelSlot;
+  const settingsListeners = new Set();
   ipcMain.handle('get-product-settings', async () => {
     try { return { success: true, settings: store().get() }; }
     catch (_) { return { success: false, error: 'Productinstellingen kunnen niet veilig worden gelezen.' }; }
@@ -229,7 +236,7 @@ function registerVenetaProductIpc({ ipcMain, getUserDataDir, defaultProfile = 'd
   ipcMain.handle('set-product-settings', async (_event, patch) => {
     try {
       const current = store();
-      if (Object.hasOwn(patch || {}, 'profile') && patch.profile !== current.get().profile && (isBusy() || analysisBusy)) {
+      if (Object.hasOwn(patch || {}, 'profile') && patch.profile !== current.get().profile && (isBusy() || slot.busy)) {
         return { success: false, error: 'Stop eerst de opname of lopende verwerking voordat je het profiel wisselt.' };
       }
       const settings = current.set(patch);
@@ -237,6 +244,7 @@ function registerVenetaProductIpc({ ipcMain, getUserDataDir, defaultProfile = 'd
         live.cancel();
         if (typeof evaluateChecklist?.cancelAll === 'function') evaluateChecklist.cancelAll();
       }
+      for (const listener of settingsListeners) { try { listener(); } catch (_) { /* A module reacts on its own; settings stay saved. */ } }
       return { success: true, settings };
     } catch (_) { return { success: false, error: 'Productinstellingen konden niet veilig worden opgeslagen.' }; }
   });
@@ -403,9 +411,9 @@ function registerVenetaProductIpc({ ipcMain, getUserDataDir, defaultProfile = 'd
       // The last check at stop competes with the summary of that very conversation (and any reprocess) for the one
       // local model: it yields and is retried by the planner, bounded.
       if (final) { let held = false; try { held = isOllamaBusy() === true; } catch (_) { held = false; } if (held) return fail('busy', 'Een samenvatting gebruikt het model.'); }
-      if (analysisBusy) return fail('busy', 'Er loopt al een checklistanalyse.');
+      if (slot.busy) return fail('busy', 'Er loopt al een checklistanalyse.');
       try { validateRequest(request); } catch (_) { return fail('invalid_request'); }
-      analysisBusy = true;
+      slot.busy = true;
       try {
         let raw;
         try { raw = await evaluateChecklist(clone(request)); }
@@ -414,7 +422,7 @@ function registerVenetaProductIpc({ ipcMain, getUserDataDir, defaultProfile = 'd
         try { response = validateAssessmentResponse(raw, request); } catch (_) { return fail('invalid_answer'); }
         if (!store().moduleEnabled(MODULE)) return fail('module_disabled', 'De Gesprekschecklist is inmiddels uitgeschakeld.');
         return { success: true, response };
-      } finally { analysisBusy = false; }
+      } finally { slot.busy = false; }
     } catch (_) { return fail('failed'); }
   };
   ipcMain.handle('veneta-checklist-evaluate', async (_event, request) => {
@@ -580,7 +588,8 @@ function registerVenetaProductIpc({ ipcMain, getUserDataDir, defaultProfile = 'd
     items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     return { items: items.slice(0, 20) };
   }));
-  return { store, bindSessionToNote, live };
+  return { store, bindSessionToNote, live, modelSlot: slot, onSettingsChanged: (listener) => { settingsListeners.add(listener); return () => settingsListeners.delete(listener); } };
 }
 
-module.exports = { createProductSettingsStore, registerVenetaProductIpc, validateRequest, validateAssessmentResponse };
+module.exports = { createProductSettingsStore, registerVenetaProductIpc, validateRequest, validateAssessmentResponse,
+  safeRead, atomicWrite, assertDirectory, AGENDA_MODULE };

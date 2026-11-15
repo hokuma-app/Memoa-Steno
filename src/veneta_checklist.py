@@ -487,7 +487,7 @@ def _read_bounded(path, maximum, *, private=False, dir_fd=None):
     return parse_json(content.decode('utf-8'))
 
 
-def read_request_file(request_path):
+def read_request_file(request_path, validate=None):
     """Read beneath an opened user-data directory, never following descendants.
 
     Uses macOS/Linux openat-style directory descriptors and O_NOFOLLOW at each
@@ -515,7 +515,7 @@ def read_request_file(request_path):
             os.close(directory)
             directory = child
         # _read_bounded validates with fstat and reads this same opened file FD.
-        return validate_request(_read_bounded(
+        return (validate or validate_request)(_read_bounded(
             parts[-1], MAX_REQUEST_BYTES, private=True, dir_fd=directory))
     finally:
         os.close(directory)

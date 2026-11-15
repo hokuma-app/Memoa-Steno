@@ -1157,6 +1157,18 @@ export interface StenoaiBridge {
     /** The host-planned live check of the active recording (state, counters, result); stays valid across any remount. */
     liveState(): Promise<Result<{ live: import('@/modules/conversation-checklist/contracts').ChecklistLive }>>;
   };
+  /** Agenda en voorzitter (stand 1): only works with the module on in the Veneta profile; every channel refuses otherwise. */
+  agenda: {
+    parse(request: { text: string; sourceName?: string | null }): Promise<Result<{ agenda: import('@/modules/agenda-chair/contracts').Agenda; dropped: number; merged: number }> & { code?: string }>;
+    getPreparation(): Promise<Result<{ preparation: import('@/modules/agenda-chair/contracts').Agenda | null }>>;
+    prepare(request: { agenda: import('@/modules/agenda-chair/contracts').Agenda }): Promise<Result<{ preparation: import('@/modules/agenda-chair/contracts').Agenda }> & { code?: string }>;
+    clearPreparation(): Promise<Result<Record<never, never>>>;
+    /** The host-planned meeting state of the active recording; stays valid across any remount. */
+    liveState(): Promise<Result<{ live: import('@/modules/agenda-chair/contracts').AgendaLive }>>;
+    liveAction(request: { action: import('@/modules/agenda-chair/contracts').AgendaAction; itemId?: string }): Promise<Result<{ live: import('@/modules/agenda-chair/contracts').AgendaLive }> & { code?: string }>;
+    noteResult(request: { noteFile: string }): Promise<Result<import('@/modules/agenda-chair/contracts').AgendaNoteResult>>;
+    correctNote(request: import('@/modules/agenda-chair/contracts').AgendaCorrection): Promise<Result<import('@/modules/agenda-chair/contracts').AgendaNoteResult>>;
+  };
 
   app: {
     platform: 'darwin' | 'linux' | 'win32';
@@ -1634,6 +1646,8 @@ export interface StenoaiBridge {
     liveTranscriptError: Subscribe<LiveTranscriptErrorEvent>;
     /** Pushed by the host planner on every change of the live checklist state. */
     checklistLiveState: Subscribe<import('@/modules/conversation-checklist/contracts').ChecklistLive>;
+    /** Pushed by the host planner on every change of the agenda meeting state. */
+    agendaLiveState: Subscribe<import('@/modules/agenda-chair/contracts').AgendaLive>;
     /** Raw interleaved s16 PCM from the Linux loopback capture — see
      *  recording.startLinuxLoopback. Electron serialises the main-side Buffer
      *  as a Uint8Array on this side of the bridge. */

@@ -25,6 +25,7 @@ import { useRecordHotkeySetting } from '@/hooks/useSettings';
 import { ipc, type CalendarEvent, type Meeting, type WatchedFile } from '@/lib/ipc';
 import { unwrap } from '@/lib/result';
 import { ChecklistChoiceCard } from '@/modules/conversation-checklist/ChecklistChoiceCard';
+import { AgendaPrepareCard } from '@/modules/agenda-chair/AgendaPrepareCard';
 import { t } from '@/i18n';
 import { pickInProgressEvent } from '@/lib/calendar';
 import { heroHeadline, heroSubtitle } from '@/lib/hero';
@@ -572,7 +573,7 @@ export function Home({ mode }: HomeProps) {
               Always get consent when transcribing others.
             </p>
           </div>
-          {!isRecording && <div className="w-full max-w-[560px] text-left"><ChecklistChoiceCard /></div>}
+          {!isRecording && <div className="w-full max-w-[560px] text-left"><ChecklistChoiceCard /><AgendaPrepareCard /></div>}
           <div className="flex flex-col items-center gap-3">
             <Button
               variant={isRecording ? 'destructive' : 'default'}
@@ -625,6 +626,7 @@ export function Home({ mode }: HomeProps) {
           )}
 
           {mode === 'home' && !isRecording && <ChecklistChoiceCard />}
+          {mode === 'home' && !isRecording && <AgendaPrepareCard />}
 
           {homeCalendarNudge && (
             <div className="mb-8 w-fit">{homeCalendarNudge}</div>

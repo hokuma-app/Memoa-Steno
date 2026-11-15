@@ -95,6 +95,16 @@ const stenoai = {
     correctNote: (request) => invoke('veneta-checklist-note-correct', request),
     liveState: () => invoke('veneta-checklist-live-state'),
   },
+  agenda: {
+    parse: (request) => invoke('veneta-agenda-parse', request),
+    getPreparation: () => invoke('veneta-agenda-get-preparation'),
+    prepare: (request) => invoke('veneta-agenda-prepare', request),
+    clearPreparation: () => invoke('veneta-agenda-clear-preparation'),
+    liveState: () => invoke('veneta-agenda-live-state'),
+    liveAction: (request) => invoke('veneta-agenda-live-action', request),
+    noteResult: (request) => invoke('veneta-agenda-note-result', request),
+    correctNote: (request) => invoke('veneta-agenda-note-correct', request),
+  },
 
   app: {
     platform: rendererPlatformOverride || process.platform,
@@ -524,6 +534,7 @@ const stenoai = {
     liveTranscriptChunk: (cb) => subscribe('live-transcript-chunk', cb),
     liveTranscriptError: (cb) => subscribe('live-transcript-error', cb),
     checklistLiveState: (cb) => subscribe('veneta-checklist-live-state', cb),
+    agendaLiveState: (cb) => subscribe('veneta-agenda-live-state', cb),
     linuxLoopbackChunk: (cb) => subscribe('linux-loopback-chunk', cb),
     linuxLoopbackEnded: (cb) => subscribe('linux-loopback-ended', cb),
     updateAvailable: (cb) => subscribe('update-available', cb),

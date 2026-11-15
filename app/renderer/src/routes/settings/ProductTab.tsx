@@ -5,6 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { useProductSettings } from '@/hooks/useProductSettings';
 import { isProductModuleEnabled } from '@/lib/productProfiles';
 import { COMPACT_TRIGGER, SectionHeading, SettingRow } from './primitives';
+import { agendaText } from '@/modules/agenda-chair/locales/nl';
 
 export interface ProductTabProps {
   busy?: boolean;
@@ -13,6 +14,9 @@ export function ProductTab({ busy = false }: ProductTabProps) {
   const { settings, hydrated, error, setProfile, setModuleEnabled } = useProductSettings();
   const [saving, setSaving] = useState(false);
   const enabled = isProductModuleEnabled(settings, hydrated, 'conversation-checklist');
+  const agendaEnabled = isProductModuleEnabled(settings, hydrated, 'agenda-chair');
+  const agendaLabel = agendaText('moduleName');
+  const agendaDescription = agendaText('moduleDescription');
   const save = async (operation: () => Promise<void>) => {
     setSaving(true);
     try {
@@ -60,6 +64,15 @@ export function ProductTab({ busy = false }: ProductTabProps) {
         />
       </SettingRow>
       {enabled && settings.profile === 'veneta' && <SellerChannel />}
+      <SettingRow label={agendaLabel} description={agendaDescription} noBorder>
+        <Switch
+          aria-label={agendaLabel}
+          aria-describedby="product-module-permission"
+          checked={agendaEnabled}
+          disabled={!hydrated || settings.profile !== 'veneta' || saving || (busy && !agendaEnabled)}
+          onCheckedChange={(next) => void save(() => setModuleEnabled('agenda-chair', next))}
+        />
+      </SettingRow>
       <p
         id="product-module-permission"
         className="text-[13px] leading-relaxed text-[color:var(--fg-2)]"

@@ -37,6 +37,8 @@ import { MeetingLanguageSelect } from '@/components/MeetingLanguageSelect';
 import { VaultSyncStatusLine } from '@/components/VaultSyncStatusLine';
 import { ChecklistNoteTab } from '@/modules/conversation-checklist/ChecklistNoteTab';
 import { useNoteChecklist } from '@/modules/conversation-checklist/useNoteChecklist';
+import { AgendaNoteTab } from '@/modules/agenda-chair/AgendaNoteTab';
+import { useNoteAgenda } from '@/modules/agenda-chair/useNoteAgenda';
 import {
   Select,
   SelectContent,
@@ -841,12 +843,14 @@ function DetailContent({
   // the summary. Persists to the `## User Notes` section (autosave). Local
   // state resets per meeting because DetailContent is keyed by summaryFile.
   const hasUserNotes = Boolean((meeting.user_notes ?? '').trim());
-  const [chosenTab, setTab] = React.useState<'summary' | 'notes' | 'checklist'>(() =>
+  const [chosenTab, setTab] = React.useState<'summary' | 'notes' | 'checklist' | 'agenda'>(() =>
     meeting.steno_transfer && !summary && hasUserNotes ? 'notes' : 'summary'
   );
   // The checklist result of this note (0.9.3): a tab in the note itself, only when the note has one.
   const checklist = useNoteChecklist(summaryFile);
-  const tab = chosenTab === 'checklist' && !checklist.result ? 'summary' : chosenTab;
+  // The agenda minutes of this note (Agenda en voorzitter, stand 1): a tab only when the note has them.
+  const agenda = useNoteAgenda(summaryFile);
+  const tab = (chosenTab === 'checklist' && !checklist.result) || (chosenTab === 'agenda' && !agenda.result) ? 'summary' : chosenTab;
 
   const summaryAndTopics = (
     <>
@@ -1369,6 +1373,7 @@ function DetailContent({
         tab={tab}
         onTab={setTab}
         checklistTab={checklist.label}
+        agendaTab={agenda.label}
         hasNotes={hasUserNotes}
         activeReportId={activeReportId}
         reports={reports}
@@ -1495,6 +1500,10 @@ function DetailContent({
         <ChecklistNoteTab noteFile={summaryFile} result={checklist.result} onChanged={checklist.update} />
       )}
 
+      {tab === 'agenda' && agenda.result && (
+        <AgendaNoteTab noteFile={summaryFile} result={agenda.result} onChanged={agenda.update} />
+      )}
+
       <Dialog open={unshareOpen} onOpenChange={setUnshareOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -1567,6 +1576,7 @@ function NoteViewToggle({
   tab,
   onTab,
   checklistTab,
+  agendaTab,
   hasNotes,
   activeReportId,
   reports,
@@ -1576,10 +1586,12 @@ function NoteViewToggle({
   onGenerate,
   generating,
 }: {
-  tab: 'summary' | 'notes' | 'checklist';
-  onTab: (t: 'summary' | 'notes' | 'checklist') => void;
+  tab: 'summary' | 'notes' | 'checklist' | 'agenda';
+  onTab: (t: 'summary' | 'notes' | 'checklist' | 'agenda') => void;
   /** "Adviseur Gesprek 7/8"; null when this note has no checklist result. */
   checklistTab: string | null;
+  /** "Notulen"; null when this note has no agenda minutes. */
+  agendaTab: string | null;
   hasNotes: boolean;
   activeReportId: string | null;
   reports: Report[];
@@ -1761,6 +1773,23 @@ function NoteViewToggle({
             }}
           >
             {checklistTab}
+          </button>
+        </>}
+        {agendaTab && <>
+          <span aria-hidden="true" style={{ width: 1, background: 'var(--border-subtle)' }} />
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'agenda'}
+            data-testid="tab-agenda"
+            onClick={() => onTab('agenda')}
+            className="inline-flex items-center px-3 py-1 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            style={{
+              background: tab === 'agenda' ? 'var(--surface-active)' : 'transparent',
+              color: tab === 'agenda' ? 'var(--fg-1)' : 'var(--fg-2)',
+            }}
+          >
+            {agendaTab}
           </button>
         </>}
       </div>
