@@ -2,6 +2,19 @@
 
 Dit bestand beschrijft de eigen Veneta-releases, niet de releases van StenoAI upstream. Gepland werk staat apart van opgeleverde functionaliteit. Een versienummer in de bron is nog geen gebouwde of vrijgegeven release.
 
+## 0.11.1, testkandidaat, 2026-11-16
+
+Patch op 0.11.0 na de eerste testmeeting van Martin: de knoppen werkten, maar met spraak doorgaan naar het volgende punt niet.
+
+- Agenda: gesproken agenda-opdrachten via de eigen microfoon: 'volgend punt', 'naar punt 3', 'dit punt is afgerond', 'sla dit punt over', 'punt doorschuiven'. Herkend met vaste zinnen, zonder model, direct uitgevoerd en met één tik ongedaan te maken. Alleen agenda-acties, nooit iets buiten de app. Wat andere deelnemers zeggen stuurt de agenda niet, en tekst die al in een voortgezette notitie stond telt niet mee. De zijbalk toont tijdens de opname een korte hint met deze zinnen.
+- Ontwikkeling: `custom/dev-snel.mjs` scheidt een snelle dev-lus (alleen wat sinds de laatste groene volle poort veranderde) van de volle release-lus.
+
+Bekende grenzen: als 0.11.0; het model herkende in de testmeeting de overgang naar punt 2 niet uit de inhoud, dat is nog niet onderzocht.
+
+Bewijs: Python 1.958 OK (2 overgeslagen); Node 924: 922 geslaagd, 1 mislukt (`multichannel WAV retains the existing PCM export path` in `meeting-transfer-audio`, code ongewijzigd sinds de 0.10.7-bron), 1 overgeslagen; renderer 596/596; typecontrole, `lint:main`, `lint:i18n`, kopij-inventaris en `lint:renderer` (0 fouten, 44 bestaande waarschuwingen) geslaagd. Ontwikkel-T1: Default 217 geslaagd en 1 overgeslagen, Veneta 218/218. Pakket-T1 tegen het uitgepakte, ondertekende pakket: 218/218, headless. `app.asar` 75.599.452 bytes met 240 top-level pakketten, gelijk aan 0.11.0. Lokale ondertekening (Memoa Test Local Signing) diep en strikt geldig vóór en na uitpakken; backend-CLI start met `--help`. Niet genotariseerd, niet geïnstalleerd.
+
+Pakket: `.local/veneta-0.11.1/Veneta-MemoAi-0.11.1-arm64.zip`, 305.315.834 bytes, SHA-256 `0c2726db32db539603e985b46838c3de98e1c5c456a76a57a85275f046460edd`. Bron: commit `e33e39f`, schone werkboom; bronmanifest met 1.111 bestanden. Bundle-ID `local.memoa.test`, gegevensroot ongewijzigd.
+
 ## 0.11.0, testkandidaat, 2026-11-16
 
 Minor: Nederlandse interface en samenvattingstaal, en de nieuwe module Agenda en voorzitter (stand 1). Branch `feat/veneta-0.11.0`: merge van `feat/veneta-nl-interface` en `feat/agenda-voorzitter` op de 0.10.7-bron `b81471b`, plus de besluiten van Martin van 15-11.
