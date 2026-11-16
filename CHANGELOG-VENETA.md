@@ -2,9 +2,9 @@
 
 Dit bestand beschrijft de eigen Veneta-releases, niet de releases van StenoAI upstream. Gepland werk staat apart van opgeleverde functionaliteit. Een versienummer in de bron is nog geen gebouwde of vrijgegeven release.
 
-## Ongepubliceerd: kandidaat 0.11.0
+## 0.11.0, testkandidaat, 2026-11-16
 
-Nog niet gebouwd, ondertekend of vrijgegeven; het versienummer in `app/package.json` is ongewijzigd (0.10.7). Branch `feat/veneta-0.11.0`: merge van `feat/veneta-nl-interface` en `feat/agenda-voorzitter`.
+Minor: Nederlandse interface en samenvattingstaal, en de nieuwe module Agenda en voorzitter (stand 1). Branch `feat/veneta-0.11.0`: merge van `feat/veneta-nl-interface` en `feat/agenda-voorzitter` op de 0.10.7-bron `b81471b`, plus de besluiten van Martin van 15-11.
 
 ### Nederlandse interface en samenvattingstaal
 
@@ -26,9 +26,24 @@ Nieuwe module `Agenda en voorzitter`, stand 1 (Stille voorzitter), naast de Gesp
 
 Bekende grenzen: afdwaling niet gebouwd; herkenningskwaliteit niet gemeten; een pauze zet de klok van het lopende punt niet stil; tijdcodes in een voortgezette notitie beginnen opnieuw; sprekers zijn kanalen.
 
-### Bewijs (bron, geen pakket)
+### Besluiten van 15-11
 
-Op de integratiebranch: Python 1.951 uitgevoerd, OK (5 overgeslagen); Node 908: 902 geslaagd, 5 mislukt, 1 overgeslagen (de 5 `meeting-transfer-audio`-tests missen de niet-gebouwde `bin/steno-audio-encode`, net als op de 0.10.7-bron); renderer 589/589; typecontrole, `lint:main`, `lint:i18n` (0 bekende teksten), kopij-inventaris en `lint:renderer` (0 fouten) geslaagd. T1 met de Default-build 216 geslaagd, 1 overgeslagen; T1 met de Veneta-build 216 geslaagd, 1 mislukt: de bekende wankele test 'all five levels' van summary-folding, die los herhaald 3/3 slaagde. Geen pakket gebouwd, niet ondertekend, niet geïnstalleerd.
+- De MemoAi-melding verschijnt op normaal vensterniveau: niet meer altijd bovenop, niet op alle bureaubladen en niet over schermvullende apps. Ze pakt nog steeds geen focus, de knoppen werken met één klik en ze sluit na 15 seconden (`app/notification-window.js`, met tests).
+- Agenda: `besluit zonder eigenaar` meldt alleen bij een ontbrekende eigenaar; een ontbrekende termijn staat stil bij het besluit ('Termijn: niet genoemd').
+- Agenda: eigen modelkeuze in Instellingen > AI, standaard 'zelfde als checklist'; alleen lokaal, met dezelfde lokaal-bewijs-controle.
+- Agenda: een nieuw punt starten rondt het vorige af, met 'Ongedaan maken'; het vorige punt loopt dan door met de tijd sinds de wissel erbij.
+- Agenda: een doorgeschoven vereist punt telt niet als open; na het stoppen worden open vragen nog één keer over het hele gesprek nagegaan, binnen dezelfde invoergrenzen (bij een te lang gesprek de nieuwste staart, en de notulen zeggen dat).
+- Samenvattingstaal staat ook in de Default-build, standaard 'automatisch'; het Default-gedrag verandert pas als de gebruiker een taal kiest.
+- Stemprofiel- en kluismaptekst noemen Veneta MemoAi in de Veneta-build; de echte map `StenoAI`, de telemetrie (Steno Labs) en de open-sourceverwijzing blijven. De zijbalk van de opname heet neutraal 'Gespreksmodules'.
+- Tests: de wankele summary-folding-test wacht op een vast signaal in plaats van op timing; de updatefouttekst in de testomgeving komt uit dezelfde catalogus als de app.
+
+Bekende grenzen: geen meting van de herkenningskwaliteit van de agenda met een echt model; geen koppeling van de notulen met de Obsidian-export; afdwaling niet gebouwd; een pauze zet de klok van het lopende punt niet stil; tijdcodes in een voortgezette notitie beginnen opnieuw; sprekers zijn kanalen, geen personen; de melding kan nu achter het actieve venster van een andere app vallen; samenvattingskoppen blijven in opgeslagen notities Engels (de app toont ze Nederlands).
+
+Opgelost vóór oplevering: de eerste 0.11.0-build was gebouwd in een werkboom waar `app/node_modules` een symbolische koppeling was. electron-builder liet daardoor ongeveer 220 afhankelijkheden van het hoofdproces weg (onder meer van axios en electron-updater; `app.asar` 49,5 in plaats van 75,6 MB). Die build is niet opgeleverd; de kandidaat hieronder is opnieuw gebouwd met een volledige kopie van dezelfde afhankelijkheden (247 pakketten in `app.asar`, gelijk aan 0.10.7).
+
+Bewijs: Python 1.958 uitgevoerd, OK (2 overgeslagen); Node 922: 916 geslaagd, 5 mislukt, 1 overgeslagen (de 5 `meeting-transfer-audio`-tests missen de niet-gebouwde `bin/steno-audio-encode`, net als op de 0.10.7-bron); renderer 596/596; typecontrole, `lint:main`, `lint:i18n` (0 bekende teksten), kopij-inventaris en `lint:renderer` (0 fouten, 44 bestaande waarschuwingen) geslaagd. Ontwikkel-T1: Default 217 geslaagd en 1 overgeslagen, Veneta 218/218. Volledige pakket-T1 tegen het uitgepakte, ondertekende pakket (Veneta-build): 218/218, zonder skips of herhalingen, headless. Verpakte backend-CLI start met `--help`. Lokale ondertekening (Memoa Test Local Signing) diep en strikt geldig vóór en na uitpakken; niet genotariseerd, niet geïnstalleerd. Geen echte opname of modelaanroep in deze kandidaat.
+
+Pakket: `.local/veneta-0.11.0/Veneta-MemoAi-0.11.0-arm64.zip`, 305.311.333 bytes, SHA-256 `df3998870bac5fd18b8462f152e566ad3b1b95c6bceda65540e434cce3ca27c0`. Bron: commit `b00008e`, schone werkboom; bronmanifest `.local/veneta-0.11.0/source-manifest.json` met 1.108 bestanden, na het opnieuw bouwen bytegelijk nagerekend. Interne naam `Memoa Test`, bundle-ID `local.memoa.test`, gegevensroot en encryptie-identiteit ongewijzigd.
 
 ## Versiebeleid
 
