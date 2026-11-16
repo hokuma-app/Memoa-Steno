@@ -55,6 +55,7 @@ export function AgendaSidebar({ live, receivedAt, onAction, error }: {
     <header>
       <h2 className="text-[16px] font-semibold">{live.agenda.title || t('liveHeading')}</h2>
       <p className="text-[12px] text-[color:var(--fg-2)]">{t('liveDisclosure')}</p>
+      {!live.ended && <p className="text-[12px] text-[color:var(--fg-2)]" data-voice-hint>{t('liveVoiceHint')}</p>}
       {live.planned.totalMinutes > 0 && <p className="text-[12px] text-[color:var(--fg-2)]" data-agenda-total>
         {t('liveTotal', { planned: stamp(live.planned.totalMinutes * 60), elapsed: stamp(elapsedMs / 1000) })}
       </p>}

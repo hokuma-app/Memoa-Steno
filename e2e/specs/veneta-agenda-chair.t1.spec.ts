@@ -67,7 +67,7 @@ test('before, during and after: agenda in, silent chair with a confirmed suggest
   await expect(sidebar.locator('[data-agenda-item="p1"]')).toHaveAttribute('data-status', 'loopt');
   await emitLiveSegments(app, session, [
     { text: 'Welkom allemaal bij het werkoverleg.', start: 2, end: 5, isFinal: true, speaker: 'You' },
-    { text: 'We gaan naar punt 2, de nieuwe roosters.', start: 30, end: 33, isFinal: true, speaker: 'You' },
+    { text: 'We gaan nu naar nieuwe roosters.', start: 30, end: 33, isFinal: true, speaker: 'Others' },
   ]);
   const suggestion = sidebar.getByTestId('agenda-suggestion');
   await expect(suggestion).toContainText('Punt 2 lijkt begonnen: Nieuwe roosters', { timeout: 75_000 });
@@ -88,6 +88,16 @@ test('before, during and after: agenda in, silent chair with a confirmed suggest
   await expect(sidebar.locator('[data-agenda-item="p2"]')).toHaveAttribute('data-status', 'loopt');
   await expect(sidebar.locator('[data-agenda-item="p1"]')).toHaveAttribute('data-status', 'afgerond');
   await expect(sidebar.locator('[data-agenda-item="p2"]')).toContainText('gestart door jou');
+  // 0.11.1: a spoken command on the user's own microphone moves the agenda directly, with the same undo.
+  await expect(sidebar.locator('[data-voice-hint]')).toContainText('volgend punt');
+  await emitLiveSegments(app, session, [
+    { text: 'Oké, volgend punt.', start: 300, end: 302, isFinal: true, speaker: 'You' },
+  ]);
+  await expect(sidebar.locator('[data-agenda-item="p3"]')).toHaveAttribute('data-status', 'loopt');
+  await expect(sidebar.locator('[data-agenda-item="p2"]')).toHaveAttribute('data-status', 'afgerond');
+  await undo.getByRole('button', { name: /Wissel ongedaan maken/ }).click();
+  await expect(sidebar.locator('[data-agenda-item="p2"]')).toHaveAttribute('data-status', 'loopt');
+  await expect(sidebar.locator('[data-agenda-item="p3"]')).toHaveAttribute('data-status', 'open');
   await emitLiveSegments(app, session, [
     { text: 'We besluiten het nieuwe rooster in mei in te voeren.', start: 600, end: 604, isFinal: true, speaker: 'Others' },
     { text: 'Noor stuurt het rooster voor vrijdag rond.', start: 606, end: 609, isFinal: true, speaker: 'You' },
@@ -102,7 +112,7 @@ test('before, during and after: agenda in, silent chair with a confirmed suggest
   await emitLiveSegments(app, session, [
     { text: 'Sanne boekt de zaal voor de volgende keer.', start: 640, end: 643, isFinal: true, speaker: 'You' },
   ]);
-  await expect(sidebar.locator('[data-agenda-diagnostics]')).toHaveText(/^tekstregels 6 · controles \d+ · laatste reden (stil|maxwacht)$/, { timeout: 75_000 });
+  await expect(sidebar.locator('[data-agenda-diagnostics]')).toHaveText(/^tekstregels 7 · controles \d+ · laatste reden (stil|maxwacht)$/, { timeout: 75_000 });
   // The renderer plans nothing itself.
   expect(await modelCalls(app)).toBeGreaterThanOrEqual(2);
   await page.screenshot({ path: test.info().outputPath('agenda-tijdens.png'), animations: 'disabled' });

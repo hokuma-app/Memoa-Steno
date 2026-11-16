@@ -747,3 +747,51 @@ test('validateSession refuses foreign shapes and keeps stored sessions readable'
   assert.throws(() => validateSession({ ...session, findings: [{ id: 'f1', kind: 'besluit', itemId: null, text: 'x', owner: null, due: null, origin: 'ai',
     evidence: { segmentId: 's', quote: 'ab', start: 0, end: 1, speaker: 'self' } }] }));
 });
+
+// ---- Spoken agenda commands (0.11.1) ---------------------------------------------------------------------------
+
+test('voice commands: recognised without a model in ordinary Dutch, anything else is not a command', () => {
+  const p = chair.parseVoiceCommand;
+  assert.deepEqual(p('Oké, volgend punt.'), { command: 'next' });
+  assert.deepEqual(p('Dan gaan we door naar het volgende agendapunt'), { command: 'next' });
+  assert.deepEqual(p('We gaan naar punt 3'), { command: 'goto', number: 3 });
+  assert.deepEqual(p('Naar agendapunt twee graag'), { command: 'goto', number: 2 });
+  assert.deepEqual(p('Punt vier starten'), { command: 'goto', number: 4 });
+  assert.deepEqual(p('Dit punt is afgerond'), { command: 'finish' });
+  assert.deepEqual(p('Rond het punt af'), { command: 'finish' });
+  assert.deepEqual(p('Sla dit punt over'), { command: 'skip' });
+  assert.deepEqual(p('Punt doorschuiven naar volgende week'), { command: 'defer' });
+  assert.equal(p('Dat is een goed punt'), null);
+  assert.equal(p('Op punt drie hadden we al besloten'), null);
+  assert.equal(p('x'.repeat(201)), null);
+  assert.equal(p(null), null);
+});
+
+test('voice commands: own microphone moves the agenda directly, with one-tap undo; others and earlier text do nothing', async () => {
+  const h = harness();
+  h.finals = [final(0, 'volgend punt', 'You', 0)]; // already there before the recording: never a command
+  h.planner.begin({ startedAtMs: h.c.now() });
+  h.planner.notify();
+  assert.equal(h.state().currentItemId, null);
+  h.add(final(1, 'Laten we beginnen met punt 1', 'You'));
+  assert.equal(h.state().currentItemId, 'p1');
+  await h.c.advance(60_000);
+  h.add(final(2, 'volgend punt', 'Others'));
+  assert.equal(h.state().currentItemId, 'p1', 'another speaker does not steer the agenda');
+  h.add(final(3, 'Oké, volgend punt.', 'You'));
+  let state = h.state();
+  assert.equal(state.currentItemId, 'p2');
+  assert.equal(state.items.p1.status, 'afgerond');
+  assert.equal(state.items.p1.spentMs, 60_000);
+  assert.ok(state.undo, 'the switch can be taken back with one tap');
+  h.planner.act({ action: 'undoSwitch', itemId: state.undo.itemId ?? 'p2' });
+  assert.equal(h.state().currentItemId, 'p1');
+  h.add(final(4, 'naar punt 4', 'You'));
+  h.add(final(5, 'dit punt is afgerond', 'You'));
+  state = h.state();
+  assert.equal(state.items.p4.status, 'afgerond');
+  assert.equal(state.currentItemId, null);
+  h.add(final(6, 'naar punt 9', 'You'));
+  assert.equal(h.state().currentItemId, null, 'an unknown number does nothing');
+  assert.ok(h.logs.some((l) => l.event === 'voice_command' && l.fields.applied === false));
+});

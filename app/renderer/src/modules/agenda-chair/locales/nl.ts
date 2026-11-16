@@ -99,6 +99,7 @@ export const agendaCopy = {
   liveDueMissing: 'Termijn: niet genoemd',
   liveUndoText: '{{title}} afgerond.',
   liveUndo: 'Ongedaan maken',
+  liveVoiceHint: 'Zeg via je eigen microfoon: "volgend punt", "naar punt 3" of "punt afronden".',
   liveUndoLabel: 'Wissel ongedaan maken: {{title}} loopt weer',
   listJoin: ', ',
   kind_besluit: 'Besluit',

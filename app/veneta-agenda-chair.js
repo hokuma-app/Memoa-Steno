@@ -751,6 +751,52 @@ function applyAction(session, { action, itemId }, nowMs) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Spoken agenda commands (own microphone only)
+// ---------------------------------------------------------------------------------------------------------------
+
+const NUMBER_WORDS = Object.freeze({ een: 1, 'één': 1, eerste: 1, twee: 2, tweede: 2, drie: 3, derde: 3, vier: 4, vierde: 4, vijf: 5, vijfde: 5,
+  zes: 6, zesde: 6, zeven: 7, zevende: 7, acht: 8, achtste: 8, negen: 9, negende: 9, tien: 10, tiende: 10, elf: 11, twaalf: 12 });
+
+/**
+ * A spoken agenda command in one final segment, recognised without a model: "volgend punt", "naar punt 3",
+ * "punt afronden", "punt overslaan", "punt doorschuiven". Returns { command, number? } or null. Only agenda moves,
+ * never anything outside the app; the host applies them only to the user's own microphone channel.
+ */
+function parseVoiceCommand(text) {
+  if (typeof text !== 'string' || text.length > 200) return null;
+  const t = ` ${text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()} `;
+  const num = t.match(/\b(?:naar|start|begin|beginnen met|starten met|door naar|over naar) (?:het )?(?:agenda)?punt (\d{1,2}|[\p{L}]+)\b/u)
+    || t.match(/\b(?:agenda)?punt (\d{1,2}|[\p{L}]+) (?:starten|beginnen|begint|start)\b/u);
+  if (num) {
+    const n = /^\d+$/.test(num[1]) ? Number(num[1]) : NUMBER_WORDS[num[1]];
+    if (Number.isInteger(n) && n > 0) return { command: 'goto', number: n };
+  }
+  if (/\b(?:volgend|volgende) (?:agenda)?punt\b/u.test(t)) return { command: 'next' };
+  if (/\b(?:(?:agenda)?punt (?:is )?(?:afronden|afgerond|klaar|gesloten|sluiten)|rond (?:het|dit|dat) (?:agenda)?punt af|sluit (?:het|dit|dat) (?:agenda)?punt)\b/u.test(t)) return { command: 'finish' };
+  if (/\b(?:(?:agenda)?punt overslaan|sla (?:het|dit|dat) (?:agenda)?punt over)\b/u.test(t)) return { command: 'skip' };
+  if (/\b(?:(?:agenda)?punt doorschuiven|schuif (?:het|dit|dat) (?:agenda)?punt door)\b/u.test(t)) return { command: 'defer' };
+  return null;
+}
+
+/** Turn a parsed command into a human action on this session, or null when it does not apply (no next item, no current item). */
+function voiceAction(session, parsed) {
+  const ids = session.agenda.items.map((item) => item.id);
+  const current = session.currentItemId;
+  if (parsed.command === 'goto') {
+    const id = ids[parsed.number - 1];
+    return id ? { action: 'start', itemId: id } : null;
+  }
+  if (parsed.command === 'next') {
+    const from = current ? ids.indexOf(current) + 1 : 0;
+    const id = ids.slice(from).find((itemId) => session.items[itemId].status === 'open')
+      || ids.find((itemId) => session.items[itemId].status === 'open');
+    return id ? { action: 'start', itemId: id } : (current ? { action: 'finish', itemId: current } : null);
+  }
+  if (!current) return null;
+  return { action: parsed.command, itemId: current };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // The host planner
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -1020,6 +1066,25 @@ function createAgendaPlanner(deps) {
     if (data.meetingSince !== null) { data.meetingMs += Math.max(0, at - data.meetingSince); data.meetingSince = null; }
   };
 
+  /** Spoken agenda commands from the user's own microphone, each final segment once; earlier text never counts. */
+  const voiceCommands = (sess, finals) => {
+    if (!sess.commandSeen) return;
+    let segments;
+    try { segments = mapFinals(finals, true); } catch (_) { return; }
+    for (const segment of segments) {
+      if (sess.commandSeen.has(segment.id)) continue;
+      sess.commandSeen.add(segment.id);
+      if (segment.speaker !== 'seller') continue;
+      const parsed = parseVoiceCommand(segment.text);
+      if (!parsed) continue;
+      const request = voiceAction(sess.data, parsed);
+      if (!request) { log('voice_command', { command: parsed.command, applied: false }); continue; }
+      const outcome = applyAction(sess.data, request, now());
+      log('voice_command', { command: parsed.command, applied: outcome.ok });
+      if (outcome.ok) { save(sess); publish(sess); }
+    }
+  };
+
   return {
     /** A recording starts. Off module or no agenda ready: returns false and reads nothing of the agenda files. */
     begin({ appendTarget = null, startedAtMs }) {
@@ -1042,6 +1107,9 @@ function createAgendaPlanner(deps) {
         dirty: false, pendingSince: null, timer: null, signalTimer: null, inFlight: false, flight: null, lastRunAt: null, failure: null,
         tooLarge: false, cancelled: false, finalRunning: false, seq: 0, sleepers: new Set(),
       };
+      // Text that was already there (a continued note) is never read as a command.
+      current.commandSeen = new Set();
+      try { for (const segment of mapFinals(deps.getFinals(), true)) current.commandSeen.add(segment.id); } catch (_) { /* Start empty. */ }
       save(current);
       log('begin', { session: shortId(sessionId), items: data.agenda.items.length, continued: Boolean(appendTarget) });
       publish(current);
@@ -1062,6 +1130,7 @@ function createAgendaPlanner(deps) {
       sess.lines = lines;
       sess.dirty = true; sess.pendingSince ??= now();
       log('finals', { lines, grew });
+      voiceCommands(sess, finals);
       if (grew || !sess.inFlight) publish(sess);
       schedule(sess);
     },
@@ -1224,5 +1293,5 @@ module.exports = {
   OUTCOMES, STATUSES, KINDS, ACTIONS, LIMITS, REVIEW_STATUSES, STABLE_MS, MAX_WAIT_MS, NEAR_RATIO, REQUIRED_MARGIN_MS,
   wholeWordQuote, saidIn, parseAgenda, parseItemText, validateAgenda, signalsOf, nextSignalAt, agendaSegments, planAgendaWindow, planQuestionWindow,
   validateAgendaRequest, validateAgendaResponse, newSession, validateSession, mergeAnswer, applyAction, createAgendaPlanner,
-  buildMinutes, minutesMarkdown, questionsReviewText, findingId, assessedTest,
+  buildMinutes, minutesMarkdown, questionsReviewText, findingId, assessedTest, parseVoiceCommand, voiceAction,
 };
